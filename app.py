@@ -93,45 +93,47 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
-        f1, f2, f3, f4 = st.columns(4)
+        # ================= NAYA FEATURE: 5 FILTERS INCLUDING STAFF =================
+        f1, f2, f3, f4, f5 = st.columns(5)
         
-        # ================= NAYA FEATURE: CASCADING FILTERS =================
-        # Pehle 'Client' select hoga, uske baad hi aage ka data filter hoga
-        with f3:
+        with f1:
             client_list = ["ALL"] + list(df['Party'].dropna().unique()) if 'Party' in df.columns else ["ALL"]
             client_filter = st.selectbox("Filter by Client:", client_list)
-        
-        # Client filter apply karke 'df' ka naya hissa banaya
+            
         client_filtered_df = df.copy()
         if client_filter != "ALL":
             client_filtered_df = client_filtered_df[client_filtered_df['Party'] == client_filter]
 
-        with f1:
-            # Ab yahan sirf usi client ke 'From' (Route) dikhenge
-            ro_list = ["ALL"] + list(client_filtered_df['From'].dropna().unique()) if 'From' in client_filtered_df.columns else ["ALL"]
-            # "Filter by Origin" ka naam badalkar "Filter by Route" kar diya
+        with f2:
+            # Controlling Staff Name Dropdown add kiya gaya
+            staff_list = ["ALL"] + list(client_filtered_df['Controlling Staff Name'].dropna().unique()) if 'Controlling Staff Name' in client_filtered_df.columns else ["ALL"]
+            staff_filter = st.selectbox("Filter by Staff:", staff_list)
+
+        staff_filtered_df = client_filtered_df.copy()
+        if staff_filter != "ALL":
+            staff_filtered_df = staff_filtered_df[staff_filtered_df['Controlling Staff Name'] == staff_filter]
+
+        with f3:
+            ro_list = ["ALL"] + list(staff_filtered_df['From'].dropna().unique()) if 'From' in staff_filtered_df.columns else ["ALL"]
             ro_filter = st.selectbox("Filter by Route:", ro_list)
             
-        # Route filter apply karna
-        route_filtered_df = client_filtered_df.copy()
+        route_filtered_df = staff_filtered_df.copy()
         if ro_filter != "ALL":
             route_filtered_df = route_filtered_df[route_filtered_df['From'] == ro_filter]
 
-        with f2:
-            # Ab yahan sirf chune hue Route ki Destinations dikhengi
+        with f4:
             dest_list = ["ALL"] + list(route_filtered_df['Destination'].dropna().unique()) if 'Destination' in route_filtered_df.columns else ["ALL"]
             dest_filter = st.selectbox("Filter by Destination:", dest_list)
 
-        with f4:
+        with f5:
             search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
             
-        # Final filtering applying saare chune hue options
         filtered_df = route_filtered_df.copy()
         if dest_filter != "ALL":
             filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
         if search_query:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
-        # ===================================================================
+        # ===========================================================================
 
         if not filtered_df.empty:
             summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
@@ -233,19 +235,25 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader(f"📈 Vehicle Trips Performance ({filter_option})")
-                st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
+                # GRAPH HATA DIYA GAYA HAI
                 
-                if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
-                    lorry_trips = detailed_data['Lorry No.'].value_counts()
-                    st.line_chart(lorry_trips)
-                
+                # ================= NAYA FEATURE: LAST 1 WEEK ROUTE-WISE COMPARISON =================
                 st.markdown("<br><br>", unsafe_allow_html=True)
-                st.subheader("📍 Route-wise Performance Comparison")
-                st.markdown("<small style='color:gray'>Selected dates ke hisaab se har route par gaadiyon ka asli performance</small>", unsafe_allow_html=True)
+                st.subheader("📍 Last 1 Week Route-wise Performance")
+                st.markdown("<small style='color:gray'>Aapke chune hue End Date se pichle 7 din ka data</small>", unsafe_allow_html=True)
                 
-                route_comp = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
+                # Last 7 Days ka filter lagana
+                last_week_df = filtered_df.copy()
+                if 'Date' in last_week_df.columns:
+                    try:
+                        last_week_df['Temp_Date'] = pd.to_datetime(last_week_df['Date'], errors='coerce').dt.date
+                        last_7_days_start = end_date - pd.Timedelta(days=7)
+                        # Filter for last 7 days
+                        last_week_df = last_week_df[(last_week_df['Temp_Date'] > last_7_days_start) & (last_week_df['Temp_Date'] <= end_date)]
+                    except Exception as e:
+                        pass # Agar date convert na ho, toh pura data dikhayega
+                        
+                route_comp = pd.crosstab(last_week_df['Destination'], last_week_df['Status_Category']).reset_index()
                 
                 for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
                     if col not in route_comp.columns:
@@ -271,8 +279,11 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             return 'background-color: #3b1c1c; color: #ff6b6b'
                     return ''
                     
-                styled_comp = display_comp.style.map(highlight_late, subset=['Late'])
-                st.dataframe(styled_comp, hide_index=True, use_container_width=True)
+                if display_comp.empty:
+                    st.warning("Pichle 7 din (Last 1 Week) mein koi gaadi is route par nahi chali hai.")
+                else:
+                    styled_comp = display_comp.style.map(highlight_late, subset=['Late'])
+                    st.dataframe(styled_comp, hide_index=True, use_container_width=True)
 
         else:
             st.warning("Chune gaye Filters ke hisaab se koi data nahi mila.")
