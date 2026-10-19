@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import io
 import os
 import urllib.parse
@@ -18,12 +18,27 @@ def process_dataframe(df):
         df['Route Path'] = "UNKNOWN ROUTE"
 
     def get_arrival_status(row):
-        if pd.isna(row.get('Final Touching Reporting Date & Time')):
-            return "In-Transit"
-        elif pd.notna(row.get('Late Hrs')):
-            return "Late Arrival"
+        final_rep = row.get('Final Touching Reporting Date & Time')
+        exp_dly = row.get('Expected Dly. Date & Time')
+        
+        # 1. Agar report ho chuka hai
+        if pd.notna(final_rep):
+            if pd.notna(row.get('Late Hrs')):
+                return "Late Arrival"
+            else:
+                return "Ontime Arrival"
         else:
-            return "Ontime Arrival"
+            # 2. Agar abhi In-Transit hai, toh check karein ki Running Delay hai ya On-time
+            try:
+                if pd.notna(exp_dly):
+                    exp_dt = pd.to_datetime(exp_dly)
+                    current_time = datetime.now()
+                    # Agar expected time nikal chuka hai aur abhi tak reporting nahi hui
+                    if current_time > exp_dt:
+                        return "Running Delay"
+            except:
+                pass
+            return "In-Transit"
             
     df['Status_Category'] = df.apply(get_arrival_status, axis=1)
     return df
@@ -103,17 +118,26 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
-        f1, f2, f3, f4, f5 = st.columns(5)
+        # ================= 6 FILTERS INCLUDING ZONE =================
+        f1, f2, f3, f4, f5, f6 = st.columns(6)
         
         with f1:
-            client_list = ["ALL"] + list(df['Party'].dropna().unique()) if 'Party' in df.columns else ["ALL"]
+            zone_list = ["ALL"] + list(df['Zone'].dropna().unique()) if 'Zone' in df.columns else ["ALL", "NORTH", "SOUTH", "EAST", "WEST"]
+            zone_filter = st.selectbox("Filter by Zone:", zone_list)
+            
+        zone_filtered_df = df.copy()
+        if zone_filter != "ALL" and 'Zone' in df.columns:
+            zone_filtered_df = zone_filtered_df[zone_filtered_df['Zone'] == zone_filter]
+
+        with f2:
+            client_list = ["ALL"] + list(zone_filtered_df['Party'].dropna().unique()) if 'Party' in zone_filtered_df.columns else ["ALL"]
             client_filter = st.selectbox("Filter by Client:", client_list)
             
-        client_filtered_df = df.copy()
+        client_filtered_df = zone_filtered_df.copy()
         if client_filter != "ALL":
             client_filtered_df = client_filtered_df[client_filtered_df['Party'] == client_filter]
 
-        with f2:
+        with f3:
             staff_list = ["ALL"] + list(client_filtered_df['Controlling Staff Name'].dropna().unique()) if 'Controlling Staff Name' in client_filtered_df.columns else ["ALL"]
             staff_filter = st.selectbox("Filter by Staff:", staff_list)
 
@@ -121,7 +145,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if staff_filter != "ALL":
             staff_filtered_df = staff_filtered_df[staff_filtered_df['Controlling Staff Name'] == staff_filter]
 
-        with f3:
+        with f4:
             ro_list = ["ALL"] + sorted(list(staff_filtered_df['Route Path'].dropna().unique())) if 'Route Path' in staff_filtered_df.columns else ["ALL"]
             ro_filter = st.selectbox("Filter by Route:", ro_list)
             
@@ -129,11 +153,11 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if ro_filter != "ALL":
             route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
 
-        with f4:
+        with f5:
             dest_list = ["ALL"] + sorted(list(route_filtered_df['Destination'].dropna().unique())) if 'Destination' in route_filtered_df.columns else ["ALL"]
             dest_filter = st.selectbox("Filter by Destination:", dest_list)
 
-        with f5:
+        with f6:
             search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
             
         filtered_df = route_filtered_df.copy()
@@ -141,22 +165,23 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
         if search_query:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
+        # ===========================================================================
 
         if not filtered_df.empty:
             summary_df = pd.crosstab(filtered_df['Route Path'], filtered_df['Status_Category']).reset_index()
             
-            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
-            summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
+            summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
 
             def format_pct(count, total):
                 if total > 0:
                     return f"{round((count/total)*100, 1)}% ({int(count)})"
                 return "0.0% (0)"
 
-            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
                 summary_df[col] = summary_df.apply(lambda x: format_pct(x[col], x['Total_Trips']), axis=1)
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -165,7 +190,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
 
             styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
                                         .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
-                                        .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
+                                        .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit', 'Running Delay'])
 
             selection_event = st.dataframe(
                 styled_df, 
@@ -185,18 +210,22 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 st.markdown("---")
                 st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_route}</span> • {total_trips} trips", unsafe_allow_html=True)
                 
+                # ================= RUNNING DELAY BUTTON ADDED =================
                 filter_option = st.radio(
                     "🚦 Data Filter Karein:",
-                    ["ALL DATA", "RUNNING VEHICLE ONTIME", "DELAY", "REPORTED VEHICLE"],
+                    ["ALL DATA", "RUNNING VEHICLE ONTIME", "RUNNING DELAY", "DELAY", "REPORTED VEHICLE"],
                     horizontal=True
                 )
                 
                 if filter_option == "RUNNING VEHICLE ONTIME":
                     detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
+                elif filter_option == "RUNNING DELAY":
+                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'Running Delay']
                 elif filter_option == "DELAY":
                     detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
                 elif filter_option == "REPORTED VEHICLE":
-                    detailed_data = detailed_data[detailed_data['Status_Category'] != 'In-Transit']
+                    detailed_data = detailed_data[detailed_data['Status_Category'].isin(['Late Arrival', 'Ontime Arrival'])]
+                # ==============================================================
 
                 if detailed_data.empty:
                     st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
@@ -205,7 +234,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
                     
                     def style_detailed_row(row):
-                        if row.get('Status_Category') == 'Late Arrival':
+                        if row.get('Status_Category') in ['Late Arrival', 'Running Delay']:
                             return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
                         return [''] * len(row)
                         
@@ -226,7 +255,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                         )
                         
                     with btn_col2:
-                        delay_mail_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
+                        delay_mail_data = detailed_data[detailed_data['Status_Category'].isin(['Late Arrival', 'Running Delay'])]
                         if not delay_mail_data.empty:
                             mail_subject = f"Delay Report - {clicked_route}"
                             mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
@@ -258,11 +287,11 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                         
                 route_comp = pd.crosstab(last_week_df['Route Path'], last_week_df['Status_Category']).reset_index()
                 
-                for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+                for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
                     if col not in route_comp.columns:
                         route_comp[col] = 0
                         
-                route_comp['Total_Trips'] = route_comp[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
+                route_comp['Total_Trips'] = route_comp[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
                 
                 def format_comp(count, total):
                     if total > 0:
@@ -270,7 +299,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     return "0 • 0.0%"
                     
                 route_comp['On-Time'] = route_comp.apply(lambda x: format_comp(x['Ontime Arrival'], x['Total_Trips']), axis=1)
-                route_comp['Late'] = route_comp.apply(lambda x: format_comp(x['Late Arrival'], x['Total_Trips']), axis=1)
+                route_comp['Late'] = route_comp.apply(lambda x: format_comp(x['Late Arrival'] + x['Running Delay'], x['Total_Trips']), axis=1)
                 route_comp['Pending (In-Transit)'] = route_comp.apply(lambda x: format_comp(x['In-Transit'], x['Total_Trips']), axis=1)
                 
                 display_comp = route_comp[['Route Path', 'Total_Trips', 'On-Time', 'Late', 'Pending (In-Transit)']]
