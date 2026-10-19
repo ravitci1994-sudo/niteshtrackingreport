@@ -94,27 +94,44 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
         f1, f2, f3, f4 = st.columns(4)
-        with f1:
-            ro_list = ["ALL"] + list(df['From'].dropna().unique()) if 'From' in df.columns else ["ALL"]
-            ro_filter = st.selectbox("Filter by Origin:", ro_list)
-        with f2:
-            dest_list = ["ALL"] + list(df['Destination'].dropna().unique()) if 'Destination' in df.columns else ["ALL"]
-            dest_filter = st.selectbox("Filter by Destination:", dest_list)
+        
+        # ================= NAYA FEATURE: CASCADING FILTERS =================
+        # Pehle 'Client' select hoga, uske baad hi aage ka data filter hoga
         with f3:
             client_list = ["ALL"] + list(df['Party'].dropna().unique()) if 'Party' in df.columns else ["ALL"]
             client_filter = st.selectbox("Filter by Client:", client_list)
+        
+        # Client filter apply karke 'df' ka naya hissa banaya
+        client_filtered_df = df.copy()
+        if client_filter != "ALL":
+            client_filtered_df = client_filtered_df[client_filtered_df['Party'] == client_filter]
+
+        with f1:
+            # Ab yahan sirf usi client ke 'From' (Route) dikhenge
+            ro_list = ["ALL"] + list(client_filtered_df['From'].dropna().unique()) if 'From' in client_filtered_df.columns else ["ALL"]
+            # "Filter by Origin" ka naam badalkar "Filter by Route" kar diya
+            ro_filter = st.selectbox("Filter by Route:", ro_list)
+            
+        # Route filter apply karna
+        route_filtered_df = client_filtered_df.copy()
+        if ro_filter != "ALL":
+            route_filtered_df = route_filtered_df[route_filtered_df['From'] == ro_filter]
+
+        with f2:
+            # Ab yahan sirf chune hue Route ki Destinations dikhengi
+            dest_list = ["ALL"] + list(route_filtered_df['Destination'].dropna().unique()) if 'Destination' in route_filtered_df.columns else ["ALL"]
+            dest_filter = st.selectbox("Filter by Destination:", dest_list)
+
         with f4:
             search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
-
-        filtered_df = df.copy()
-        if ro_filter != "ALL":
-            filtered_df = filtered_df[filtered_df['From'] == ro_filter]
+            
+        # Final filtering applying saare chune hue options
+        filtered_df = route_filtered_df.copy()
         if dest_filter != "ALL":
             filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
-        if client_filter != "ALL":
-            filtered_df = filtered_df[filtered_df['Party'] == client_filter]
         if search_query:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
+        # ===================================================================
 
         if not filtered_df.empty:
             summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
@@ -216,7 +233,14 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                # ================= ROUTE-WISE ACTUAL COMPARISON =================
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader(f"📈 Vehicle Trips Performance ({filter_option})")
+                st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
+                
+                if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
+                    lorry_trips = detailed_data['Lorry No.'].value_counts()
+                    st.line_chart(lorry_trips)
+                
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("📍 Route-wise Performance Comparison")
                 st.markdown("<small style='color:gray'>Selected dates ke hisaab se har route par gaadiyon ka asli performance</small>", unsafe_allow_html=True)
