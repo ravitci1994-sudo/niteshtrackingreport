@@ -11,7 +11,7 @@ st.set_page_config(page_title="Client Performance Dashboard", layout="wide", ini
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: white; }
-    .stSelectbox label, .stDateInput label, .stTextInput label, .stFileUploader label { color: white; }
+    .stSelectbox label, .stDateInput label, .stTextInput label, .stFileUploader label, .stRadio label { color: white; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -20,7 +20,6 @@ DATA_FILE = "saved_client_data.pkl"
 
 # ================= MEMORY SETUP (Hard Disk Save Logic) =================
 if 'client_data' not in st.session_state:
-    # Check karega ki server par pehle se data save toh nahi hai
     if os.path.exists(DATA_FILE):
         st.session_state.client_data = pd.read_pickle(DATA_FILE)
     else:
@@ -33,7 +32,6 @@ theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
-# Clear Data Button (Nayi file dalne ke liye purana data delete karna)
 if st.session_state.client_data is not None:
     st.sidebar.markdown("---")
     if st.sidebar.button("🗑️ Clear Saved Data", type="primary", use_container_width=True):
@@ -72,7 +70,6 @@ if st.session_state.client_data is None:
                         
                 df['Status_Category'] = df.apply(get_arrival_status, axis=1)
                 
-                # Data ko Session aur Server Hard Disk dono mein save karna
                 st.session_state.client_data = df
                 df.to_pickle(DATA_FILE) 
                 
@@ -148,7 +145,7 @@ if st.session_state.client_data is not None:
                                     .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
                                     .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
 
-        # 👉 CLICKABLE TABLE FEATURE (Row Selection)
+        # 👉 CLICKABLE TABLE FEATURE
         selection_event = st.dataframe(
             styled_df, 
             use_container_width=True, 
@@ -157,39 +154,63 @@ if st.session_state.client_data is not None:
             selection_mode="single-row"  
         )
 
-        # 👉 JAB KOI ROW CLICK HOGI, TOH YAHAN DATA SHOW HOGA
+        # 👉 JAB KOI ROW CLICK HOGI
         if len(selection_event.selection.rows) > 0:
             selected_row_index = selection_event.selection.rows[0]
             clicked_destination = summary_df.iloc[selected_row_index]['Destination']
             
+            # Base data for clicked destination
             detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
             total_trips = len(detailed_data)
             
             st.markdown("---")
             st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
             
-            display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Status_Category']
-            show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
-            
-            def style_detailed_row(row):
-                if row.get('Status_Category') == 'Late Arrival':
-                    return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
-                return [''] * len(row)
-                
-            styled_detail = show_df.style.apply(style_detailed_row, axis=1)
-            
-            st.dataframe(styled_detail, use_container_width=True, hide_index=True)
-            
-            buffer_selected = io.BytesIO()
-            with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
-                detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
-            
-            st.download_button(
-                label="📥 Download selected performance records (formatted Excel)",
-                data=buffer_selected.getvalue(),
-                file_name=f"Selected_{clicked_destination}_Records.xlsx",
-                mime="application/vnd.ms-excel"
+            # ================= NAYA FEATURE: FILTER BUTTONS =================
+            filter_option = st.radio(
+                "🚦 Data Filter Karein:",
+                ["ALL DATA", "RUNNING VEHICLE ONTIME", "DELAY", "REPORTED VEHICLE"],
+                horizontal=True
             )
+            
+            # Button click hone par data filter karna
+            if filter_option == "RUNNING VEHICLE ONTIME":
+                detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
+            elif filter_option == "DELAY":
+                detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
+            elif filter_option == "REPORTED VEHICLE":
+                # Jo gaadiyan raste mein nahi hain (yaani pahunch chuki hain)
+                detailed_data = detailed_data[detailed_data['Status_Category'] != 'In-Transit']
+
+            # Agar filter karne ke baad data nahi bacha
+            if detailed_data.empty:
+                st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
+            else:
+                display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Status_Category']
+                show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
+                
+                def style_detailed_row(row):
+                    if row.get('Status_Category') == 'Late Arrival':
+                        return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
+                    return [''] * len(row)
+                    
+                styled_detail = show_df.style.apply(style_detailed_row, axis=1)
+                
+                # Filtered table dikhana
+                st.dataframe(styled_detail, use_container_width=True, hide_index=True)
+                
+                buffer_selected = io.BytesIO()
+                with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
+                    detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
+                
+                st.download_button(
+                    label=f"📥 Download '{filter_option}' records",
+                    data=buffer_selected.getvalue(),
+                    file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
+                    mime="application/vnd.ms-excel"
+                )
+            
+            # ================================================================
             
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("7-day and overall vendor comparison")
