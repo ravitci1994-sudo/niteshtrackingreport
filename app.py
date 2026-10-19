@@ -8,13 +8,7 @@ import urllib.parse
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for Dark Theme look
-st.markdown("""
-    <style>
-    .stApp { background-color: #0e1117; color: white; }
-    .stSelectbox label, .stDateInput label, .stTextInput label, .stFileUploader label, .stRadio label { color: white; }
-    </style>
-""", unsafe_allow_html=True)
+# (CSS hata di gayi hai taki Light/Dark mode dono mein text saaf dikhe)
 
 DATA_FILE = "saved_client_data.pkl"
 
@@ -26,22 +20,19 @@ if 'client_data' not in st.session_state:
         st.session_state.client_data = None
 
 # ================= SIDEBAR (NEW DESIGN) =================
-st.sidebar.markdown("✨ **Choose your theme**")
-theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
-
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
-# Naya Process & Refresh Button
+# Process & Refresh Button
 if st.sidebar.button("🚀 PROCESS & REFRESH DATA", type="primary", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.session_state.client_data = None
     st.rerun()
 
-# Naya Navigation Menu
+# Navigation Menu
 st.sidebar.markdown("Navigation:")
 selected_nav = st.sidebar.radio("", [
     "📊 Operations Summary",
@@ -206,8 +197,9 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     
                     btn_col1, btn_col2 = st.columns([1, 3])
                     with btn_col1:
+                        # 📝 Naya chhota naam Download Button ke liye
                         st.download_button(
-                            label=f"📥 Download '{filter_option}'",
+                            label="📥 Download Data",
                             data=buffer_selected.getvalue(),
                             file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
                             mime="application/vnd.ms-excel"
@@ -227,7 +219,9 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                                 
                             mail_body += "\nRegards,\nTejas Cargo India Pvt Ltd"
                             mailto_link = f"mailto:?subject={urllib.parse.quote(mail_subject)}&body={urllib.parse.quote(mail_body)}"
-                            st.link_button("📧 Send Mail (Delayed Vehicles)", mailto_link, type="secondary")
+                            
+                            # 📝 Naya chhota naam Mail Button ke liye
+                            st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("7-day and overall vendor comparison")
@@ -255,14 +249,15 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
         
         st.markdown("<br>", unsafe_allow_html=True)
+        # 📝 Main download button ka naam bhi clean kar diya hai
         st.download_button(
-            label="📊 Download Filtered Client Performance Report",
+            label="📊 Download All Data",
             data=buffer.getvalue(),
             file_name="Filtered_Client_Report.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
 else:
-    # Baaki bache hue Navigation menus ke liye Placeholder
+    # Baaki bache hue Navigation menus
     st.title(selected_nav.replace("💳 ", "").replace("📱 ", "").replace("💰 ", "").replace("📝 ", "").replace("🔐 ", ""))
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
