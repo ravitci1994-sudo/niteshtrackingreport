@@ -17,20 +17,18 @@ if 'client_data' not in st.session_state:
     else:
         st.session_state.client_data = None
 
-# ================= SIDEBAR (NEW DESIGN) =================
+# ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
-# Process & Refresh Button
 if st.sidebar.button("🚀 PROCESS & REFRESH DATA", type="primary", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.session_state.client_data = None
     st.rerun()
 
-# Navigation Menu
 st.sidebar.markdown("Navigation:")
 selected_nav = st.sidebar.radio("", [
     "📊 Operations Summary",
@@ -52,7 +50,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
     st.title(selected_nav.replace("📊 ", "").replace("🚚 ", ""))
     st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
-    # ================= FILE UPLOADER & PROCESS =================
     if st.session_state.client_data is None:
         uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
 
@@ -219,33 +216,54 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                # ================= NAYA FEATURE: VEHICLE PERFORMANCE GRAPH =================
+                # ================= NAYA FEATURE: LINE GRAPH WITH DATA TABLE =================
                 st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader(f"📊 Vehicle Trips Performance ({filter_option})")
+                st.subheader(f"📈 Vehicle Trips Performance ({filter_option})")
                 st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
                 
                 if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
-                    # Lorry No ke hisaab se trips count karna
                     lorry_trips = detailed_data['Lorry No.'].value_counts()
-                    st.bar_chart(lorry_trips)
-                # =========================================================================
-
+                    st.line_chart(lorry_trips) # Line graph
+                    
+                    # Graph ka Data Dekhne ka Option
+                    with st.expander("📊 View Chart Data (Lorry wise trips)"):
+                        lorry_df = lorry_trips.reset_index()
+                        lorry_df.columns = ['Lorry No.', 'Trips Count']
+                        st.dataframe(lorry_df, hide_index=True, use_container_width=True)
+                
+                # ================= NAYA FEATURE: ROUTE-WISE ACTUAL COMPARISON =================
                 st.markdown("<br><br>", unsafe_allow_html=True)
-                st.subheader("7-day and overall vendor comparison")
-                st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
+                st.subheader("📍 Route-wise Performance Comparison")
+                st.markdown("<small style='color:gray'>Selected dates ke hisaab se har route par gaadiyon ka asli performance</small>", unsafe_allow_html=True)
                 
-                comp_data = {
-                    "Vendor": ["TEJAS CARGO INDIA PVT LTD"],
-                    "Previous 7 Days Trips": [8],
-                    "Previous 7 Days On-time": ["2 • 25.0%"],
-                    "Previous 7 Days Late": ["6 • 75.0%"],
-                    "Current 7 Days Trips": [8],
-                    "Current 7 Days On-time": ["0 • 0.0%"],
-                    "Current 7 Days Late": ["7 • 87.5%"]
-                }
-                comp_df = pd.DataFrame(comp_data)
+                route_comp = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
                 
-                styled_comp = comp_df.style.map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b' if '75.0%' in str(x) or '87.5%' in str(x) else '')
+                for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+                    if col not in route_comp.columns:
+                        route_comp[col] = 0
+                        
+                route_comp['Total_Trips'] = route_comp[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
+                
+                def format_comp(count, total):
+                    if total > 0:
+                        return f"{int(count)} • {round((count/total)*100, 1)}%"
+                    return "0 • 0.0%"
+                    
+                route_comp['On-Time'] = route_comp.apply(lambda x: format_comp(x['Ontime Arrival'], x['Total_Trips']), axis=1)
+                route_comp['Late'] = route_comp.apply(lambda x: format_comp(x['Late Arrival'], x['Total_Trips']), axis=1)
+                route_comp['Pending (In-Transit)'] = route_comp.apply(lambda x: format_comp(x['In-Transit'], x['Total_Trips']), axis=1)
+                
+                display_comp = route_comp[['Destination', 'Total_Trips', 'On-Time', 'Late', 'Pending (In-Transit)']]
+                
+                # Agar koi gaadi late hui hai toh thoda highlight kar dega
+                def highlight_late(val):
+                    if isinstance(val, str) and '•' in val:
+                        pct = float(val.split('•')[1].strip('%').strip())
+                        if pct > 0:
+                            return 'background-color: #3b1c1c; color: #ff6b6b'
+                    return ''
+                    
+                styled_comp = display_comp.style.map(highlight_late, subset=['Late'])
                 st.dataframe(styled_comp, hide_index=True, use_container_width=True)
 
         else:
