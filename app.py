@@ -86,7 +86,128 @@ if st.session_state.client_data is not None:
     with f4:
         search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
 
-    # Apply Filters
+    # Apply Filters (YAHIN PAR ERROR THA)
     filtered_df = df.copy()
     if ro_filter != "ALL":
-        filtered_df = filtered
+        filtered_df = filtered_df[filtered_df['From'] == ro_filter]
+    if dest_filter != "ALL":
+        filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
+    if client_filter != "ALL":
+        filtered_df = filtered_df[filtered_df['Party'] == client_filter]
+    if search_query:
+        filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
+
+    if not filtered_df.empty:
+        summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
+        
+        for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+            if col not in summary_df.columns:
+                summary_df[col] = 0
+                
+        summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
+
+        def format_pct(count, total):
+            if total > 0:
+                return f"{round((count/total)*100, 1)}% ({int(count)})"
+            return "0.0% (0)"
+
+        for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+            summary_df[col] = summary_df.apply(lambda x: format_pct(x[col], x['Total_Trips']), axis=1)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("Client Arrival Performance Summary")
+        st.markdown("*💡 Tip: Kisi bhi row (Destination) par click karein aur uska detail niche dekhein.*")
+
+        styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
+                                    .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
+                                    .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
+
+        # 👉 CLICKABLE TABLE FEATURE (Row Selection)
+        selection_event = st.dataframe(
+            styled_df, 
+            use_container_width=True, 
+            hide_index=True,
+            on_select="rerun",           
+            selection_mode="single-row"  
+        )
+
+        # 👉 JAB KOI ROW CLICK HOGI, TOH YAHAN DATA SHOW HOGA
+        if len(selection_event.selection.rows) > 0:
+            selected_row_index = selection_event.selection.rows[0]
+            clicked_destination = summary_df.iloc[selected_row_index]['Destination']
+            
+            # Sirf us destination ka data filter karna
+            detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
+            total_trips = len(detailed_data)
+            
+            st.markdown("---")
+            
+            # 1. Custom Header
+            st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
+            
+            # 2. Columns set karna aur Table Style karna
+            display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Status_Category']
+            show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
+            
+            # Late aane wali gaadiyon ki row ko RED color karna
+            def style_detailed_row(row):
+                if row.get('Status_Category') == 'Late Arrival':
+                    # Dark red background with light red text
+                    return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
+                return [''] * len(row)
+                
+            styled_detail = show_df.style.apply(style_detailed_row, axis=1)
+            
+            st.dataframe(styled_detail, use_container_width=True, hide_index=True)
+            
+            # 3. Selected Data Download Button
+            buffer_selected = io.BytesIO()
+            with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
+                detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
+            
+            st.download_button(
+                label="📥 Download selected performance records (formatted Excel)",
+                data=buffer_selected.getvalue(),
+                file_name=f"Selected_{clicked_destination}_Records.xlsx",
+                mime="application/vnd.ms-excel"
+            )
+            
+            # 4. 7-Day Comparison Section
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            st.subheader("7-day and overall vendor comparison")
+            st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
+            
+            # Dummy data for comparison 
+            comp_data = {
+                "Vendor": ["TEJAS CARGO INDIA PVT LTD"],
+                "Previous 7 Days Trips": [8],
+                "Previous 7 Days On-time": ["2 • 25.0%"],
+                "Previous 7 Days Late": ["6 • 75.0%"],
+                "Current 7 Days Trips": [8],
+                "Current 7 Days On-time": ["0 • 0.0%"],
+                "Current 7 Days Late": ["7 • 87.5%"]
+            }
+            comp_df = pd.DataFrame(comp_data)
+            
+            # Comparison table ko thoda dark aur highlight karna
+            styled_comp = comp_df.style.map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b' if '75.0%' in str(x) or '87.5%' in str(x) else '')
+            st.dataframe(styled_comp, hide_index=True, use_container_width=True)
+
+    else:
+        st.warning("Chune gaye Filters ke hisaab se koi data nahi mila.")
+    
+    # Download Button (Full Filtered Data)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.download_button(
+        label="📊 Download Filtered Client Performance Report",
+        data=buffer.getvalue(),
+        file_name="Filtered_Client_Report.xlsx",
+        mime="application/vnd.ms-excel",
+        type="primary"
+    )
+elif uploaded_file is None:
+    st.warning("⚠️ Please upload your 'MIS for Placement' Excel file to generate the dashboard.")
