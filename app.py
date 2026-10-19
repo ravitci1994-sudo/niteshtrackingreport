@@ -216,7 +216,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                # ================= NAYA FEATURE: LINE GRAPH WITH DATA TABLE =================
+                # ================= LINE GRAPH =================
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.subheader(f"📈 Vehicle Trips Performance ({filter_option})")
                 st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
@@ -224,14 +224,8 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
                     lorry_trips = detailed_data['Lorry No.'].value_counts()
                     st.line_chart(lorry_trips) # Line graph
-                    
-                    # Graph ka Data Dekhne ka Option
-                    with st.expander("📊 View Chart Data (Lorry wise trips)"):
-                        lorry_df = lorry_trips.reset_index()
-                        lorry_df.columns = ['Lorry No.', 'Trips Count']
-                        st.dataframe(lorry_df, hide_index=True, use_container_width=True)
                 
-                # ================= NAYA FEATURE: ROUTE-WISE ACTUAL COMPARISON =================
+                # ================= ROUTE-WISE ACTUAL COMPARISON =================
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("📍 Route-wise Performance Comparison")
                 st.markdown("<small style='color:gray'>Selected dates ke hisaab se har route par gaadiyon ka asli performance</small>", unsafe_allow_html=True)
@@ -255,7 +249,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 
                 display_comp = route_comp[['Destination', 'Total_Trips', 'On-Time', 'Late', 'Pending (In-Transit)']]
                 
-                # Agar koi gaadi late hui hai toh thoda highlight kar dega
                 def highlight_late(val):
                     if isinstance(val, str) and '•' in val:
                         pct = float(val.split('•')[1].strip('%').strip())
