@@ -10,10 +10,29 @@ st.set_page_config(page_title="Client Performance Dashboard", layout="wide", ini
 
 DATA_FILE = "saved_client_data.pkl"
 
+# Helper function to process data columns safely
+def process_dataframe(df):
+    if 'From' in df.columns and 'Destination' in df.columns:
+        df['Route Path'] = df['From'].astype(str).str.strip().str.upper() + " TO " + df['Destination'].astype(str).str.strip().str.upper()
+    else:
+        df['Route Path'] = "UNKNOWN ROUTE"
+
+    def get_arrival_status(row):
+        if pd.isna(row.get('Final Touching Reporting Date & Time')):
+            return "In-Transit"
+        elif pd.notna(row.get('Late Hrs')):
+            return "Late Arrival"
+        else:
+            return "Ontime Arrival"
+            
+    df['Status_Category'] = df.apply(get_arrival_status, axis=1)
+    return df
+
 # ================= MEMORY SETUP =================
 if 'client_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
-        st.session_state.client_data = pd.read_pickle(DATA_FILE)
+        df_loaded = pd.read_pickle(DATA_FILE)
+        st.session_state.client_data = process_dataframe(df_loaded)
     else:
         st.session_state.client_data = None
 
@@ -57,22 +76,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             if st.button("🚀 Process & Save Report permanently", type="primary"):
                 try:
                     df = pd.read_excel(uploaded_file)
-                    
-                    # NAYA FEATURE: From aur Destination ko jod kar "Route Path" banana
-                    if 'From' in df.columns and 'Destination' in df.columns:
-                        df['Route Path'] = df['From'].astype(str).str.strip().str.upper() + " TO " + df['Destination'].astype(str).str.strip().str.upper()
-                    else:
-                        df['Route Path'] = "Unknown Route"
-
-                    def get_arrival_status(row):
-                        if pd.isna(row.get('Final Touching Reporting Date & Time')):
-                            return "In-Transit"
-                        elif pd.notna(row.get('Late Hrs')):
-                            return "Late Arrival"
-                        else:
-                            return "Ontime Arrival"
-                            
-                    df['Status_Category'] = df.apply(get_arrival_status, axis=1)
+                    df = process_dataframe(df)
                     
                     st.session_state.client_data = df
                     df.to_pickle(DATA_FILE) 
@@ -118,7 +122,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             staff_filtered_df = staff_filtered_df[staff_filtered_df['Controlling Staff Name'] == staff_filter]
 
         with f3:
-            # Ab yahan 'From' ki jagah poora 'Route Path' aayega
             ro_list = ["ALL"] + sorted(list(staff_filtered_df['Route Path'].dropna().unique())) if 'Route Path' in staff_filtered_df.columns else ["ALL"]
             ro_filter = st.selectbox("Filter by Route:", ro_list)
             
@@ -140,7 +143,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
 
         if not filtered_df.empty:
-            # Table ko bhi 'Destination' ki jagah 'Route Path' se group kiya hai
             summary_df = pd.crosstab(filtered_df['Route Path'], filtered_df['Status_Category']).reset_index()
             
             for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
