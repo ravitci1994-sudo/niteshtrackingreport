@@ -216,15 +216,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                # ================= LINE GRAPH =================
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.subheader(f"📈 Vehicle Trips Performance ({filter_option})")
-                st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
-                
-                if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
-                    lorry_trips = detailed_data['Lorry No.'].value_counts()
-                    st.line_chart(lorry_trips) # Line graph
-                
                 # ================= ROUTE-WISE ACTUAL COMPARISON =================
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("📍 Route-wise Performance Comparison")
