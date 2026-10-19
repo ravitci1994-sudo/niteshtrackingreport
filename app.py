@@ -2,64 +2,100 @@ import streamlit as st
 import pandas as pd
 import io
 
-# Page setup
-st.set_page_config(page_title="Vendor Dashboard", layout="wide")
+# Dashboard ki main settings
+st.set_page_config(page_title="Daily Fleet Placement & Delay Report", page_icon="🚛", layout="wide")
 
-# ================= SIDEBAR =================
-st.sidebar.title("Welcome, Tejas Cargo India")
-st.sidebar.markdown("*ID:* TEJAS | *Role:* Vendor")
+st.title("🚛 Daily Fleet Placement & Delay Dashboard")
+st.markdown("Is dashboard mein apni daily MIS file upload karein. Ye automatically trips ko analyze karke On-Time aur Delay ki summary aur charts bana dega.")
 
-if st.sidebar.button("Logout"):
-    st.sidebar.warning("Aap log out ho gaye hain!")
+# File Uploader
+uploaded_file = st.file_uploader("Upload 'MIS for Placement' Excel File", type=['xlsx'])
 
-st.sidebar.markdown("---")
-st.sidebar.radio("Navigation:", ["🚚 Vendor Performance"])
-
-# ================= MAIN PAGE =================
-st.title("Vendor Performance Dashboard")
-st.info("🔒 Apni data file upload karein aur automatic report payein.")
-
-# ================= FILE UPLOAD =================
-uploaded_file = st.file_uploader("Apni Excel (.xlsx) ya CSV file yahan upload karein", type=["csv", "xlsx"])
-
-if uploaded_file is not None:
-    # File padhne ka code
+if uploaded_file:
     try:
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
+        # File read karna
+        df = pd.read_excel(uploaded_file)
+        
+        # Status nikalne ka logic
+        def get_arrival_status(row):
+            if pd.isna(row.get('Final Touching Reporting Date & Time')):
+                return "In Transit / Pending"
+            elif pd.notna(row.get('Late Hrs')):
+                return "Delayed"
+            else:
+                return "On Time"
+                
+        df['Arrival Status'] = df.apply(get_arrival_status, axis=1)
+        
+        # ==== KPI METRICS CALCULATE KARNA ====
+        total_trips = len(df)
+        in_transit = len(df[df['Arrival Status'] == 'In Transit / Pending'])
+        completed = total_trips - in_transit
+        on_time = len(df[df['Arrival Status'] == 'On Time'])
+        delayed = len(df[df['Arrival Status'] == 'Delayed'])
+        
+        on_time_pct = round((on_time / completed * 100), 1) if completed > 0 else 0
+        delayed_pct = round((delayed / completed * 100), 1) if completed > 0 else 0
+        
+        # ==== TOP SUMMARY SECTION ====
+        st.subheader("📈 Overall Performance Summary")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total Trips Placed", total_trips)
+        c2.metric("In Transit / Pending", in_transit)
+        c3.metric("✅ On Time Arrivals", f"{on_time}", f"{on_time_pct}%")
+        c4.metric("🚨 Delayed Arrivals", f"{delayed}", f"-{delayed_pct}%")
+        
+        st.markdown("---")
+        
+        # ==== CHARTS / VISUAL SUMMARY ====
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📍 Route-wise Performance (Destination)")
+            route_df = df[df['Arrival Status'] != 'In Transit / Pending']
+            if not route_df.empty:
+                # Destination ke hisaab se On-time vs Delay ka graph
+                dest_summary = pd.crosstab(route_df['Destination'], route_df['Arrival Status'])
+                st.bar_chart(dest_summary, color=["#ff4b4b", "#00cc96"] if 'Delayed' in dest_summary else None)
+            else:
+                st.info("No completed trips available for route summary.")
+                
+        with col2:
+            st.subheader("🚛 Lorry Type Performance")
+            if not route_df.empty:
+                # Gaadi ke type ke hisaab se graph
+                veh_summary = pd.crosstab(route_df['Veh.Type'], route_df['Arrival Status'])
+                st.bar_chart(veh_summary)
+                
+        st.markdown("---")
+        
+        # ==== ACTIONABLE DATA (FOCUS AREA) ====
+        st.subheader("⏱️ Delayed Vehicles List (Action Required)")
+        st.markdown("Yahan sirf wo gaadiyan dikhayi gayi hain jo late hui hain, taki aap unpar focus kar sakein.")
+        delayed_df = df[df['Arrival Status'] == 'Delayed'][
+            ['Lorry No.', 'From', 'Destination', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Client Remarks']
+        ]
+        
+        if not delayed_df.empty:
+            st.dataframe(delayed_df, use_container_width=True)
         else:
-            df = pd.read_excel(uploaded_file)
-        
-        st.success("✅ File successfully upload ho gayi!")
-        
-        # Quick Search Filter
-        search_term = st.text_input("🔍 Quick Search:", placeholder="Data mein kuch bhi search karein...")
-        
-        if search_term:
-            # Search logic
-            mask = df.astype(str).apply(lambda x: x.str.contains(search_term, case=False)).any(axis=1)
-            filtered_df = df[mask]
-        else:
-            filtered_df = df
+            st.success("Badiya Kaam! Aaj koi bhi gaadi delay nahi hui hai.")
             
-        # Download Excel Button ke liye data prepare karna
+        st.markdown("---")
+        
+        # ==== DOWNLOAD SECTION ====
+        st.subheader("📥 Download Full Processed Data")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            filtered_df.to_excel(writer, index=False, sheet_name='Report')
-        
+            df.to_excel(writer, index=False, sheet_name='Summary Report')
+            
         st.download_button(
-            label="📥 Download Filtered Report (Excel)",
+            label="Download Updated Report (Excel)",
             data=buffer.getvalue(),
-            file_name="Vendor_Report.xlsx",
+            file_name="Daily_Placement_Summary.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
 
-        # Data Table dikhana
-        st.subheader("📊 Vendor Performance Summary")
-        st.dataframe(filtered_df, use_container_width=True)
-        
     except Exception as e:
-        st.error(f"File open karne mein error: {e}")
-else:
-    st.warning("⚠️ Data dekhne ke liye upar apni file upload karein.")
+        st.error(f"File process karne mein dikkat aayi: {e}")
