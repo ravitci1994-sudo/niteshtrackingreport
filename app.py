@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import date
 import io
 import os
-import urllib.parse  # Naya import Mail ke liye
+import urllib.parse
 
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -25,243 +25,244 @@ if 'client_data' not in st.session_state:
     else:
         st.session_state.client_data = None
 
-# ================= SIDEBAR =================
+# ================= SIDEBAR (NEW DESIGN) =================
 st.sidebar.markdown("✨ **Choose your theme**")
 theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
 
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
-if st.session_state.client_data is not None:
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🗑️ Clear Saved Data", type="primary", use_container_width=True):
-        if os.path.exists(DATA_FILE):
-            os.remove(DATA_FILE)
-        st.session_state.client_data = None
-        st.rerun()
+st.sidebar.markdown("---")
+
+# Naya Process & Refresh Button
+if st.sidebar.button("🚀 PROCESS & REFRESH DATA", type="primary", use_container_width=True):
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+    st.session_state.client_data = None
+    st.rerun()
+
+# Naya Navigation Menu
+st.sidebar.markdown("Navigation:")
+selected_nav = st.sidebar.radio("", [
+    "📊 Operations Summary",
+    "🚚 Vendor Performance",
+    "💳 Payment Dashboard",
+    "📱 Communication Hub",
+    "💰 Network Utilization",
+    "📝 Today's Call Action Plan",
+    "🔐 User & Access Control"
+], label_visibility="collapsed")
 
 st.sidebar.markdown("---")
-st.sidebar.radio("Navigation:", ["🔴 🚚 Client Performance"], label_visibility="collapsed")
 if st.sidebar.button("Logout", use_container_width=True):
     st.sidebar.warning("Logged out successfully!")
 
-# ================= MAIN PAGE HEADER =================
-st.title("Client performance")
-st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
-# ================= FILE UPLOADER & BUTTON =================
-if st.session_state.client_data is None:
-    uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
+# ================= MAIN PAGE LOGIC =================
+if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
+    st.title(selected_nav.replace("📊 ", "").replace("🚚 ", ""))
+    st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
-    if uploaded_file is not None:
-        if st.button("🚀 Process & Save Report permanently", type="primary"):
-            try:
-                df = pd.read_excel(uploaded_file)
-                
-                def get_arrival_status(row):
-                    if pd.isna(row.get('Final Touching Reporting Date & Time')):
-                        return "In-Transit"
-                    elif pd.notna(row.get('Late Hrs')):
-                        return "Late Arrival"
-                    else:
-                        return "Ontime Arrival"
-                        
-                df['Status_Category'] = df.apply(get_arrival_status, axis=1)
-                
-                st.session_state.client_data = df
-                df.to_pickle(DATA_FILE) 
-                
-                st.success("✅ File Data processed aur save ho gaya! Ab aap refresh bhi karenge toh data nahi hategi.")
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Error processing file: {e}")
-else:
-    st.success("✅ Data pehle se saved hai! Nayi file upload karne ke liye pehle Sidebar se 'Clear Saved Data' par click karein.")
+    # ================= FILE UPLOADER & PROCESS =================
+    if st.session_state.client_data is None:
+        uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
 
-# ================= DASHBOARD =================
-if st.session_state.client_data is not None:
-    df = st.session_state.client_data
-    st.markdown("---")
-    
-    # Filters
-    c1, c2, c3 = st.columns([1, 1, 2])
-    with c1:
-        start_date = st.date_input("🗓️ Start Date:", date(2026, 10, 1))
-    with c2:
-        end_date = st.date_input("🗓️ End Date:", date(2026, 10, 18))
-    with c3:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
-        
-    f1, f2, f3, f4 = st.columns(4)
-    with f1:
-        ro_list = ["ALL"] + list(df['From'].dropna().unique()) if 'From' in df.columns else ["ALL"]
-        ro_filter = st.selectbox("Filter by Origin:", ro_list)
-    with f2:
-        dest_list = ["ALL"] + list(df['Destination'].dropna().unique()) if 'Destination' in df.columns else ["ALL"]
-        dest_filter = st.selectbox("Filter by Destination:", dest_list)
-    with f3:
-        client_list = ["ALL"] + list(df['Party'].dropna().unique()) if 'Party' in df.columns else ["ALL"]
-        client_filter = st.selectbox("Filter by Client:", client_list)
-    with f4:
-        search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
-
-    # Apply Filters
-    filtered_df = df.copy()
-    if ro_filter != "ALL":
-        filtered_df = filtered_df[filtered_df['From'] == ro_filter]
-    if dest_filter != "ALL":
-        filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
-    if client_filter != "ALL":
-        filtered_df = filtered_df[filtered_df['Party'] == client_filter]
-    if search_query:
-        filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
-
-    if not filtered_df.empty:
-        summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
-        
-        for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
-            if col not in summary_df.columns:
-                summary_df[col] = 0
-                
-        summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
-
-        def format_pct(count, total):
-            if total > 0:
-                return f"{round((count/total)*100, 1)}% ({int(count)})"
-            return "0.0% (0)"
-
-        for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
-            summary_df[col] = summary_df.apply(lambda x: format_pct(x[col], x['Total_Trips']), axis=1)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("Client Arrival Performance Summary")
-        st.markdown("*💡 Tip: Kisi bhi row (Destination) par click karein aur uska detail niche dekhein.*")
-
-        styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
-                                    .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
-                                    .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
-
-        # 👉 CLICKABLE TABLE FEATURE
-        selection_event = st.dataframe(
-            styled_df, 
-            use_container_width=True, 
-            hide_index=True,
-            on_select="rerun",           
-            selection_mode="single-row"  
-        )
-
-        # 👉 JAB KOI ROW CLICK HOGI
-        if len(selection_event.selection.rows) > 0:
-            selected_row_index = selection_event.selection.rows[0]
-            clicked_destination = summary_df.iloc[selected_row_index]['Destination']
-            
-            detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
-            total_trips = len(detailed_data)
-            
-            st.markdown("---")
-            st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
-            
-            filter_option = st.radio(
-                "🚦 Data Filter Karein:",
-                ["ALL DATA", "RUNNING VEHICLE ONTIME", "DELAY", "REPORTED VEHICLE"],
-                horizontal=True
-            )
-            
-            if filter_option == "RUNNING VEHICLE ONTIME":
-                detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
-            elif filter_option == "DELAY":
-                detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
-            elif filter_option == "REPORTED VEHICLE":
-                detailed_data = detailed_data[detailed_data['Status_Category'] != 'In-Transit']
-
-            if detailed_data.empty:
-                st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
-            else:
-                display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
-                show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
-                
-                def style_detailed_row(row):
-                    if row.get('Status_Category') == 'Late Arrival':
-                        return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
-                    return [''] * len(row)
+        if uploaded_file is not None:
+            if st.button("🚀 Process & Save Report permanently", type="primary"):
+                try:
+                    df = pd.read_excel(uploaded_file)
                     
-                styled_detail = show_df.style.apply(style_detailed_row, axis=1)
-                
-                st.dataframe(styled_detail, use_container_width=True, hide_index=True)
-                
-                buffer_selected = io.BytesIO()
-                with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
-                    detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
-                
-                # ================= NAYA FEATURE: DOWNLOAD & SEND MAIL BUTTONS =================
-                btn_col1, btn_col2 = st.columns([1, 3])
-                
-                with btn_col1:
-                    st.download_button(
-                        label=f"📥 Download '{filter_option}' records",
-                        data=buffer_selected.getvalue(),
-                        file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
-                        mime="application/vnd.ms-excel"
-                    )
-                    
-                with btn_col2:
-                    # Delay wali gaadiyon ka data mail ke liye nikalna
-                    delay_mail_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
-                    
-                    if not delay_mail_data.empty:
-                        # Email ka Subject aur Body banana
-                        mail_subject = f"Delay Report - {clicked_destination}"
-                        mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
-                        
-                        for idx, row in delay_mail_data.iterrows():
-                            lorry = row.get('Lorry No.', 'N/A')
-                            delay_time = row.get('Late Hrs', 'N/A')
-                            remark = row.get('Tracking Remark', 'N/A')
-                            # Email mein line likhna
-                            mail_body += f"🚛 Lorry No: {lorry} | Delay: {delay_time} | Remark: {remark}\n"
+                    def get_arrival_status(row):
+                        if pd.isna(row.get('Final Touching Reporting Date & Time')):
+                            return "In-Transit"
+                        elif pd.notna(row.get('Late Hrs')):
+                            return "Late Arrival"
+                        else:
+                            return "Ontime Arrival"
                             
-                        mail_body += "\nRegards,\nTejas Cargo India Pvt Ltd"
-                        
-                        # Link ko browser format mein convert karna
-                        mailto_link = f"mailto:?subject={urllib.parse.quote(mail_subject)}&body={urllib.parse.quote(mail_body)}"
-                        
-                        # Email Button dikhana
-                        st.link_button("📧 Send Mail (Delayed Vehicles)", mailto_link, type="secondary")
-                # ==============================================================================
-            
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            st.subheader("7-day and overall vendor comparison")
-            st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
-            
-            comp_data = {
-                "Vendor": ["TEJAS CARGO INDIA PVT LTD"],
-                "Previous 7 Days Trips": [8],
-                "Previous 7 Days On-time": ["2 • 25.0%"],
-                "Previous 7 Days Late": ["6 • 75.0%"],
-                "Current 7 Days Trips": [8],
-                "Current 7 Days On-time": ["0 • 0.0%"],
-                "Current 7 Days Late": ["7 • 87.5%"]
-            }
-            comp_df = pd.DataFrame(comp_data)
-            
-            styled_comp = comp_df.style.map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b' if '75.0%' in str(x) or '87.5%' in str(x) else '')
-            st.dataframe(styled_comp, hide_index=True, use_container_width=True)
-
+                    df['Status_Category'] = df.apply(get_arrival_status, axis=1)
+                    
+                    st.session_state.client_data = df
+                    df.to_pickle(DATA_FILE) 
+                    
+                    st.success("✅ File Data processed aur save ho gaya!")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Error processing file: {e}")
     else:
-        st.warning("Chune gaye Filters ke hisaab se koi data nahi mila.")
-    
-    # Download Button (Full Filtered Data)
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.download_button(
-        label="📊 Download Filtered Client Performance Report",
-        data=buffer.getvalue(),
-        file_name="Filtered_Client_Report.xlsx",
-        mime="application/vnd.ms-excel",
-        type="primary"
-    )
+        st.success("✅ Data saved hai! Nayi file upload karne ke liye Sidebar se 'PROCESS & REFRESH DATA' dabayein.")
+
+    # ================= DASHBOARD =================
+    if st.session_state.client_data is not None:
+        df = st.session_state.client_data
+        st.markdown("---")
+        
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            start_date = st.date_input("🗓️ Start Date:", date(2026, 10, 1))
+        with c2:
+            end_date = st.date_input("🗓️ End Date:", date(2026, 10, 18))
+        with c3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
+            
+        f1, f2, f3, f4 = st.columns(4)
+        with f1:
+            ro_list = ["ALL"] + list(df['From'].dropna().unique()) if 'From' in df.columns else ["ALL"]
+            ro_filter = st.selectbox("Filter by Origin:", ro_list)
+        with f2:
+            dest_list = ["ALL"] + list(df['Destination'].dropna().unique()) if 'Destination' in df.columns else ["ALL"]
+            dest_filter = st.selectbox("Filter by Destination:", dest_list)
+        with f3:
+            client_list = ["ALL"] + list(df['Party'].dropna().unique()) if 'Party' in df.columns else ["ALL"]
+            client_filter = st.selectbox("Filter by Client:", client_list)
+        with f4:
+            search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
+
+        filtered_df = df.copy()
+        if ro_filter != "ALL":
+            filtered_df = filtered_df[filtered_df['From'] == ro_filter]
+        if dest_filter != "ALL":
+            filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
+        if client_filter != "ALL":
+            filtered_df = filtered_df[filtered_df['Party'] == client_filter]
+        if search_query:
+            filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
+
+        if not filtered_df.empty:
+            summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
+            
+            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+                if col not in summary_df.columns:
+                    summary_df[col] = 0
+                    
+            summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit']].sum(axis=1)
+
+            def format_pct(count, total):
+                if total > 0:
+                    return f"{round((count/total)*100, 1)}% ({int(count)})"
+                return "0.0% (0)"
+
+            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
+                summary_df[col] = summary_df.apply(lambda x: format_pct(x[col], x['Total_Trips']), axis=1)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.subheader("Client Arrival Performance Summary")
+            st.markdown("*💡 Tip: Kisi bhi row (Destination) par click karein aur uska detail niche dekhein.*")
+
+            styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
+                                        .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
+                                        .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
+
+            selection_event = st.dataframe(
+                styled_df, 
+                use_container_width=True, 
+                hide_index=True,
+                on_select="rerun",           
+                selection_mode="single-row"  
+            )
+
+            if len(selection_event.selection.rows) > 0:
+                selected_row_index = selection_event.selection.rows[0]
+                clicked_destination = summary_df.iloc[selected_row_index]['Destination']
+                
+                detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
+                total_trips = len(detailed_data)
+                
+                st.markdown("---")
+                st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
+                
+                filter_option = st.radio(
+                    "🚦 Data Filter Karein:",
+                    ["ALL DATA", "RUNNING VEHICLE ONTIME", "DELAY", "REPORTED VEHICLE"],
+                    horizontal=True
+                )
+                
+                if filter_option == "RUNNING VEHICLE ONTIME":
+                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
+                elif filter_option == "DELAY":
+                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
+                elif filter_option == "REPORTED VEHICLE":
+                    detailed_data = detailed_data[detailed_data['Status_Category'] != 'In-Transit']
+
+                if detailed_data.empty:
+                    st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
+                else:
+                    display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
+                    show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
+                    
+                    def style_detailed_row(row):
+                        if row.get('Status_Category') == 'Late Arrival':
+                            return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
+                        return [''] * len(row)
+                        
+                    styled_detail = show_df.style.apply(style_detailed_row, axis=1)
+                    st.dataframe(styled_detail, use_container_width=True, hide_index=True)
+                    
+                    buffer_selected = io.BytesIO()
+                    with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
+                        detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
+                    
+                    btn_col1, btn_col2 = st.columns([1, 3])
+                    with btn_col1:
+                        st.download_button(
+                            label=f"📥 Download '{filter_option}'",
+                            data=buffer_selected.getvalue(),
+                            file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
+                            mime="application/vnd.ms-excel"
+                        )
+                        
+                    with btn_col2:
+                        delay_mail_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
+                        if not delay_mail_data.empty:
+                            mail_subject = f"Delay Report - {clicked_destination}"
+                            mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
+                            
+                            for idx, row in delay_mail_data.iterrows():
+                                lorry = row.get('Lorry No.', 'N/A')
+                                delay_time = row.get('Late Hrs', 'N/A')
+                                remark = row.get('Tracking Remark', 'N/A')
+                                mail_body += f"🚛 Lorry No: {lorry} | Delay: {delay_time} | Remark: {remark}\n"
+                                
+                            mail_body += "\nRegards,\nTejas Cargo India Pvt Ltd"
+                            mailto_link = f"mailto:?subject={urllib.parse.quote(mail_subject)}&body={urllib.parse.quote(mail_body)}"
+                            st.link_button("📧 Send Mail (Delayed Vehicles)", mailto_link, type="secondary")
+                
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                st.subheader("7-day and overall vendor comparison")
+                st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
+                
+                comp_data = {
+                    "Vendor": ["TEJAS CARGO INDIA PVT LTD"],
+                    "Previous 7 Days Trips": [8],
+                    "Previous 7 Days On-time": ["2 • 25.0%"],
+                    "Previous 7 Days Late": ["6 • 75.0%"],
+                    "Current 7 Days Trips": [8],
+                    "Current 7 Days On-time": ["0 • 0.0%"],
+                    "Current 7 Days Late": ["7 • 87.5%"]
+                }
+                comp_df = pd.DataFrame(comp_data)
+                
+                styled_comp = comp_df.style.map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b' if '75.0%' in str(x) or '87.5%' in str(x) else '')
+                st.dataframe(styled_comp, hide_index=True, use_container_width=True)
+
+        else:
+            st.warning("Chune gaye Filters ke hisaab se koi data nahi mila.")
+        
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="📊 Download Filtered Client Performance Report",
+            data=buffer.getvalue(),
+            file_name="Filtered_Client_Report.xlsx",
+            mime="application/vnd.ms-excel",
+            type="primary"
+        )
+else:
+    # Baaki bache hue Navigation menus ke liye Placeholder
+    st.title(selected_nav.replace("💳 ", "").replace("📱 ", "").replace("💰 ", "").replace("📝 ", "").replace("🔐 ", ""))
+    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
