@@ -8,8 +8,6 @@ import urllib.parse
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# (CSS hata di gayi hai taki Light/Dark mode dono mein text saaf dikhe)
-
 DATA_FILE = "saved_client_data.pkl"
 
 # ================= MEMORY SETUP =================
@@ -197,7 +195,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     
                     btn_col1, btn_col2 = st.columns([1, 3])
                     with btn_col1:
-                        # 📝 Naya chhota naam Download Button ke liye
                         st.download_button(
                             label="📥 Download Data",
                             data=buffer_selected.getvalue(),
@@ -220,9 +217,19 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             mail_body += "\nRegards,\nTejas Cargo India Pvt Ltd"
                             mailto_link = f"mailto:?subject={urllib.parse.quote(mail_subject)}&body={urllib.parse.quote(mail_body)}"
                             
-                            # 📝 Naya chhota naam Mail Button ke liye
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
+                # ================= NAYA FEATURE: VEHICLE PERFORMANCE GRAPH =================
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader(f"📊 Vehicle Trips Performance ({filter_option})")
+                st.markdown("<small style='color:gray'>Kis gaadi (Lorry No.) ne is category mein kitne trip lagaye hain</small>", unsafe_allow_html=True)
+                
+                if not detailed_data.empty and 'Lorry No.' in detailed_data.columns:
+                    # Lorry No ke hisaab se trips count karna
+                    lorry_trips = detailed_data['Lorry No.'].value_counts()
+                    st.bar_chart(lorry_trips)
+                # =========================================================================
+
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("7-day and overall vendor comparison")
                 st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
@@ -249,7 +256,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
         
         st.markdown("<br>", unsafe_allow_html=True)
-        # 📝 Main download button ka naam bhi clean kar diya hai
         st.download_button(
             label="📊 Download All Data",
             data=buffer.getvalue(),
@@ -258,6 +264,5 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             type="primary"
         )
 else:
-    # Baaki bache hue Navigation menus
     st.title(selected_nav.replace("💳 ", "").replace("📱 ", "").replace("💰 ", "").replace("📝 ", "").replace("🔐 ", ""))
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
