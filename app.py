@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 import io
 import os
+import urllib.parse  # Naya import Mail ke liye
 
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -15,10 +16,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Data Save karne ki file ka naam
 DATA_FILE = "saved_client_data.pkl"
 
-# ================= MEMORY SETUP (Hard Disk Save Logic) =================
+# ================= MEMORY SETUP =================
 if 'client_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
         st.session_state.client_data = pd.read_pickle(DATA_FILE)
@@ -45,11 +45,9 @@ st.sidebar.radio("Navigation:", ["🔴 🚚 Client Performance"], label_visibili
 if st.sidebar.button("Logout", use_container_width=True):
     st.sidebar.warning("Logged out successfully!")
 
-
 # ================= MAIN PAGE HEADER =================
 st.title("Client performance")
 st.info("🔒 **Restricted View:** Showing exclusive performance records.")
-
 
 # ================= FILE UPLOADER & BUTTON =================
 if st.session_state.client_data is None:
@@ -159,7 +157,6 @@ if st.session_state.client_data is not None:
             selected_row_index = selection_event.selection.rows[0]
             clicked_destination = summary_df.iloc[selected_row_index]['Destination']
             
-            # Base data for clicked destination
             detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
             total_trips = len(detailed_data)
             
@@ -182,7 +179,6 @@ if st.session_state.client_data is not None:
             if detailed_data.empty:
                 st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
             else:
-                # ====== YAHAN TRACKING REMARKS ADD KIYE GAYE HAIN ======
                 display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
                 show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
                 
@@ -199,12 +195,41 @@ if st.session_state.client_data is not None:
                 with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
                     detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
                 
-                st.download_button(
-                    label=f"📥 Download '{filter_option}' records",
-                    data=buffer_selected.getvalue(),
-                    file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
-                    mime="application/vnd.ms-excel"
-                )
+                # ================= NAYA FEATURE: DOWNLOAD & SEND MAIL BUTTONS =================
+                btn_col1, btn_col2 = st.columns([1, 3])
+                
+                with btn_col1:
+                    st.download_button(
+                        label=f"📥 Download '{filter_option}' records",
+                        data=buffer_selected.getvalue(),
+                        file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
+                        mime="application/vnd.ms-excel"
+                    )
+                    
+                with btn_col2:
+                    # Delay wali gaadiyon ka data mail ke liye nikalna
+                    delay_mail_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
+                    
+                    if not delay_mail_data.empty:
+                        # Email ka Subject aur Body banana
+                        mail_subject = f"Delay Report - {clicked_destination}"
+                        mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
+                        
+                        for idx, row in delay_mail_data.iterrows():
+                            lorry = row.get('Lorry No.', 'N/A')
+                            delay_time = row.get('Late Hrs', 'N/A')
+                            remark = row.get('Tracking Remark', 'N/A')
+                            # Email mein line likhna
+                            mail_body += f"🚛 Lorry No: {lorry} | Delay: {delay_time} | Remark: {remark}\n"
+                            
+                        mail_body += "\nRegards,\nTejas Cargo India Pvt Ltd"
+                        
+                        # Link ko browser format mein convert karna
+                        mailto_link = f"mailto:?subject={urllib.parse.quote(mail_subject)}&body={urllib.parse.quote(mail_body)}"
+                        
+                        # Email Button dikhana
+                        st.link_button("📧 Send Mail (Delayed Vehicles)", mailto_link, type="secondary")
+                # ==============================================================================
             
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("7-day and overall vendor comparison")
