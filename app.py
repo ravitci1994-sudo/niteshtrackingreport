@@ -166,27 +166,24 @@ if st.session_state.client_data is not None:
             st.markdown("---")
             st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
             
-            # ================= NAYA FEATURE: FILTER BUTTONS =================
             filter_option = st.radio(
                 "🚦 Data Filter Karein:",
                 ["ALL DATA", "RUNNING VEHICLE ONTIME", "DELAY", "REPORTED VEHICLE"],
                 horizontal=True
             )
             
-            # Button click hone par data filter karna
             if filter_option == "RUNNING VEHICLE ONTIME":
                 detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
             elif filter_option == "DELAY":
                 detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
             elif filter_option == "REPORTED VEHICLE":
-                # Jo gaadiyan raste mein nahi hain (yaani pahunch chuki hain)
                 detailed_data = detailed_data[detailed_data['Status_Category'] != 'In-Transit']
 
-            # Agar filter karne ke baad data nahi bacha
             if detailed_data.empty:
                 st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
             else:
-                display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Status_Category']
+                # ====== YAHAN TRACKING REMARKS ADD KIYE GAYE HAIN ======
+                display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
                 show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
                 
                 def style_detailed_row(row):
@@ -196,7 +193,6 @@ if st.session_state.client_data is not None:
                     
                 styled_detail = show_df.style.apply(style_detailed_row, axis=1)
                 
-                # Filtered table dikhana
                 st.dataframe(styled_detail, use_container_width=True, hide_index=True)
                 
                 buffer_selected = io.BytesIO()
@@ -209,8 +205,6 @@ if st.session_state.client_data is not None:
                     file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
                     mime="application/vnd.ms-excel"
                 )
-            
-            # ================================================================
             
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("7-day and overall vendor comparison")
