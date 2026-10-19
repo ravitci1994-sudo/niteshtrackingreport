@@ -58,6 +58,12 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 try:
                     df = pd.read_excel(uploaded_file)
                     
+                    # NAYA FEATURE: From aur Destination ko jod kar "Route Path" banana
+                    if 'From' in df.columns and 'Destination' in df.columns:
+                        df['Route Path'] = df['From'].astype(str).str.strip().str.upper() + " TO " + df['Destination'].astype(str).str.strip().str.upper()
+                    else:
+                        df['Route Path'] = "Unknown Route"
+
                     def get_arrival_status(row):
                         if pd.isna(row.get('Final Touching Reporting Date & Time')):
                             return "In-Transit"
@@ -93,7 +99,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
-        # ================= NAYA FEATURE: 5 FILTERS INCLUDING STAFF =================
         f1, f2, f3, f4, f5 = st.columns(5)
         
         with f1:
@@ -105,7 +110,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             client_filtered_df = client_filtered_df[client_filtered_df['Party'] == client_filter]
 
         with f2:
-            # Controlling Staff Name Dropdown add kiya gaya
             staff_list = ["ALL"] + list(client_filtered_df['Controlling Staff Name'].dropna().unique()) if 'Controlling Staff Name' in client_filtered_df.columns else ["ALL"]
             staff_filter = st.selectbox("Filter by Staff:", staff_list)
 
@@ -114,15 +118,16 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             staff_filtered_df = staff_filtered_df[staff_filtered_df['Controlling Staff Name'] == staff_filter]
 
         with f3:
-            ro_list = ["ALL"] + list(staff_filtered_df['From'].dropna().unique()) if 'From' in staff_filtered_df.columns else ["ALL"]
+            # Ab yahan 'From' ki jagah poora 'Route Path' aayega
+            ro_list = ["ALL"] + sorted(list(staff_filtered_df['Route Path'].dropna().unique())) if 'Route Path' in staff_filtered_df.columns else ["ALL"]
             ro_filter = st.selectbox("Filter by Route:", ro_list)
             
         route_filtered_df = staff_filtered_df.copy()
         if ro_filter != "ALL":
-            route_filtered_df = route_filtered_df[route_filtered_df['From'] == ro_filter]
+            route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
 
         with f4:
-            dest_list = ["ALL"] + list(route_filtered_df['Destination'].dropna().unique()) if 'Destination' in route_filtered_df.columns else ["ALL"]
+            dest_list = ["ALL"] + sorted(list(route_filtered_df['Destination'].dropna().unique())) if 'Destination' in route_filtered_df.columns else ["ALL"]
             dest_filter = st.selectbox("Filter by Destination:", dest_list)
 
         with f5:
@@ -133,10 +138,10 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
         if search_query:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
-        # ===========================================================================
 
         if not filtered_df.empty:
-            summary_df = pd.crosstab(filtered_df['Destination'], filtered_df['Status_Category']).reset_index()
+            # Table ko bhi 'Destination' ki jagah 'Route Path' se group kiya hai
+            summary_df = pd.crosstab(filtered_df['Route Path'], filtered_df['Status_Category']).reset_index()
             
             for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
                 if col not in summary_df.columns:
@@ -154,7 +159,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("Client Arrival Performance Summary")
-            st.markdown("*💡 Tip: Kisi bhi row (Destination) par click karein aur uska detail niche dekhein.*")
+            st.markdown("*💡 Tip: Kisi bhi row (Route) par click karein aur uska detail niche dekhein.*")
 
             styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
                                         .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
@@ -170,13 +175,13 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
 
             if len(selection_event.selection.rows) > 0:
                 selected_row_index = selection_event.selection.rows[0]
-                clicked_destination = summary_df.iloc[selected_row_index]['Destination']
+                clicked_route = summary_df.iloc[selected_row_index]['Route Path']
                 
-                detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
+                detailed_data = filtered_df[filtered_df['Route Path'] == clicked_route].copy()
                 total_trips = len(detailed_data)
                 
                 st.markdown("---")
-                st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
+                st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_route}</span> • {total_trips} trips", unsafe_allow_html=True)
                 
                 filter_option = st.radio(
                     "🚦 Data Filter Karein:",
@@ -194,7 +199,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 if detailed_data.empty:
                     st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
                 else:
-                    display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
+                    display_cols = ['Date', 'Route Path', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
                     show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
                     
                     def style_detailed_row(row):
@@ -214,14 +219,14 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                         st.download_button(
                             label="📥 Download Data",
                             data=buffer_selected.getvalue(),
-                            file_name=f"Selected_{clicked_destination}_{filter_option}.xlsx",
+                            file_name=f"Selected_{clicked_route}_{filter_option}.xlsx",
                             mime="application/vnd.ms-excel"
                         )
                         
                     with btn_col2:
                         delay_mail_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
                         if not delay_mail_data.empty:
-                            mail_subject = f"Delay Report - {clicked_destination}"
+                            mail_subject = f"Delay Report - {clicked_route}"
                             mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
                             
                             for idx, row in delay_mail_data.iterrows():
@@ -235,25 +240,21 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             
                             st.link_button("📧 Send Mail", mailto_link, type="secondary")
                 
-                # GRAPH HATA DIYA GAYA HAI
-                
-                # ================= NAYA FEATURE: LAST 1 WEEK ROUTE-WISE COMPARISON =================
+                # LAST 1 WEEK COMPARISON
                 st.markdown("<br><br>", unsafe_allow_html=True)
                 st.subheader("📍 Last 1 Week Route-wise Performance")
                 st.markdown("<small style='color:gray'>Aapke chune hue End Date se pichle 7 din ka data</small>", unsafe_allow_html=True)
                 
-                # Last 7 Days ka filter lagana
                 last_week_df = filtered_df.copy()
                 if 'Date' in last_week_df.columns:
                     try:
                         last_week_df['Temp_Date'] = pd.to_datetime(last_week_df['Date'], errors='coerce').dt.date
                         last_7_days_start = end_date - pd.Timedelta(days=7)
-                        # Filter for last 7 days
                         last_week_df = last_week_df[(last_week_df['Temp_Date'] > last_7_days_start) & (last_week_df['Temp_Date'] <= end_date)]
                     except Exception as e:
-                        pass # Agar date convert na ho, toh pura data dikhayega
+                        pass
                         
-                route_comp = pd.crosstab(last_week_df['Destination'], last_week_df['Status_Category']).reset_index()
+                route_comp = pd.crosstab(last_week_df['Route Path'], last_week_df['Status_Category']).reset_index()
                 
                 for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit']:
                     if col not in route_comp.columns:
@@ -270,7 +271,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 route_comp['Late'] = route_comp.apply(lambda x: format_comp(x['Late Arrival'], x['Total_Trips']), axis=1)
                 route_comp['Pending (In-Transit)'] = route_comp.apply(lambda x: format_comp(x['In-Transit'], x['Total_Trips']), axis=1)
                 
-                display_comp = route_comp[['Destination', 'Total_Trips', 'On-Time', 'Late', 'Pending (In-Transit)']]
+                display_comp = route_comp[['Route Path', 'Total_Trips', 'On-Time', 'Late', 'Pending (In-Transit)']]
                 
                 def highlight_late(val):
                     if isinstance(val, str) and '•' in val:
