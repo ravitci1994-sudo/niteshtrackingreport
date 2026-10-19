@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import io
+import os
 
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -14,6 +15,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Data Save karne ki file ka naam
+DATA_FILE = "saved_client_data.pkl"
+
+# ================= MEMORY SETUP (Hard Disk Save Logic) =================
+if 'client_data' not in st.session_state:
+    # Check karega ki server par pehle se data save toh nahi hai
+    if os.path.exists(DATA_FILE):
+        st.session_state.client_data = pd.read_pickle(DATA_FILE)
+    else:
+        st.session_state.client_data = None
+
 # ================= SIDEBAR =================
 st.sidebar.markdown("✨ **Choose your theme**")
 theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
@@ -21,42 +33,56 @@ theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
-if st.sidebar.button("Logout", use_container_width=True):
-    st.sidebar.warning("Logged out successfully!")
+# Clear Data Button (Nayi file dalne ke liye purana data delete karna)
+if st.session_state.client_data is not None:
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🗑️ Clear Saved Data", type="primary", use_container_width=True):
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+        st.session_state.client_data = None
+        st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.radio("Navigation:", ["🔴 🚚 Client Performance"], label_visibility="collapsed")
+if st.sidebar.button("Logout", use_container_width=True):
+    st.sidebar.warning("Logged out successfully!")
+
 
 # ================= MAIN PAGE HEADER =================
 st.title("Client performance")
 st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
-# ================= MEMORY SETUP =================
-if 'client_data' not in st.session_state:
-    st.session_state.client_data = None
 
 # ================= FILE UPLOADER & BUTTON =================
-uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
+if st.session_state.client_data is None:
+    uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
 
-if uploaded_file is not None:
-    if st.button("🚀 Process & Show Report", type="primary"):
-        try:
-            df = pd.read_excel(uploaded_file)
-            
-            def get_arrival_status(row):
-                if pd.isna(row.get('Final Touching Reporting Date & Time')):
-                    return "In-Transit"
-                elif pd.notna(row.get('Late Hrs')):
-                    return "Late Arrival"
-                else:
-                    return "Ontime Arrival"
-                    
-            df['Status_Category'] = df.apply(get_arrival_status, axis=1)
-            st.session_state.client_data = df
-            st.success("✅ File Data processed successfully! Niche report dekhein.")
-            
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
+    if uploaded_file is not None:
+        if st.button("🚀 Process & Save Report permanently", type="primary"):
+            try:
+                df = pd.read_excel(uploaded_file)
+                
+                def get_arrival_status(row):
+                    if pd.isna(row.get('Final Touching Reporting Date & Time')):
+                        return "In-Transit"
+                    elif pd.notna(row.get('Late Hrs')):
+                        return "Late Arrival"
+                    else:
+                        return "Ontime Arrival"
+                        
+                df['Status_Category'] = df.apply(get_arrival_status, axis=1)
+                
+                # Data ko Session aur Server Hard Disk dono mein save karna
+                st.session_state.client_data = df
+                df.to_pickle(DATA_FILE) 
+                
+                st.success("✅ File Data processed aur save ho gaya! Ab aap refresh bhi karenge toh data nahi hategi.")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Error processing file: {e}")
+else:
+    st.success("✅ Data pehle se saved hai! Nayi file upload karne ke liye pehle Sidebar se 'Clear Saved Data' par click karein.")
 
 # ================= DASHBOARD =================
 if st.session_state.client_data is not None:
@@ -86,7 +112,7 @@ if st.session_state.client_data is not None:
     with f4:
         search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
 
-    # Apply Filters (YAHIN PAR ERROR THA)
+    # Apply Filters
     filtered_df = df.copy()
     if ro_filter != "ALL":
         filtered_df = filtered_df[filtered_df['From'] == ro_filter]
@@ -136,23 +162,17 @@ if st.session_state.client_data is not None:
             selected_row_index = selection_event.selection.rows[0]
             clicked_destination = summary_df.iloc[selected_row_index]['Destination']
             
-            # Sirf us destination ka data filter karna
             detailed_data = filtered_df[filtered_df['Destination'] == clicked_destination].copy()
             total_trips = len(detailed_data)
             
             st.markdown("---")
-            
-            # 1. Custom Header
             st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_destination}</span> • Route Path • {total_trips} trips", unsafe_allow_html=True)
             
-            # 2. Columns set karna aur Table Style karna
             display_cols = ['Date', 'From', 'Destination', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Status_Category']
             show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
             
-            # Late aane wali gaadiyon ki row ko RED color karna
             def style_detailed_row(row):
                 if row.get('Status_Category') == 'Late Arrival':
-                    # Dark red background with light red text
                     return ['background-color: #3b1c1c; color: #ff6b6b'] * len(row)
                 return [''] * len(row)
                 
@@ -160,7 +180,6 @@ if st.session_state.client_data is not None:
             
             st.dataframe(styled_detail, use_container_width=True, hide_index=True)
             
-            # 3. Selected Data Download Button
             buffer_selected = io.BytesIO()
             with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
                 detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
@@ -172,12 +191,10 @@ if st.session_state.client_data is not None:
                 mime="application/vnd.ms-excel"
             )
             
-            # 4. 7-Day Comparison Section
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("7-day and overall vendor comparison")
             st.markdown("<small style='color:gray'>Previous 7 days vs Current 7 days</small>", unsafe_allow_html=True)
             
-            # Dummy data for comparison 
             comp_data = {
                 "Vendor": ["TEJAS CARGO INDIA PVT LTD"],
                 "Previous 7 Days Trips": [8],
@@ -189,7 +206,6 @@ if st.session_state.client_data is not None:
             }
             comp_df = pd.DataFrame(comp_data)
             
-            # Comparison table ko thoda dark aur highlight karna
             styled_comp = comp_df.style.map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b' if '75.0%' in str(x) or '87.5%' in str(x) else '')
             st.dataframe(styled_comp, hide_index=True, use_container_width=True)
 
@@ -209,5 +225,3 @@ if st.session_state.client_data is not None:
         mime="application/vnd.ms-excel",
         type="primary"
     )
-elif uploaded_file is None:
-    st.warning("⚠️ Please upload your 'MIS for Placement' Excel file to generate the dashboard.")
