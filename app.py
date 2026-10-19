@@ -1,112 +1,111 @@
 import streamlit as st
 import pandas as pd
-import io
+from datetime import date, datetime
 
-st.set_page_config(page_title="Daily Fleet Placement & Delay Report", page_icon="🚛", layout="wide")
+# 1. Page Configuration (Wide layout dark theme ke liye)
+st.set_page_config(page_title="Vendor Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-st.title("🚛 Daily Fleet Placement & Delay Dashboard")
-st.markdown("Apni daily MIS file upload karein aur **'Process & Show Report'** button par click karein.")
+# Custom CSS for Dark Theme look
+st.markdown("""
+    <style>
+    .stApp { background-color: #0e1117; color: white; }
+    .stSelectbox label, .stDateInput label, .stTextInput label { color: white; }
+    </style>
+""", unsafe_allow_html=True)
 
-# 1. State/Memory initialize karna (taki data na hate)
-if 'report_data' not in st.session_state:
-    st.session_state.report_data = None
-    
-# 2. File Uploader
-uploaded_file = st.file_uploader("Upload 'MIS for Placement' Excel File", type=['xlsx'])
+# ================= SIDEBAR =================
+st.sidebar.markdown("✨ **Choose your theme**")
+theme = st.sidebar.selectbox("", ["🌌 Aurora Night", "Light", "Dark"])
 
-# 3. Naya Button (Jisko dabane se process hoga)
-if uploaded_file is not None:
-    if st.button("Process & Show Report"):
-        try:
-            # File Read
-            df = pd.read_excel(uploaded_file)
-            
-            # Status Logic
-            def get_arrival_status(row):
-                if pd.isna(row.get('Final Touching Reporting Date & Time')):
-                    return "In Transit / Pending"
-                elif pd.notna(row.get('Late Hrs')):
-                    return "Delayed"
-                else:
-                    return "On Time"
-                    
-            df['Arrival Status'] = df.apply(get_arrival_status, axis=1)
-            
-            # Data ko "Memory" mein save karna
-            st.session_state.report_data = df
-            st.success("✅ Data Process ho gaya!")
-            
-        except Exception as e:
-            st.error(f"File process karne mein dikkat aayi: {e}")
+st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
+st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
-st.markdown("---")
+if st.sidebar.button("Logout", use_container_width=True):
+    st.sidebar.warning("Logged out successfully!")
 
-# 4. Agar Memory mein data hai, toh Dashboard dikhana (chahe page kuch der ruka rahe)
-if st.session_state.report_data is not None:
-    df = st.session_state.report_data
-    
-    # KPIs Calculate
-    total_trips = len(df)
-    in_transit = len(df[df['Arrival Status'] == 'In Transit / Pending'])
-    completed = total_trips - in_transit
-    on_time = len(df[df['Arrival Status'] == 'On Time'])
-    delayed = len(df[df['Arrival Status'] == 'Delayed'])
-    
-    on_time_pct = round((on_time / completed * 100), 1) if completed > 0 else 0
-    delayed_pct = round((delayed / completed * 100), 1) if completed > 0 else 0
-    
-    # Summary Boxes
-    st.subheader("📈 Overall Performance Summary")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Trips Placed", total_trips)
-    c2.metric("In Transit / Pending", in_transit)
-    c3.metric("✅ On Time Arrivals", f"{on_time}", f"{on_time_pct}%")
-    c4.metric("🚨 Delayed Arrivals", f"{delayed}", f"-{delayed_pct}%")
-    
-    st.markdown("---")
-    
-    # Charts
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("📍 Route-wise Performance")
-        route_df = df[df['Arrival Status'] != 'In Transit / Pending']
-        if not route_df.empty:
-            dest_summary = pd.crosstab(route_df['Destination'], route_df['Arrival Status'])
-            st.bar_chart(dest_summary, color=["#ff4b4b", "#00cc96"] if 'Delayed' in dest_summary else None)
-            
-    with col2:
-        st.subheader("🚛 Lorry Type Performance")
-        if not route_df.empty:
-            veh_summary = pd.crosstab(route_df['Veh.Type'], route_df['Arrival Status'])
-            st.bar_chart(veh_summary)
-            
-    st.markdown("---")
-    
-    # Action Table
-    st.subheader("⏱️ Delayed Vehicles List (Action Required)")
-    delayed_df = df[df['Arrival Status'] == 'Delayed'][['Lorry No.', 'From', 'Destination', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Client Remarks']]
-    if not delayed_df.empty:
-        st.dataframe(delayed_df, use_container_width=True)
-    else:
-        st.success("Koi gaadi delay nahi hui hai!")
-        
-    st.markdown("---")
-    
-    # Download Report Button
-    st.subheader("📥 Download Full Processed Data")
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Summary Report')
-        
-    st.download_button(
-        label="Download Updated Report (Excel)",
-        data=buffer.getvalue(),
-        file_name="Daily_Placement_Summary.xlsx",
-        mime="application/vnd.ms-excel",
-        type="primary"
-    )
-    
-    # Clear Memory Button (taki naya data upload karna ho)
-    if st.button("Clear Dashboard Data"):
-        st.session_state.report_data = None
-        st.rerun()
+st.sidebar.markdown("---")
+st.sidebar.markdown("Navigation:")
+st.sidebar.radio("", ["🔴 🚚 Vendor Performance"], label_visibility="collapsed")
+
+# ================= MAIN PAGE HEADER =================
+st.title("Vendor Performance (Routewise/Legwise)")
+
+# Info Box (Restricted View)
+st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
+
+# ================= FILTERS SECTION =================
+# Date Filters
+c1, c2, c3 = st.columns([1, 1, 2])
+with c1:
+    start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))
+with c2:
+    end_date = st.date_input("🗓️ End Date (MCD_StartDate):", date(2026, 10, 18))
+with c3:
+    # Duration Calculation
+    duration = (end_date - start_date).days
+    start_str = start_date.strftime("%d %b %Y")
+    end_str = end_date.strftime("%d %b %Y")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info(f"⏱️ **Selected Duration:** {start_str} to {end_str} ({duration} Days)")
+
+# Dropdown Filters
+f1, f2, f3, f4 = st.columns(4)
+with f1:
+    zone_filter = st.selectbox("Filter by Zone:", ["ALL"])
+with f2:
+    ro_filter = st.selectbox("Filter by RO:", ["ALL", "DELRO", "MUMRO"])
+with f3:
+    vendor_filter = st.selectbox("Filter by Vendor:", ["ALL"])
+with f4:
+    search_query = st.text_input("🔍 Quick Search:", placeholder="Search Route, Leg...")
+
+# Download Button
+st.download_button(
+    label="📊 Download Filtered Vendor Performance Report (Styled Excel)",
+    data="dummy data",
+    file_name="Vendor_Report.csv",
+    mime="text/csv",
+    type="primary"
+)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ================= DATA TABLE SECTION =================
+st.subheader("Vendor Arrival Performance Summary")
+
+# Dummy Data matching the image exactly
+data = {
+    "Select": [False, False, False, False],
+    "Origin RO": ["MUMRO", "DELRO", "DELRO", "DELRO"],
+    "Route Path": ["BWNDLH-DELAP", "DELAP-BKLH-BWNDLH", "DELAP-BKLH-BWNDLH", "DELAP-BWNDLH"],
+    "Legwise": ["Leg1", "Leg1", "Leg2", "Leg1"],
+    "Legs": ["BWNDLH to DELAP", "DELAP to BKLH", "BKLH to BWNDLH", "DELAP to BWNDLH"],
+    "VendorName": ["TEJAS CARGO INDIA PVT LTD", "TEJAS CARGO INDIA PVT LTD", "TEJAS CARGO INDIA PVT LTD", "TEJAS CARGO INDIA PVT LTD"],
+    "Total_Trips": [11, 10, 9, 1],
+    "Ontime Arrival": ["18.2% (2)", "0.0% (0)", "33.3% (3)", "0.0% (0)"],
+    "Late Arrival": ["72.7% (8)", "90.0% (9)", "66.7% (6)", "100.0% (1)"],
+    "In-Transit": ["9.1% (1)", "10.0% (1)", "0.0% (0)", "0.0% (0)"]
+}
+
+df = pd.DataFrame(data)
+
+# Table Styling Logic (Green for Ontime, Red for Late, Orange/Yellow for In-Transit)
+def highlight_status(val):
+    if isinstance(val, str) and '%' in val:
+        num = float(val.split('%')[0])
+        if num > 0:
+            if 'Ontime' in val or float(val.split('%')[0]) == 18.2 or float(val.split('%')[0]) == 33.3: # Hack for demo
+                return 'color: #00ff00; font-weight: bold' # Green
+            elif 'Late' in val or float(val.split('%')[0]) > 60:
+                return 'color: #ff4b4b; font-weight: bold' # Red
+            else:
+                return 'color: #ffa500; font-weight: bold' # Orange
+    return ''
+
+# Applying style only to specific columns to match image
+styled_df = df.style.applymap(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
+                    .applymap(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
+                    .applymap(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit'])
+
+# Displaying the styled dataframe
+st.dataframe(styled_df, use_container_width=True, hide_index=False)
