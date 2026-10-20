@@ -41,9 +41,13 @@ def process_dataframe(df):
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Agar Final Touching Reporting Date & Time mein time diya hai, toh Trip Closed
+        # Check if Trip is Closed
         if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
-            return "Trip Closed"
+            late_hrs = row.get('Late Hrs')
+            if pd.notna(late_hrs) and str(late_hrs).strip() != "" and str(late_hrs).strip() != "0":
+                return "Trip Closed (Delay)"
+            else:
+                return "Trip Closed (On-Time)"
         else:
             return "In-Transit"
             
@@ -148,8 +152,8 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
-        # ================= SEARCH / DROPDOWNS =================
-        f1, f2, f3, f4 = st.columns(4)
+        # ================= SEARCH / DROPDOWNS (Added Staff Control) =================
+        f1, f2, f3, f4, f5 = st.columns(5)
         
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
         with f1:
@@ -178,11 +182,21 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         if vendor_filter != "ALL" and vendor_col:
             vendor_filtered_df = vendor_filtered_df[vendor_filtered_df[vendor_col] == vendor_filter]
 
-        lorry_col = next((c for c in df.columns if 'lorry' in c.lower() or 'vehicle' in c.lower() or 'truck' in c.lower()), None)
+        # Staff Control Filter
+        staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
         with f4:
-            search_vehicle = st.text_input("🔍 Search by Vehicle No:", placeholder="Enter Vehicle No...")
+            staff_list = ["ALL"] + list(vendor_filtered_df[staff_col].dropna().unique()) if staff_col else ["ALL"]
+            staff_filter = st.selectbox("Search by Staff Control:", staff_list)
+
+        staff_filtered_df = vendor_filtered_df.copy()
+        if staff_filter != "ALL" and staff_col:
+            staff_filtered_df = staff_filtered_df[staff_filtered_df[staff_col] == staff_filter]
+
+        lorry_col = next((c for c in df.columns if 'lorry' in c.lower() or 'vehicle' in c.lower() or 'truck' in c.lower()), None)
+        with f5:
+            search_vehicle = st.text_input("🔍 Vehicle No:", placeholder="Enter Vehicle No...")
             
-        filtered_df = vendor_filtered_df.copy()
+        filtered_df = staff_filtered_df.copy()
         if search_vehicle and lorry_col:
             filtered_df = filtered_df[filtered_df[lorry_col].astype(str).str.contains(search_vehicle, case=False, na=False)]
         
@@ -193,29 +207,31 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
             summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
             
-            for col in ['In-Transit', 'Trip Closed']:
+            for col in ['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)']:
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
-            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed']].sum(axis=1)
+            summary_df['Trip Closed'] = summary_df['Trip Closed (On-Time)'] + summary_df['Trip Closed (Delay)']
+            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)']].sum(axis=1)
 
             def format_pct(count, total):
                 if total > 0:
                     return f"{round((count/total)*100, 1)}% ({int(count)})"
                 return "0.0% (0)"
 
-            summary_df['In-Transit_fmt'] = summary_df.apply(lambda x: format_pct(x['In-Transit'], x['Total_Trips']), axis=1)
+            summary_df['On-Time_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed (On-Time)'], x['Total_Trips']), axis=1)
+            summary_df['Delay_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed (Delay)'], x['Total_Trips']), axis=1)
             summary_df['Trip Closed_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed'], x['Total_Trips']), axis=1)
 
-            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'In-Transit_fmt', 'Trip Closed_fmt']]
-            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'In-Transit', 'Trip Closed']
+            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'On-Time_fmt', 'Delay_fmt', 'Trip Closed_fmt']]
+            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'On-Time', 'Delay', 'Trip Closed']
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("Vendor Arrival Performance Summary")
             st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)
 
-            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['Trip Closed']) \
-                                           .map(lambda x: 'background-color: #3b2a1a; color: #ffa500; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['In-Transit'])
+            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['On-Time']) \
+                                           .map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['Delay'])
 
             selection_event = st.dataframe(
                 styled_df, 
@@ -227,10 +243,12 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ================= 3 STATUS BUTTONS WITH COUNTS =================
+            # ================= STATUS BUTTONS WITH COUNTS =================
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
-            closed_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed'])
+            ontime_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (On-Time)'])
+            delay_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (Delay)'])
+            closed_count = ontime_count + delay_count
 
             st.markdown("🚦 **Status Filters:**")
             status_filter = st.radio(
@@ -238,6 +256,8 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 [
                     f"All Data ({total_count})", 
                     f"In-Transit Vehicle ({transit_count})", 
+                    f"On-Time ({ontime_count})",
+                    f"Delay ({delay_count})",
                     f"Trip Closed ({closed_count})"
                 ],
                 horizontal=True,
@@ -247,8 +267,12 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             display_detail_df = filtered_df.copy()
             if "In-Transit Vehicle" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
+            elif "On-Time" in status_filter:
+                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed (On-Time)']
+            elif "Delay" in status_filter:
+                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed (Delay)']
             elif "Trip Closed" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed']
+                display_detail_df = display_detail_df[display_detail_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])]
 
             st.markdown(f"### 📄 Trip Records ({status_filter})")
             
@@ -283,7 +307,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 type="primary"
             )
 
-            # ================= LAST 7 DAYS PERFORMANCE DATA (ONLY TRIP CLOSED) =================
+            # ================= LAST 7 DAYS PERFORMANCE DATA (TRIP CLOSED) =================
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("📍 Last 7 Days Route-wise Performance Data")
             st.markdown("<small style='color:gray'>Pichle 7 dino ka Trip Closed performance summary data</small>", unsafe_allow_html=True)
@@ -301,14 +325,15 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             if not last_week_df.empty:
                 week_summary = last_week_df.groupby('Route Path')['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
                 
-                # Sirf Trip Closed aur Total_Trips rakhenge
-                if 'Trip Closed' not in week_summary.columns:
-                    week_summary['Trip Closed'] = 0
+                if 'Trip Closed (On-Time)' not in week_summary.columns:
+                    week_summary['Trip Closed (On-Time)'] = 0
+                if 'Trip Closed (Delay)' not in week_summary.columns:
+                    week_summary['Trip Closed (Delay)'] = 0
                 
-                week_summary['Total_Trips'] = week_summary['Trip Closed']
+                week_summary['Trip Closed'] = week_summary['Trip Closed (On-Time)'] + week_summary['Trip Closed (Delay)']
                 
-                # In-Transit column ko hata kar sirf Trip Closed aur Total_Trips dikhayenge
-                final_week_summary = week_summary[['Route Path', 'Trip Closed', 'Total_Trips']]
+                final_week_summary = week_summary[['Route Path', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Trip Closed']]
+                final_week_summary.columns = ['Route Path', 'On-Time', 'Delay', 'Total_Trips']
                 
                 st.dataframe(final_week_summary, use_container_width=True, hide_index=True)
             else:
