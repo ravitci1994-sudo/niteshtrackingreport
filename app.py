@@ -62,7 +62,38 @@ st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:gre
 
 st.sidebar.markdown("---")
 
-if st.sidebar.button("🚀 PROCESS & REFRESH DATA", type="primary", use_container_width=True):
+# Sidebar File Uploader (Yahin se file upload hogi aur save rahegi)
+st.sidebar.markdown("📂 **Upload MIS Files**")
+uploaded_files = st.sidebar.file_uploader(
+    "Choose Excel/CSV files", 
+    type=["xlsx", "csv"], 
+    accept_multiple_files=True,
+    label_visibility="collapsed"
+)
+
+if uploaded_files:
+    try:
+        df_list = []
+        for uploaded_file in uploaded_files:
+            if uploaded_file.name.endswith('.csv'):
+                temp_df = pd.read_csv(uploaded_file)
+            else:
+                temp_df = pd.read_excel(uploaded_file)
+            df_list.append(temp_df)
+        
+        df = pd.concat(df_list, ignore_index=True)
+        df = process_dataframe(df)
+        
+        st.session_state.client_data = df
+        if os.path.exists(DATA_FILE):
+            os.remove(DATA_FILE)
+        df.to_pickle(DATA_FILE) 
+    except Exception as e:
+        st.sidebar.error(f"Error: {e}")
+
+st.sidebar.markdown("---")
+
+if st.sidebar.button("🔄 REFRESH / CLEAR DATA", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.session_state.client_data = None
@@ -88,33 +119,6 @@ if st.sidebar.button("Logout", use_container_width=True):
 if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
     st.title(selected_nav.replace("📊 ", "").replace("🚚 ", ""))
     st.info("🔒 **Restricted View:** Showing exclusive performance records.")
-
-    # Auto-processing file uploader (No button needed)
-    uploaded_files = st.file_uploader(
-        "📂 Apni 'MIS for Placement' Excel/CSV files yahan upload karein", 
-        type=["xlsx", "csv"], 
-        accept_multiple_files=True
-    )
-
-    if uploaded_files:
-        try:
-            df_list = []
-            for uploaded_file in uploaded_files:
-                if uploaded_file.name.endswith('.csv'):
-                    temp_df = pd.read_csv(uploaded_file)
-                else:
-                    temp_df = pd.read_excel(uploaded_file)
-                df_list.append(temp_df)
-            
-            df = pd.concat(df_list, ignore_index=True)
-            df = process_dataframe(df)
-            
-            st.session_state.client_data = df
-            if os.path.exists(DATA_FILE):
-                os.remove(DATA_FILE)
-            df.to_pickle(DATA_FILE) 
-        except Exception as e:
-            st.error(f"Error processing files: {e}")
 
     # ================= DASHBOARD =================
     if st.session_state.client_data is not None:
@@ -254,7 +258,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                         mime="application/vnd.ms-excel"
                     )
         else:
-            st.warning("⚠️ Koi data available nahi hai. Kripya upar file upload karein.")
+            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")
         
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -268,6 +272,8 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             mime="application/vnd.ms-excel",
             type="primary"
         )
+    else:
+        st.info("👈 Kripya Sidebar se apni file upload karein.")
 else:
     st.title(selected_nav.replace("💳 ", "").replace("📱 ", "").replace("💰 ", "").replace("📝 ", "").replace("🔐 ", ""))
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
