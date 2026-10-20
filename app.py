@@ -14,11 +14,9 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # Flexible column mapping for Origin RO / From / RO
     ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'from' in c.lower() or 'origin' in c.lower()), None)
     df['Origin RO'] = df[ro_col].astype(str).str.strip() if ro_col else "DELRO"
     
-    # Flexible Route Path
     from_c = next((c for c in df.columns if 'from' in c.lower() or 'origin' in c.lower()), None)
     dest_c = next((c for c in df.columns if 'dest' in c.lower() or 'to' in c.lower()), None)
     if from_c and dest_c:
@@ -156,31 +154,37 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
-        # ================= FILTERS =================
+        # ================= SEARCH / DROPDOWNS =================
         f1, f2, f3, f4 = st.columns(4)
         
+        # Search by Zone with North, East, West, South options
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
         with f1:
-            zone_list = ["ALL"] + list(df[zone_col].dropna().unique()) if zone_col else ["ALL"]
-            zone_filter = st.selectbox("Filter by Zone:", zone_list)
+            if zone_col and not df[zone_col].dropna().empty:
+                zone_list = ["ALL"] + list(df[zone_col].dropna().unique())
+            else:
+                zone_list = ["ALL", "North", "East", "West", "South"]
+            zone_filter = st.selectbox("Search by Zone:", zone_list)
             
         zone_filtered_df = df.copy()
-        if zone_filter != "ALL" and zone_col:
+        if zone_filter != "ALL" and zone_col and zone_col in df.columns:
             zone_filtered_df = zone_filtered_df[zone_filtered_df[zone_col] == zone_filter]
 
+        # Search by RO
         ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower()), None)
         with f2:
             ro_list = ["ALL"] + list(zone_filtered_df[ro_col].dropna().unique()) if ro_col else ["ALL"]
-            ro_filter = st.selectbox("Filter by RO:", ro_list)
+            ro_filter = st.selectbox("Search by RO:", ro_list)
             
         ro_filtered_df = zone_filtered_df.copy()
         if ro_filter != "ALL" and ro_col:
             ro_filtered_df = ro_filtered_df[ro_filtered_df[ro_col] == ro_filter]
 
+        # Search by Vendor
         vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
         with f3:
             vendor_list = ["ALL"] + list(ro_filtered_df[vendor_col].dropna().unique()) if vendor_col else ["ALL"]
-            vendor_filter = st.selectbox("Filter by Vendor:", vendor_list)
+            vendor_filter = st.selectbox("Search by Vendor:", vendor_list)
 
         vendor_filtered_df = ro_filtered_df.copy()
         if vendor_filter != "ALL" and vendor_col:
@@ -194,7 +198,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             filtered_df = filtered_df[filtered_df['Route Path'].astype(str).str.contains(search_query, case=False, na=False) | 
                                        filtered_df['Legs'].astype(str).str.contains(search_query, case=False, na=False)]
         
-        # Fallback agar filtering ke baad dataframe khali ho jaye, toh poora data dikhayein taaki user ko blank screen na mile
         if filtered_df.empty:
             filtered_df = df.copy()
 
