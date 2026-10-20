@@ -93,12 +93,15 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             if os.path.exists(DATA_FILE):
                 os.remove(DATA_FILE)
             df.to_pickle(DATA_FILE) 
+            
             st.sidebar.success("✅ Data successfully processed!")
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"Error: {e}")
     else:
-        st.sidebar.warning("⚠️ Pehle koi file upload karein!")
+        # Agar uploader object khali ho gaya ho par session mein data pehle se saved hai toh warning na dein
+        if st.session_state.vendor_data is None:
+            st.sidebar.warning("⚠️ Pehle koi file upload karein!")
 
 st.sidebar.markdown("---")
 
@@ -248,7 +251,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
                 st.dataframe(detailed_data[display_cols], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karke 'Process Data' dabayein.")
+            st.warning("⚠️ Filtered data khali hai. Kripya apne filters check karein.")
     else:
         st.info("👈 Kripya Sidebar se apni file upload karein aur 'Process Data' button par click karein.")
 else:
