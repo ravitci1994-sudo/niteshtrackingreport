@@ -6,21 +6,25 @@ import os
 import urllib.parse
 
 # 1. Page Configuration
-st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Vendor Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-DATA_FILE = "saved_client_data.pkl"
+DATA_FILE = "saved_vendor_data.pkl"
 
 # Helper function to process data columns safely
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    from_col = next((c for c in df.columns if 'from' in c.lower() or 'origin' in c.lower()), None)
-    dest_col = next((c for c in df.columns if 'dest' in c.lower() or 'to' in c.lower()), None)
-    
-    if from_col and dest_col:
-        df['Route Path'] = df[from_col].astype(str).str.strip().str.upper() + " TO " + df[dest_col].astype(str).str.strip().str.upper()
-    else:
-        df['Route Path'] = "UNKNOWN ROUTE"
+    # Ensure required columns exist or create dummies if missing
+    if 'Origin RO' not in df.columns:
+        df['Origin RO'] = df.get('RO', df.get('From', 'DELRO'))
+    if 'Route Path' not in df.columns:
+        df['Route Path'] = "BWNDLH-DELAP"
+    if 'Legwise' not in df.columns:
+        df['Legwise'] = "Leg1"
+    if 'Legs' not in df.columns:
+        df['Legs'] = "BWNDLH to DELAP"
+    if 'VendorName' not in df.columns:
+        df['VendorName'] = "TEJAS CARGO INDIA PVT LTD"
 
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date')
@@ -46,15 +50,15 @@ def process_dataframe(df):
     return df
 
 # ================= MEMORY SETUP =================
-if 'client_data' not in st.session_state:
+if 'vendor_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
         try:
             df_loaded = pd.read_pickle(DATA_FILE)
-            st.session_state.client_data = process_dataframe(df_loaded)
+            st.session_state.vendor_data = process_dataframe(df_loaded)
         except:
-            st.session_state.client_data = None
+            st.session_state.vendor_data = None
     else:
-        st.session_state.client_data = None
+        st.session_state.vendor_data = None
 
 # ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
@@ -62,8 +66,8 @@ st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:gre
 
 st.sidebar.markdown("---")
 
-# Sidebar File Uploader (Yahin se file upload hogi aur save rahegi)
-st.sidebar.markdown("📂 **Upload MIS Files**")
+# Sidebar File Uploader
+st.sidebar.markdown("📂 **Upload Vendor MIS Files**")
 uploaded_files = st.sidebar.file_uploader(
     "Choose Excel/CSV files", 
     type=["xlsx", "csv"], 
@@ -84,7 +88,7 @@ if uploaded_files:
         df = pd.concat(df_list, ignore_index=True)
         df = process_dataframe(df)
         
-        st.session_state.client_data = df
+        st.session_state.vendor_data = df
         if os.path.exists(DATA_FILE):
             os.remove(DATA_FILE)
         df.to_pickle(DATA_FILE) 
@@ -96,13 +100,13 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🔄 REFRESH / CLEAR DATA", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
-    st.session_state.client_data = None
+    st.session_state.vendor_data = None
     st.rerun()
 
 st.sidebar.markdown("Navigation:")
 selected_nav = st.sidebar.radio("", [
-    "📊 Operations Summary",
-    "🚚 Vendor Performance",
+    "📊 Vendor Performance (Routewise/Legwise)",
+    "🚚 Operations Summary",
     "💳 Payment Dashboard",
     "📱 Communication Hub",
     "💰 Network Utilization",
@@ -116,78 +120,74 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 
 # ================= MAIN PAGE LOGIC =================
-if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
-    st.title(selected_nav.replace("📊 ", "").replace("🚚 ", ""))
-    st.info("🔒 **Restricted View:** Showing exclusive performance records.")
+if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operations Summary"]:
+    st.title("Vendor Performance (Routewise/Legwise)")[cite: 9]
+    st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")[cite: 9]
 
     # ================= DASHBOARD =================
-    if st.session_state.client_data is not None:
-        df = st.session_state.client_data
+    if st.session_state.vendor_data is not None:
+        df = st.session_state.vendor_data
         st.markdown("---")
         
-        f1, f2, f3, f4, f5, f6 = st.columns(6)
+        # Date & Duration Row
+        d1, d2, d3 = st.columns([1, 1, 2])
+        with d1:
+            start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))[cite: 9]
+        with d2:
+            end_date = st.date_input("🗓️ End Date (MCD_EndDate):", date(2026, 10, 18))[cite: 9]
+        with d3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")[cite: 9]
+            
+        # ================= FILTERS =================
+        f1, f2, f3, f4 = st.columns(4)
         
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
         with f1:
             zone_list = ["ALL"] + list(df[zone_col].dropna().unique()) if zone_col else ["ALL"]
-            zone_filter = st.selectbox("Filter by Zone:", zone_list)
+            zone_filter = st.selectbox("Filter by Zone:", zone_list)[cite: 9]
             
         zone_filtered_df = df.copy()
         if zone_filter != "ALL" and zone_col:
             zone_filtered_df = zone_filtered_df[zone_filtered_df[zone_col] == zone_filter]
 
-        client_col = next((c for c in df.columns if 'party' in c.lower() or 'client' in c.lower()), None)
+        ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower()), None)
         with f2:
-            client_list = ["ALL"] + list(zone_filtered_df[client_col].dropna().unique()) if client_col else ["ALL"]
-            client_filter = st.selectbox("Filter by Client:", client_list)
+            ro_list = ["ALL"] + list(zone_filtered_df[ro_col].dropna().unique()) if ro_col else ["ALL"]
+            ro_filter = st.selectbox("Filter by RO:", ro_list)[cite: 9]
             
-        client_filtered_df = zone_filtered_df.copy()
-        if client_filter != "ALL" and client_col:
-            client_filtered_df = client_filtered_df[client_filtered_df[client_col] == client_filter]
+        ro_filtered_df = zone_filtered_df.copy()
+        if ro_filter != "ALL" and ro_col:
+            ro_filtered_df = ro_filtered_df[ro_filtered_df[ro_col] == ro_filter]
 
-        staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
+        vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower()), None)
         with f3:
-            staff_list = ["ALL"] + list(client_filtered_df[staff_col].dropna().unique()) if staff_col else ["ALL"]
-            staff_filter = st.selectbox("Filter by Staff:", staff_list)
+            vendor_list = ["ALL"] + list(ro_filtered_df[vendor_col].dropna().unique()) if vendor_col else ["ALL"]
+            vendor_filter = st.selectbox("Filter by Vendor:", vendor_list)[cite: 9]
 
-        staff_filtered_df = client_filtered_df.copy()
-        if staff_filter != "ALL" and staff_col:
-            staff_filtered_df = staff_filtered_df[staff_filtered_df[staff_col] == staff_filter]
+        vendor_filtered_df = ro_filtered_df.copy()
+        if vendor_filter != "ALL" and vendor_col:
+            vendor_filtered_df = vendor_filtered_df[vendor_filtered_df[vendor_col] == vendor_filter]
 
         with f4:
-            ro_list = ["ALL"] + sorted(list(staff_filtered_df['Route Path'].dropna().unique()))
-            ro_filter = st.selectbox("Filter by Route:", ro_list)
+            search_query = st.text_input("🔍 Quick Search:", placeholder="Search Route, Leg...")[cite: 9]
             
-        route_filtered_df = staff_filtered_df.copy()
-        if ro_filter != "ALL":
-            route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
-
-        lorry_col = next((c for c in route_filtered_df.columns if 'lorry' in c.lower() or 'vehicle' in c.lower() or 'truck' in c.lower()), None)
-        with f5:
-            if lorry_col:
-                lorry_list = ["ALL"] + sorted(list(route_filtered_df[lorry_col].dropna().astype(str).unique()))
-            else:
-                lorry_list = ["ALL"]
-            lorry_filter = st.selectbox("Filter by Vehicle No:", lorry_list)
-
-        with f6:
-            search_query = st.text_input("🔍 Quick Search:", placeholder="Search...")
-            
-        filtered_df = route_filtered_df.copy()
-        if lorry_filter != "ALL" and lorry_col:
-            filtered_df = filtered_df[filtered_df[lorry_col].astype(str) == lorry_filter]
-        
-        if search_query and lorry_col:
-            filtered_df = filtered_df[filtered_df[lorry_col].astype(str).str.contains(search_query, case=False, na=False)]
+        filtered_df = vendor_filtered_df.copy()
+        if search_query:
+            filtered_df = filtered_df[filtered_df['Route Path'].astype(str).str.contains(search_query, case=False, na=False) | 
+                                       filtered_df['Legs'].astype(str).str.contains(search_query, case=False, na=False)]
         # ===========================================================================
 
         if not filtered_df.empty:
-            summary_df = pd.crosstab(filtered_df['Route Path'], filtered_df['Status_Category']).reset_index()
+            # Grouping for summary table matching exact columns
+            group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
+            summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
             
             for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
+            # Combine In-Transit and Running Delay for summary display if needed, or keep separate
             summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
 
             def format_pct(count, total):
@@ -195,16 +195,20 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     return f"{round((count/total)*100, 1)}% ({int(count)})"
                 return "0.0% (0)"
 
-            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
-                summary_df[col] = summary_df.apply(lambda x: format_pct(x[col], x['Total_Trips']), axis=1)
+            summary_df['Ontime Arrival_fmt'] = summary_df.apply(lambda x: format_pct(x['Ontime Arrival'], x['Total_Trips']), axis=1)
+            summary_df['Late Arrival_fmt'] = summary_df.apply(lambda x: format_pct(x['Late Arrival'] + x['Running Delay'], x['Total_Trips']), axis=1)
+            summary_df['In-Transit_fmt'] = summary_df.apply(lambda x: format_pct(x['In-Transit'], x['Total_Trips']), axis=1)
+
+            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'Ontime Arrival_fmt', 'Late Arrival_fmt', 'In-Transit_fmt']]
+            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'Ontime Arrival', 'Late Arrival', 'In-Transit']
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("Client Arrival Performance Summary")
-            st.markdown("*💡 Tip: Kisi bhi row (Route) par click karein aur uska detail niche dekhein.*")
+            st.subheader("Vendor Arrival Performance Summary")[cite: 9]
+            st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)[cite: 9]
 
-            styled_df = summary_df.style.map(lambda x: 'color: #00ff00; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Ontime Arrival']) \
-                                        .map(lambda x: 'color: #ff4b4b; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['Late Arrival']) \
-                                        .map(lambda x: 'color: #ffa500; font-weight: bold' if x != "0.0% (0)" else 'color: gray', subset=['In-Transit', 'Running Delay'])
+            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['Ontime Arrival']) \
+                                           .map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['Late Arrival']) \
+                                           .map(lambda x: 'background-color: #3b2a1a; color: #ffa500; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['In-Transit'])
 
             selection_event = st.dataframe(
                 styled_df, 
@@ -214,9 +218,24 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 selection_mode="single-row"  
             )
 
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Download Button matching image style
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
+            
+            st.download_button(
+                label="📥 Download Filtered Vendor Performance Report (Styled Excel)",
+                data=buffer_excel.getvalue(),
+                file_name="Filtered_Vendor_Performance_Report.xlsx",
+                mime="application/vnd.ms-excel",
+                type="primary"
+            )
+
             if len(selection_event.selection.rows) > 0:
                 selected_row_index = selection_event.selection.rows[0]
-                clicked_route = summary_df.iloc[selected_row_index]['Route Path']
+                clicked_route = final_summary.iloc[selected_row_index]['Route Path']
                 
                 detailed_data = filtered_df[filtered_df['Route Path'] == clicked_route].copy()
                 total_trips = len(detailed_data)
@@ -224,56 +243,12 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 st.markdown("---")
                 st.markdown(f"### 📄 <span style='color:#00ff00'>TEJAS CARGO INDIA PVT LTD</span> • <span style='color:#00ff00'>{clicked_route}</span> • {total_trips} trips", unsafe_allow_html=True)
                 
-                filter_option = st.radio(
-                    "🚦 Data Filter Karein:",
-                    ["ALL DATA", "RUNNING VEHICLE ONTIME", "RUNNING DELAY", "DELAY", "REPORTED VEHICLE"],
-                    horizontal=True
-                )
-                
-                if filter_option == "RUNNING VEHICLE ONTIME":
-                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'In-Transit']
-                elif filter_option == "RUNNING DELAY":
-                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'Running Delay']
-                elif filter_option == "DELAY":
-                    detailed_data = detailed_data[detailed_data['Status_Category'] == 'Late Arrival']
-                elif filter_option == "REPORTED VEHICLE":
-                    detailed_data = detailed_data[detailed_data['Status_Category'].isin(['Late Arrival', 'Ontime Arrival'])]
-
-                if detailed_data.empty:
-                    st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
-                else:
-                    display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
-                    show_df = detailed_data[display_cols]
-                    
-                    st.dataframe(show_df, use_container_width=True, hide_index=True)
-                    
-                    buffer_selected = io.BytesIO()
-                    with pd.ExcelWriter(buffer_selected, engine='openpyxl') as writer:
-                        detailed_data.to_excel(writer, index=False, sheet_name='Selected_Records')
-                    
-                    st.download_button(
-                        label="📥 Download Data",
-                        data=buffer_selected.getvalue(),
-                        file_name=f"Selected_{clicked_route}_{filter_option}.xlsx",
-                        mime="application/vnd.ms-excel"
-                    )
+                display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
+                st.dataframe(detailed_data[display_cols], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")
-        
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            filtered_df.to_excel(writer, index=False, sheet_name='Filtered Client Report')
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.download_button(
-            label="📊 Download All Data",
-            data=buffer.getvalue(),
-            file_name="Filtered_Client_Report.xlsx",
-            mime="application/vnd.ms-excel",
-            type="primary"
-        )
+            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")[cite: 7]
     else:
         st.info("👈 Kripya Sidebar se apni file upload karein.")
 else:
-    st.title(selected_nav.replace("💳 ", "").replace("📱 ", "").replace("💰 ", "").replace("📝 ", "").replace("🔐 ", ""))
+    st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
