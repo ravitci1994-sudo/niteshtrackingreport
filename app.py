@@ -235,24 +235,28 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ================= 4 STATUS BUTTONS =================
+            # ================= 3 STATUS BUTTONS WITH COUNTS =================
+            total_count = len(filtered_df)
+            transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
+            running_delay_count = len(filtered_df[filtered_df['Status_Category'] == 'Running Delay'])
+
             st.markdown("🚦 **Status Filters:**")
             status_filter = st.radio(
                 "Filter Status:",
-                ["ALL DATA", "In-Transit Vehicle", "Delay", "Running", "Reported Vehicle"],
+                [
+                    f"All Data ({total_count})", 
+                    f"In-Transit Vehicle ({transit_count})", 
+                    f"Running Delay ({running_delay_count})"
+                ],
                 horizontal=True,
                 label_visibility="collapsed"
             )
 
             display_detail_df = filtered_df.copy()
-            if status_filter == "In-Transit Vehicle":
+            if "In-Transit Vehicle" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
-            elif status_filter == "Delay":
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Late Arrival']
-            elif status_filter == "Running":
+            elif "Running Delay" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Running Delay']
-            elif status_filter == "Reported Vehicle":
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'].isin(['Ontime Arrival', 'Late Arrival'])]
 
             st.markdown(f"### 📄 Trip Records ({status_filter})")
             if not display_detail_df.empty:
