@@ -12,10 +12,8 @@ DATA_FILE = "saved_client_data.pkl"
 
 # Helper function to process data columns safely
 def process_dataframe(df):
-    # Strip spaces from column names to avoid matching issues
     df.columns = df.columns.str.strip()
     
-    # Find From and Destination columns dynamically
     from_col = next((c for c in df.columns if 'from' in c.lower() or 'origin' in c.lower()), None)
     dest_col = next((c for c in df.columns if 'dest' in c.lower() or 'to' in c.lower()), None)
     
@@ -28,14 +26,12 @@ def process_dataframe(df):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date')
         exp_dly = row.get('Expected Dly. Date & Time') or row.get('Expected Date')
         
-        # 1. Agar report ho chuka hai
         if pd.notna(final_rep):
             if pd.notna(row.get('Late Hrs')):
                 return "Late Arrival"
             else:
                 return "Ontime Arrival"
         else:
-            # 2. Agar abhi In-Transit hai
             try:
                 if pd.notna(exp_dly):
                     exp_dt = pd.to_datetime(exp_dly)
@@ -93,7 +89,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
     st.title(selected_nav.replace("📊 ", "").replace("🚚 ", ""))
     st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
-    # File Uploader section (always available if no data or if user wants to upload fresh)
+    # Auto-processing file uploader (No button needed)
     uploaded_files = st.file_uploader(
         "📂 Apni 'MIS for Placement' Excel/CSV files yahan upload karein", 
         type=["xlsx", "csv"], 
@@ -101,40 +97,32 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
     )
 
     if uploaded_files:
-        if st.button("🚀 Process & Save Report permanently", type="primary"):
-            try:
-                df_list = []
-                for uploaded_file in uploaded_files:
-                    if uploaded_file.name.endswith('.csv'):
-                        temp_df = pd.read_csv(uploaded_file)
-                    else:
-                        temp_df = pd.read_excel(uploaded_file)
-                    df_list.append(temp_df)
-                
-                # Combine all uploaded files
-                df = pd.concat(df_list, ignore_index=True)
-                df = process_dataframe(df)
-                
-                st.session_state.client_data = df
-                if os.path.exists(DATA_FILE):
-                    os.remove(DATA_FILE)
-                df.to_pickle(DATA_FILE) 
-                
-                st.success("✅ Sabhi files ka data successfully process aur show ho gaya!")
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Error processing files: {e}")
+        try:
+            df_list = []
+            for uploaded_file in uploaded_files:
+                if uploaded_file.name.endswith('.csv'):
+                    temp_df = pd.read_csv(uploaded_file)
+                else:
+                    temp_df = pd.read_excel(uploaded_file)
+                df_list.append(temp_df)
+            
+            df = pd.concat(df_list, ignore_index=True)
+            df = process_dataframe(df)
+            
+            st.session_state.client_data = df
+            if os.path.exists(DATA_FILE):
+                os.remove(DATA_FILE)
+            df.to_pickle(DATA_FILE) 
+        except Exception as e:
+            st.error(f"Error processing files: {e}")
 
     # ================= DASHBOARD =================
     if st.session_state.client_data is not None:
         df = st.session_state.client_data
         st.markdown("---")
         
-        # Filters Header
         f1, f2, f3, f4, f5, f6 = st.columns(6)
         
-        # Zone Filter
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
         with f1:
             zone_list = ["ALL"] + list(df[zone_col].dropna().unique()) if zone_col else ["ALL"]
@@ -144,7 +132,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if zone_filter != "ALL" and zone_col:
             zone_filtered_df = zone_filtered_df[zone_filtered_df[zone_col] == zone_filter]
 
-        # Client Filter
         client_col = next((c for c in df.columns if 'party' in c.lower() or 'client' in c.lower()), None)
         with f2:
             client_list = ["ALL"] + list(zone_filtered_df[client_col].dropna().unique()) if client_col else ["ALL"]
@@ -154,7 +141,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if client_filter != "ALL" and client_col:
             client_filtered_df = client_filtered_df[client_filtered_df[client_col] == client_filter]
 
-        # Staff Filter
         staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
         with f3:
             staff_list = ["ALL"] + list(client_filtered_df[staff_col].dropna().unique()) if staff_col else ["ALL"]
@@ -164,7 +150,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if staff_filter != "ALL" and staff_col:
             staff_filtered_df = staff_filtered_df[staff_filtered_df[staff_col] == staff_filter]
 
-        # Route Filter
         with f4:
             ro_list = ["ALL"] + sorted(list(staff_filtered_df['Route Path'].dropna().unique()))
             ro_filter = st.selectbox("Filter by Route:", ro_list)
@@ -173,7 +158,6 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if ro_filter != "ALL":
             route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
 
-        # Vehicle No Filter
         lorry_col = next((c for c in route_filtered_df.columns if 'lorry' in c.lower() or 'vehicle' in c.lower() or 'truck' in c.lower()), None)
         with f5:
             if lorry_col:
