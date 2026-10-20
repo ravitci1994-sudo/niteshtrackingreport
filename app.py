@@ -85,22 +85,35 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
     st.info("🔒 **Restricted View:** Showing exclusive performance records.")
 
     if st.session_state.client_data is None:
-        uploaded_file = st.file_uploader("📂 Apni 'MIS for Placement' Excel file yahan upload karein", type=["xlsx", "csv"])
+        uploaded_files = st.file_uploader(
+            "📂 Apni 'MIS for Placement' Excel/CSV files yahan upload karein", 
+            type=["xlsx", "csv"], 
+            accept_multiple_files=True
+        )
 
-        if uploaded_file is not None:
+        if uploaded_files:
             if st.button("🚀 Process & Save Report permanently", type="primary"):
                 try:
-                    df = pd.read_excel(uploaded_file)
+                    df_list = []
+                    for uploaded_file in uploaded_files:
+                        if uploaded_file.name.endswith('.csv'):
+                            temp_df = pd.read_csv(uploaded_file)
+                        else:
+                            temp_df = pd.read_excel(uploaded_file)
+                        df_list.append(temp_df)
+                    
+                    # Sabhi files ko combine karein
+                    df = pd.concat(df_list, ignore_index=True)
                     df = process_dataframe(df)
                     
                     st.session_state.client_data = df
                     df.to_pickle(DATA_FILE) 
                     
-                    st.success("✅ File Data processed aur save ho gaya!")
+                    st.success("✅ Sabhi files ka data successfully process aur save ho gaya!")
                     st.rerun()
                     
                 except Exception as e:
-                    st.error(f"Error processing file: {e}")
+                    st.error(f"Error processing files: {e}")
     else:
         st.success("✅ Data saved hai! Nayi file upload karne ke liye Sidebar se 'PROCESS & REFRESH DATA' dabayein.")
 
@@ -196,7 +209,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 styled_df, 
                 use_container_width=True, 
                 hide_index=True,
-                on_select="rerun",           
+                on_select="rerun",            
                 selection_mode="single-row"  
             )
 
