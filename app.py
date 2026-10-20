@@ -152,7 +152,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
-        # ================= SEARCH / DROPDOWNS (Added Staff Control) =================
+        # ================= SEARCH / DROPDOWNS =================
         f1, f2, f3, f4, f5 = st.columns(5)
         
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
@@ -182,7 +182,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         if vendor_filter != "ALL" and vendor_col:
             vendor_filtered_df = vendor_filtered_df[vendor_filtered_df[vendor_col] == vendor_filter]
 
-        # Staff Control Filter
         staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
         with f4:
             staff_list = ["ALL"] + list(vendor_filtered_df[staff_col].dropna().unique()) if staff_col else ["ALL"]
@@ -243,12 +242,10 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ================= STATUS BUTTONS WITH COUNTS =================
+            # ================= ONLY 3 STATUS BUTTONS WITH COUNTS =================
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
-            ontime_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (On-Time)'])
-            delay_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (Delay)'])
-            closed_count = ontime_count + delay_count
+            closed_count = len(filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])])
 
             st.markdown("🚦 **Status Filters:**")
             status_filter = st.radio(
@@ -256,8 +253,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 [
                     f"All Data ({total_count})", 
                     f"In-Transit Vehicle ({transit_count})", 
-                    f"On-Time ({ontime_count})",
-                    f"Delay ({delay_count})",
                     f"Trip Closed ({closed_count})"
                 ],
                 horizontal=True,
@@ -267,10 +262,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             display_detail_df = filtered_df.copy()
             if "In-Transit Vehicle" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
-            elif "On-Time" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed (On-Time)']
-            elif "Delay" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed (Delay)']
             elif "Trip Closed" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])]
 
