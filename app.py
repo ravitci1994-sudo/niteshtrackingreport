@@ -283,10 +283,10 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 type="primary"
             )
 
-            # ================= LAST 7 DAYS PERFORMANCE DATA =================
+            # ================= LAST 7 DAYS PERFORMANCE DATA (ONLY TRIP CLOSED) =================
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.subheader("📍 Last 7 Days Route-wise Performance Data")
-            st.markdown("<small style='color:gray'>Pichle 7 dino ka performance summary data</small>", unsafe_allow_html=True)
+            st.markdown("<small style='color:gray'>Pichle 7 dino ka Trip Closed performance summary data</small>", unsafe_allow_html=True)
             
             last_week_df = filtered_df.copy()
             date_col = next((c for c in last_week_df.columns if 'date' in c.lower()), None)
@@ -300,11 +300,17 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             
             if not last_week_df.empty:
                 week_summary = last_week_df.groupby('Route Path')['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
-                for col in ['In-Transit', 'Trip Closed']:
-                    if col not in week_summary.columns:
-                        week_summary[col] = 0
-                week_summary['Total_Trips'] = week_summary[['In-Transit', 'Trip Closed']].sum(axis=1)
-                st.dataframe(week_summary, use_container_width=True, hide_index=True)
+                
+                # Sirf Trip Closed aur Total_Trips rakhenge
+                if 'Trip Closed' not in week_summary.columns:
+                    week_summary['Trip Closed'] = 0
+                
+                week_summary['Total_Trips'] = week_summary['Trip Closed']
+                
+                # In-Transit column ko hata kar sirf Trip Closed aur Total_Trips dikhayenge
+                final_week_summary = week_summary[['Route Path', 'Trip Closed', 'Total_Trips']]
+                
+                st.dataframe(final_week_summary, use_container_width=True, hide_index=True)
             else:
                 st.warning("Pichle 7 dino ka koi data available nahi hai.")
 
