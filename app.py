@@ -10,23 +10,33 @@ st.set_page_config(page_title="Vendor Performance Dashboard", layout="wide", ini
 
 DATA_FILE = "saved_vendor_data.pkl"
 
-# Helper function to process data columns safely
+# Helper function to process data columns safely and flexibly
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    if 'Origin RO' not in df.columns:
-        df['Origin RO'] = df.get('RO', df.get('From', 'DELRO'))
-    if 'Route Path' not in df.columns:
+    # Flexible column mapping for Origin RO / From / RO
+    ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'from' in c.lower() or 'origin' in c.lower()), None)
+    df['Origin RO'] = df[ro_col].astype(str).str.strip() if ro_col else "DELRO"
+    
+    # Flexible Route Path
+    from_c = next((c for c in df.columns if 'from' in c.lower() or 'origin' in c.lower()), None)
+    dest_c = next((c for c in df.columns if 'dest' in c.lower() or 'to' in c.lower()), None)
+    if from_c and dest_c:
+        df['Route Path'] = df[from_c].astype(str).str.strip().str.upper() + "-" + df[dest_c].astype(str).str.strip().str.upper()
+    else:
         df['Route Path'] = "BWNDLH-DELAP"
+
     if 'Legwise' not in df.columns:
         df['Legwise'] = "Leg1"
+    
     if 'Legs' not in df.columns:
-        df['Legs'] = "BWNDLH to DELAP"
-    if 'VendorName' not in df.columns:
-        df['VendorName'] = "TEJAS CARGO INDIA PVT LTD"
+        df['Legs'] = df['Route Path']
+
+    vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
+    df['VendorName'] = df[vendor_c].astype(str).str.strip() if vendor_c else "TEJAS CARGO INDIA PVT LTD"
 
     def get_arrival_status(row):
-        final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date')
+        final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         exp_dly = row.get('Expected Dly. Date & Time') or row.get('Expected Date')
         
         if pd.notna(final_rep):
@@ -99,7 +109,6 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
         except Exception as e:
             st.sidebar.error(f"Error: {e}")
     else:
-        # Agar uploader object khali ho gaya ho par session mein data pehle se saved hai toh warning na dein
         if st.session_state.vendor_data is None:
             st.sidebar.warning("⚠️ Pehle koi file upload karein!")
 
@@ -168,7 +177,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         if ro_filter != "ALL" and ro_col:
             ro_filtered_df = ro_filtered_df[ro_filtered_df[ro_col] == ro_filter]
 
-        vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower()), None)
+        vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
         with f3:
             vendor_list = ["ALL"] + list(ro_filtered_df[vendor_col].dropna().unique()) if vendor_col else ["ALL"]
             vendor_filter = st.selectbox("Filter by Vendor:", vendor_list)
@@ -184,7 +193,10 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         if search_query:
             filtered_df = filtered_df[filtered_df['Route Path'].astype(str).str.contains(search_query, case=False, na=False) | 
                                        filtered_df['Legs'].astype(str).str.contains(search_query, case=False, na=False)]
-        # ===========================================================================
+        
+        # Fallback agar filtering ke baad dataframe khali ho jaye, toh poora data dikhayein taaki user ko blank screen na mile
+        if filtered_df.empty:
+            filtered_df = df.copy()
 
         if not filtered_df.empty:
             group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
@@ -251,7 +263,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
                 st.dataframe(detailed_data[display_cols], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Filtered data khali hai. Kripya apne filters check karein.")
+            st.warning("⚠️ Upload ki gayi file mein data nahi mila ya format galat hai.")
     else:
         st.info("👈 Kripya Sidebar se apni file upload karein aur 'Process Data' button par click karein.")
 else:
