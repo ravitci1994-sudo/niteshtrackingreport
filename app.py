@@ -14,7 +14,6 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # Ensure required columns exist or create dummies if missing
     if 'Origin RO' not in df.columns:
         df['Origin RO'] = df.get('RO', df.get('From', 'DELRO'))
     if 'Route Path' not in df.columns:
@@ -121,8 +120,8 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 # ================= MAIN PAGE LOGIC =================
 if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operations Summary"]:
-    st.title("Vendor Performance (Routewise/Legwise)")[cite: 9]
-    st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")[cite: 9]
+    st.title("Vendor Performance (Routewise/Legwise)")
+    st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
 
     # ================= DASHBOARD =================
     if st.session_state.vendor_data is not None:
@@ -132,12 +131,12 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         # Date & Duration Row
         d1, d2, d3 = st.columns([1, 1, 2])
         with d1:
-            start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))[cite: 9]
+            start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))
         with d2:
-            end_date = st.date_input("🗓️ End Date (MCD_EndDate):", date(2026, 10, 18))[cite: 9]
+            end_date = st.date_input("🗓️ End Date (MCD_EndDate):", date(2026, 10, 18))
         with d3:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")[cite: 9]
+            st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
         # ================= FILTERS =================
         f1, f2, f3, f4 = st.columns(4)
@@ -145,7 +144,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
         with f1:
             zone_list = ["ALL"] + list(df[zone_col].dropna().unique()) if zone_col else ["ALL"]
-            zone_filter = st.selectbox("Filter by Zone:", zone_list)[cite: 9]
+            zone_filter = st.selectbox("Filter by Zone:", zone_list)
             
         zone_filtered_df = df.copy()
         if zone_filter != "ALL" and zone_col:
@@ -154,7 +153,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower()), None)
         with f2:
             ro_list = ["ALL"] + list(zone_filtered_df[ro_col].dropna().unique()) if ro_col else ["ALL"]
-            ro_filter = st.selectbox("Filter by RO:", ro_list)[cite: 9]
+            ro_filter = st.selectbox("Filter by RO:", ro_list)
             
         ro_filtered_df = zone_filtered_df.copy()
         if ro_filter != "ALL" and ro_col:
@@ -163,14 +162,14 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower()), None)
         with f3:
             vendor_list = ["ALL"] + list(ro_filtered_df[vendor_col].dropna().unique()) if vendor_col else ["ALL"]
-            vendor_filter = st.selectbox("Filter by Vendor:", vendor_list)[cite: 9]
+            vendor_filter = st.selectbox("Filter by Vendor:", vendor_list)
 
         vendor_filtered_df = ro_filtered_df.copy()
         if vendor_filter != "ALL" and vendor_col:
             vendor_filtered_df = vendor_filtered_df[vendor_filtered_df[vendor_col] == vendor_filter]
 
         with f4:
-            search_query = st.text_input("🔍 Quick Search:", placeholder="Search Route, Leg...")[cite: 9]
+            search_query = st.text_input("🔍 Quick Search:", placeholder="Search Route, Leg...")
             
         filtered_df = vendor_filtered_df.copy()
         if search_query:
@@ -179,7 +178,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
         # ===========================================================================
 
         if not filtered_df.empty:
-            # Grouping for summary table matching exact columns
             group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
             summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
             
@@ -187,7 +185,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
-            # Combine In-Transit and Running Delay for summary display if needed, or keep separate
             summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
 
             def format_pct(count, total):
@@ -203,8 +200,8 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'Ontime Arrival', 'Late Arrival', 'In-Transit']
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("Vendor Arrival Performance Summary")[cite: 9]
-            st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)[cite: 9]
+            st.subheader("Vendor Arrival Performance Summary")
+            st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)
 
             styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['Ontime Arrival']) \
                                            .map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['Late Arrival']) \
@@ -220,7 +217,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Download Button matching image style
             buffer_excel = io.BytesIO()
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
                 filtered_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
@@ -246,7 +242,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
                 st.dataframe(detailed_data[display_cols], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")[cite: 7]
+            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")
     else:
         st.info("👈 Kripya Sidebar se apni file upload karein.")
 else:
