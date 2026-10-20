@@ -131,7 +131,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
-        # ================= 6 FILTERS INCLUDING ZONE =================
+        # ================= 6 FILTERS INCLUDING VEHICLE NO =================
         f1, f2, f3, f4, f5, f6 = st.columns(6)
         
         with f1:
@@ -166,16 +166,17 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if ro_filter != "ALL":
             route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
 
+        # Filter by Vehicle No (Lorry No.) instead of Destination
         with f5:
-            dest_list = ["ALL"] + sorted(list(route_filtered_df['Destination'].dropna().unique())) if 'Destination' in route_filtered_df.columns else ["ALL"]
-            dest_filter = st.selectbox("Filter by Destination:", dest_list)
+            lorry_list = ["ALL"] + sorted(list(route_filtered_df['Lorry No.'].dropna().astype(str).unique())) if 'Lorry No.' in route_filtered_df.columns else ["ALL"]
+            lorry_filter = st.selectbox("Filter by Vehicle No:", lorry_list)
 
         with f6:
-            search_query = st.text_input("🔍 Quick Search:", placeholder="Search Lorry...")
+            search_query = st.text_input("🔍 Quick Search:", placeholder="Search...")
             
         filtered_df = route_filtered_df.copy()
-        if dest_filter != "ALL":
-            filtered_df = filtered_df[filtered_df['Destination'] == dest_filter]
+        if lorry_filter != "ALL":
+            filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str) == lorry_filter]
         if search_query:
             filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
         # ===========================================================================
