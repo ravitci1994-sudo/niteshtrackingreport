@@ -35,22 +35,11 @@ def process_dataframe(df):
 
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
-        exp_dly = row.get('Expected Dly. Date & Time') or row.get('Expected Date')
         
-        if pd.notna(final_rep):
-            if pd.notna(row.get('Late Hrs')):
-                return "Late Arrival"
-            else:
-                return "Ontime Arrival"
+        # Agar Final Touching Reporting Date & Time mein time diya hai, toh Trip Closed (pehle Running Delay tha)
+        if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
+            return "Trip Closed"
         else:
-            try:
-                if pd.notna(exp_dly):
-                    exp_dt = pd.to_datetime(exp_dly)
-                    current_time = datetime.now()
-                    if current_time > exp_dt:
-                        return "Running Delay"
-            except:
-                pass
             return "In-Transit"
             
     df['Status_Category'] = df.apply(get_arrival_status, axis=1)
@@ -199,30 +188,28 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
             summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
             
-            for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
+            for col in ['In-Transit', 'Trip Closed']:
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
-            summary_df['Total_Trips'] = summary_df[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
+            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed']].sum(axis=1)
 
             def format_pct(count, total):
                 if total > 0:
                     return f"{round((count/total)*100, 1)}% ({int(count)})"
                 return "0.0% (0)"
 
-            summary_df['Ontime Arrival_fmt'] = summary_df.apply(lambda x: format_pct(x['Ontime Arrival'], x['Total_Trips']), axis=1)
-            summary_df['Late Arrival_fmt'] = summary_df.apply(lambda x: format_pct(x['Late Arrival'] + x['Running Delay'], x['Total_Trips']), axis=1)
             summary_df['In-Transit_fmt'] = summary_df.apply(lambda x: format_pct(x['In-Transit'], x['Total_Trips']), axis=1)
+            summary_df['Trip Closed_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed'], x['Total_Trips']), axis=1)
 
-            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'Ontime Arrival_fmt', 'Late Arrival_fmt', 'In-Transit_fmt']]
-            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'Ontime Arrival', 'Late Arrival', 'In-Transit']
+            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'In-Transit_fmt', 'Trip Closed_fmt']]
+            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'In-Transit', 'Trip Closed']
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("Vendor Arrival Performance Summary")
             st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)
 
-            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['Ontime Arrival']) \
-                                           .map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['Late Arrival']) \
+            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['Trip Closed']) \
                                            .map(lambda x: 'background-color: #3b2a1a; color: #ffa500; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['In-Transit'])
 
             selection_event = st.dataframe(
@@ -238,7 +225,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             # ================= 3 STATUS BUTTONS WITH COUNTS =================
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
-            running_delay_count = len(filtered_df[filtered_df['Status_Category'] == 'Running Delay'])
+            closed_count = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed'])
 
             st.markdown("🚦 **Status Filters:**")
             status_filter = st.radio(
@@ -246,7 +233,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 [
                     f"All Data ({total_count})", 
                     f"In-Transit Vehicle ({transit_count})", 
-                    f"Running Delay ({running_delay_count})"
+                    f"Trip Closed ({closed_count})"
                 ],
                 horizontal=True,
                 label_visibility="collapsed"
@@ -255,19 +242,37 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             display_detail_df = filtered_df.copy()
             if "In-Transit Vehicle" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
-            elif "Running Delay" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Running Delay']
+            elif "Trip Closed" in status_filter:
+                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Trip Closed']
 
             st.markdown(f"### 📄 Trip Records ({status_filter})")
+            
+            # Required Columns list requested by user
+            required_columns = [
+                'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+                '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+                '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+                'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+                'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+                'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+            ]
+
             if not display_detail_df.empty:
-                st.dataframe(display_detail_df, use_container_width=True, hide_index=True)
+                # Filter columns that exist in the dataframe
+                available_cols = [c for c in required_columns if c in display_detail_df.columns]
+                # Fallback agar user ke data mein exact column names thode alag hon toh available columns dikhayein
+                show_df = display_detail_df[available_cols] if available_cols else display_detail_df
+                st.dataframe(show_df, use_container_width=True, hide_index=True)
             else:
                 st.warning("Is status category mein koi data nahi hai.")
 
             st.markdown("<br>", unsafe_allow_html=True)
             buffer_excel = io.BytesIO()
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                filtered_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
+                # Download mein bhi required columns hi export hon
+                available_cols = [c for c in required_columns if c in filtered_df.columns]
+                export_df = filtered_df[available_cols] if available_cols else filtered_df
+                export_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
             
             st.download_button(
                 label="📥 Download Filtered Vendor Performance Report (Styled Excel)",
@@ -294,10 +299,10 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             
             if not last_week_df.empty:
                 week_summary = last_week_df.groupby('Route Path')['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
-                for col in ['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']:
+                for col in ['In-Transit', 'Trip Closed']:
                     if col not in week_summary.columns:
                         week_summary[col] = 0
-                week_summary['Total_Trips'] = week_summary[['Ontime Arrival', 'Late Arrival', 'In-Transit', 'Running Delay']].sum(axis=1)
+                week_summary['Total_Trips'] = week_summary[['In-Transit', 'Trip Closed']].sum(axis=1)
                 st.dataframe(week_summary, use_container_width=True, hide_index=True)
             else:
                 st.warning("Pichle 7 dino ka koi data available nahi hai.")
