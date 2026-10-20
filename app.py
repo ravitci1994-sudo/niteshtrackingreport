@@ -14,6 +14,11 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
+    # Filter only rows where Dispatched Time / Desp. Date & Time is present
+    desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
+    if desp_col:
+        df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().lower() != "nan")].copy()
+    
     ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower() or 'from' in c.lower()), None)
     df['Origin RO'] = df[ro_col].astype(str).str.strip() if ro_col else "DELRO"
     
@@ -36,7 +41,7 @@ def process_dataframe(df):
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Agar Final Touching Reporting Date & Time mein time diya hai, toh Trip Closed (pehle Running Delay tha)
+        # Agar Final Touching Reporting Date & Time mein time diya hai, toh Trip Closed
         if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
             return "Trip Closed"
         else:
@@ -258,9 +263,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             ]
 
             if not display_detail_df.empty:
-                # Filter columns that exist in the dataframe
                 available_cols = [c for c in required_columns if c in display_detail_df.columns]
-                # Fallback agar user ke data mein exact column names thode alag hon toh available columns dikhayein
                 show_df = display_detail_df[available_cols] if available_cols else display_detail_df
                 st.dataframe(show_df, use_container_width=True, hide_index=True)
             else:
@@ -269,7 +272,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
             st.markdown("<br>", unsafe_allow_html=True)
             buffer_excel = io.BytesIO()
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                # Download mein bhi required columns hi export hon
                 available_cols = [c for c in required_columns if c in filtered_df.columns]
                 export_df = filtered_df[available_cols] if available_cols else filtered_df
                 export_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
