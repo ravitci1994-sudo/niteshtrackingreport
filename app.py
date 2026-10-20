@@ -14,10 +14,10 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # Filter only rows where Dispatched Time / Desp. Date & Time is present
+    # Filter only rows where Dispatched Time / Desp. Date & Time is present safely using .str
     desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
     if desp_col:
-        df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().lower() != "nan")].copy()
+        df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
     
     ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower() or 'from' in c.lower()), None)
     df['Origin RO'] = df[ro_col].astype(str).str.strip() if ro_col else "DELRO"
@@ -252,7 +252,6 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown(f"### 📄 Trip Records ({status_filter})")
             
-            # Required Columns list requested by user
             required_columns = [
                 'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
                 '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
