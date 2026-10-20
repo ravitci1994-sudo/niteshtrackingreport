@@ -122,6 +122,9 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         df = st.session_state.client_data
         st.markdown("---")
         
+        # Optional Date Filter toggle
+        enable_date_filter = st.checkbox("📅 Enable Date Filter (Dates match na hone par ise uncheck karein)", value=False)
+        
         c1, c2, c3 = st.columns([1, 1, 2])
         with c1:
             start_date = st.date_input("🗓️ Start Date:", date(2026, 10, 1))
@@ -131,15 +134,24 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** {(end_date - start_date).days} Days")
             
+        # Date filtering logic apply karein agar enabled ho
+        date_filtered_df = df.copy()
+        if enable_date_filter and 'Date' in date_filtered_df.columns:
+            try:
+                date_filtered_df['Temp_Date'] = pd.to_datetime(date_filtered_df['Date'], errors='coerce').dt.date
+                date_filtered_df = date_filtered_df[(date_filtered_df['Temp_Date'] >= start_date) & (date_filtered_df['Temp_Date'] <= end_date)]
+            except:
+                pass
+
         # ================= 6 FILTERS INCLUDING VEHICLE NO =================
         f1, f2, f3, f4, f5, f6 = st.columns(6)
         
         with f1:
-            zone_list = ["ALL"] + list(df['Zone'].dropna().unique()) if 'Zone' in df.columns else ["ALL", "NORTH", "SOUTH", "EAST", "WEST"]
+            zone_list = ["ALL"] + list(date_filtered_df['Zone'].dropna().unique()) if 'Zone' in date_filtered_df.columns else ["ALL"]
             zone_filter = st.selectbox("Filter by Zone:", zone_list)
             
-        zone_filtered_df = df.copy()
-        if zone_filter != "ALL" and 'Zone' in df.columns:
+        zone_filtered_df = date_filtered_df.copy()
+        if zone_filter != "ALL" and 'Zone' in date_filtered_df.columns:
             zone_filtered_df = zone_filtered_df[zone_filtered_df['Zone'] == zone_filter]
 
         with f2:
@@ -342,7 +354,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                     st.dataframe(styled_comp, hide_index=True, use_container_width=True)
 
         else:
-            st.warning("Chune gaye Filters ke hisaab se koi data nahi mila.")
+            st.warning("Chune gaye Filters ke hisaab se koi data nahi mila. Agar date match nahi ho rahi toh upar diye gaye 'Enable Date Filter' ko uncheck kar dein.")
         
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
