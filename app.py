@@ -166,19 +166,29 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
         if ro_filter != "ALL":
             route_filtered_df = route_filtered_df[route_filtered_df['Route Path'] == ro_filter]
 
-        # Filter by Vehicle No (Lorry No.) instead of Destination
+        # Dynamic check for Vehicle/Lorry column name in the uploaded file
+        lorry_col = None
+        for col_candidate in ['Lorry No.', 'Vehicle No', 'Truck No', 'Lorry Number', 'Vehicle Number', 'Lorry No']:
+            if col_candidate in route_filtered_df.columns:
+                lorry_col = col_candidate
+                break
+
         with f5:
-            lorry_list = ["ALL"] + sorted(list(route_filtered_df['Lorry No.'].dropna().astype(str).unique())) if 'Lorry No.' in route_filtered_df.columns else ["ALL"]
+            if lorry_col:
+                lorry_list = ["ALL"] + sorted(list(route_filtered_df[lorry_col].dropna().astype(str).unique()))
+            else:
+                lorry_list = ["ALL"]
             lorry_filter = st.selectbox("Filter by Vehicle No:", lorry_list)
 
         with f6:
             search_query = st.text_input("🔍 Quick Search:", placeholder="Search...")
             
         filtered_df = route_filtered_df.copy()
-        if lorry_filter != "ALL":
-            filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str) == lorry_filter]
-        if search_query:
-            filtered_df = filtered_df[filtered_df['Lorry No.'].astype(str).str.contains(search_query, case=False, na=False)]
+        if lorry_filter != "ALL" and lorry_col:
+            filtered_df = filtered_df[filtered_df[lorry_col].astype(str) == lorry_filter]
+        
+        if search_query and lorry_col:
+            filtered_df = filtered_df[filtered_df[lorry_col].astype(str).str.contains(search_query, case=False, na=False)]
         # ===========================================================================
 
         if not filtered_df.empty:
@@ -244,7 +254,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                 if detailed_data.empty:
                     st.warning(f"Is category ({filter_option}) mein abhi koi gaadi nahi hai.")
                 else:
-                    display_cols = ['Date', 'Route Path', 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
+                    display_cols = ['Date', 'Route Path', lorry_col if lorry_col else 'Lorry No.', 'Veh.Type', 'Expected Dly. Date & Time', 'Final Touching Reporting Date & Time', 'Late Hrs', 'Tracking Remark', 'Client Remarks', 'Status_Category']
                     show_df = detailed_data[[c for c in display_cols if c in detailed_data.columns]]
                     
                     def style_detailed_row(row):
@@ -275,7 +285,7 @@ if selected_nav in ["📊 Operations Summary", "🚚 Vendor Performance"]:
                             mail_body = "Dear Team,\n\nPlease find the details of delayed vehicles below:\n\n"
                             
                             for idx, row in delay_mail_data.iterrows():
-                                lorry = row.get('Lorry No.', 'N/A')
+                                lorry = row.get(lorry_col if lorry_col else 'Lorry No.', 'N/A')
                                 delay_time = row.get('Late Hrs', 'N/A')
                                 remark = row.get('Tracking Remark', 'N/A')
                                 mail_body += f"🚛 Lorry No: {lorry} | Delay: {delay_time} | Remark: {remark}\n"
