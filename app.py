@@ -74,25 +74,31 @@ uploaded_files = st.sidebar.file_uploader(
     label_visibility="collapsed"
 )
 
-if uploaded_files:
-    try:
-        df_list = []
-        for uploaded_file in uploaded_files:
-            if uploaded_file.name.endswith('.csv'):
-                temp_df = pd.read_csv(uploaded_file)
-            else:
-                temp_df = pd.read_excel(uploaded_file)
-            df_list.append(temp_df)
-        
-        df = pd.concat(df_list, ignore_index=True)
-        df = process_dataframe(df)
-        
-        st.session_state.vendor_data = df
-        if os.path.exists(DATA_FILE):
-            os.remove(DATA_FILE)
-        df.to_pickle(DATA_FILE) 
-    except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+# Process Data Button in Sidebar
+if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=True):
+    if uploaded_files:
+        try:
+            df_list = []
+            for uploaded_file in uploaded_files:
+                if uploaded_file.name.endswith('.csv'):
+                    temp_df = pd.read_csv(uploaded_file)
+                else:
+                    temp_df = pd.read_excel(uploaded_file)
+                df_list.append(temp_df)
+            
+            df = pd.concat(df_list, ignore_index=True)
+            df = process_dataframe(df)
+            
+            st.session_state.vendor_data = df
+            if os.path.exists(DATA_FILE):
+                os.remove(DATA_FILE)
+            df.to_pickle(DATA_FILE) 
+            st.sidebar.success("✅ Data successfully processed!")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Error: {e}")
+    else:
+        st.sidebar.warning("⚠️ Pehle koi file upload karein!")
 
 st.sidebar.markdown("---")
 
@@ -242,9 +248,9 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
                 display_cols = [c for c in detailed_data.columns if c != 'Status_Category']
                 st.dataframe(detailed_data[display_cols], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karein.")
+            st.warning("⚠️ Koi data available nahi hai. Kripya Sidebar se file upload karke 'Process Data' dabayein.")
     else:
-        st.info("👈 Kripya Sidebar se apni file upload karein.")
+        st.info("👈 Kripya Sidebar se apni file upload karein aur 'Process Data' button par click karein.")
 else:
     st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
