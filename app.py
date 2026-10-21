@@ -25,7 +25,7 @@ st.markdown("""
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     .metric-card:hover {
-        transform: translateY(-4px;);
+        transform: translateY(-4px);
         box-shadow: 0 12px 25px rgba(72, 202, 228, 0.25);
         border-color: #90e0ef;
     }
@@ -231,6 +231,7 @@ def process_uploaded_files(uploaded_files):
                 if date_col:
                     temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
 
+                # Logic: Status has "order done" AND Final Touching has time
                 status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
                 def get_status(row):
                     status_val = str(row.get(status_col, '')).lower() if status_col else ''
@@ -263,10 +264,22 @@ def process_uploaded_files(uploaded_files):
     return callout_df, mis_df
 
 # ================= MEMORY SETUP =================
+DATA_FILE_CALLOUT = "saved_callout_data.pkl"
+DATA_FILE_MIS = "saved_mis_data.pkl"
+
 if 'callout_data' not in st.session_state:
-    st.session_state.callout_data = None
+    if os.path.exists(DATA_FILE_CALLOUT):
+        try: st.session_state.callout_data = pd.read_pickle(DATA_FILE_CALLOUT)
+        except: st.session_state.callout_data = None
+    else:
+        st.session_state.callout_data = None
+
 if 'mis_data' not in st.session_state:
-    st.session_state.mis_data = None
+    if os.path.exists(DATA_FILE_MIS):
+        try: st.session_state.mis_data = pd.read_pickle(DATA_FILE_MIS)
+        except: st.session_state.mis_data = None
+    else:
+        st.session_state.mis_data = None
 
 # ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
@@ -288,6 +301,10 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             c_df, m_df = process_uploaded_files(uploaded_files)
             st.session_state.callout_data = c_df
             st.session_state.mis_data = m_df
+            
+            if not c_df.empty: c_df.to_pickle(DATA_FILE_CALLOUT)
+            if not m_df.empty: m_df.to_pickle(DATA_FILE_MIS)
+            
             st.sidebar.success("✅ Data successfully processed!")
             st.rerun()
         except Exception as e:
@@ -298,6 +315,8 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 st.sidebar.markdown("---")
 
 if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
+    if os.path.exists(DATA_FILE_CALLOUT): os.remove(DATA_FILE_CALLOUT)
+    if os.path.exists(DATA_FILE_MIS): os.remove(DATA_FILE_MIS)
     st.session_state.callout_data = None
     st.session_state.mis_data = None
     st.rerun()
@@ -319,9 +338,11 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 
 # ================= MAIN PAGE LOGIC =================
+
+# ----------------- 1. DASHBOARD -----------------
 if selected_nav == "📊 Dashboard":
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
-    st.info("🔒 **Restricted Vendor View:** Breakdown & Accident Callout Count + MIS Performance")
+    st.info("🔒 **Restricted Vendor View:** Callout Count & Overall Performance")
 
     has_callout = st.session_state.callout_data is not None and not st.session_state.callout_data.empty
     has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
@@ -331,7 +352,6 @@ if selected_nav == "📊 Dashboard":
         mis_df = st.session_state.mis_data if has_mis else pd.DataFrame()
         
         st.markdown("---")
-
         clients_set = set()
         if not mis_df.empty and 'VendorName' in mis_df.columns:
             clients_set.update(mis_df['VendorName'].dropna().unique())
@@ -350,8 +370,8 @@ if selected_nav == "📊 Dashboard":
             if not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
                 filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
+        # Callout Metrics
         total_callouts = len(filtered_callout)
-        
         dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
@@ -361,22 +381,13 @@ if selected_nav == "📊 Dashboard":
             sept_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 9]
             oct_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 10]
 
-            aug_dhl = int((aug_df['VendorName'] == 'DHL').sum())
-            aug_busy = int((aug_df['VendorName'] == 'Busybees').sum())
-            aug_trk = int((aug_df['VendorName'] == 'Trackon').sum())
-
-            sept_dhl = int((sept_df['VendorName'] == 'DHL').sum())
-            sept_busy = int((sept_df['VendorName'] == 'Busybees').sum())
-            sept_trk = int((sept_df['VendorName'] == 'Trackon').sum())
-
-            oct_dhl = int((oct_df['VendorName'] == 'DHL').sum())
-            oct_busy = int((oct_df['VendorName'] == 'Busybees').sum())
-            oct_trk = int((oct_df['VendorName'] == 'Trackon').sum())
+            aug_dhl, aug_busy, aug_trk = int((aug_df['VendorName'] == 'DHL').sum()), int((aug_df['VendorName'] == 'Busybees').sum()), int((aug_df['VendorName'] == 'Trackon').sum())
+            sept_dhl, sept_busy, sept_trk = int((sept_df['VendorName'] == 'DHL').sum()), int((sept_df['VendorName'] == 'Busybees').sum()), int((sept_df['VendorName'] == 'Trackon').sum())
+            oct_dhl, oct_busy, oct_trk = int((oct_df['VendorName'] == 'DHL').sum()), int((oct_df['VendorName'] == 'Busybees').sum()), int((oct_df['VendorName'] == 'Trackon').sum())
         else:
-            aug_dhl, aug_busy, aug_trk = 0, 0, 0
-            sept_dhl, sept_busy, sept_trk = 0, 0, 0
-            oct_dhl, oct_busy, oct_trk = 0, 0, 0
+            aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0]*9
         
+        # Performance Metrics
         total_trips = len(filtered_mis)
         ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
         delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
@@ -480,14 +491,40 @@ if selected_nav == "📊 Dashboard":
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
+        # Dashboard Data Table
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("## 🎯 Customer-wise Performance Speedometer")
+        st.markdown("## 📄 Live Detailed Performance Records")
+        required_columns = [
+            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+        ]
+        if not filtered_mis.empty:
+            available_cols = [c for c in required_columns if c in filtered_mis.columns]
+            if not available_cols:
+                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
+            show_df = filtered_mis[available_cols]
+            
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+        else:
+            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+    else:
+        st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
+
+# ----------------- 2. CLIENT PERFORMANCE -----------------
+elif selected_nav == "📊 Client Performance":
+    st.title("🎯 Client-wise Performance Speedometer")
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data
+        unique_clients = mis_df['VendorName'].dropna().unique() if 'VendorName' in mis_df.columns else []
         
-        unique_clients = filtered_mis['VendorName'].dropna().unique() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
             for i, client_name in enumerate(unique_clients):
-                client_df = filtered_mis[filtered_mis['VendorName'] == client_name]
+                client_df = mis_df[mis_df['VendorName'] == client_name]
                 c_total = len(client_df)
                 c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in client_df.columns else 0
                 c_delay = len(client_df[client_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in client_df.columns else 0
@@ -498,44 +535,78 @@ if selected_nav == "📊 Dashboard":
                         render_speedometer_html(client_name, c_rate, c_ontime, c_delay, c_total),
                         unsafe_allow_html=True
                     )
-
-        # ================= ONLY PERFORMANCE DATA TABLE =================
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("## 📄 Live Detailed Performance Records")
-        
-        required_columns = [
-            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-        ]
-        
-        if not filtered_mis.empty:
-            available_cols = [c for c in required_columns if c in filtered_mis.columns]
-            if not available_cols:
-                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
-            show_df = filtered_mis[available_cols]
-            
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-            
-            buffer_excel = io.BytesIO()
-            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                show_df.to_excel(writer, index=False, sheet_name='Performance_Report')
-            
-            st.download_button(
-                label="📥 Download Performance Report (Excel)",
-                data=buffer_excel.getvalue(),
-                file_name="Performance_Report.xlsx",
-                mime="application/vnd.ms-excel",
-                type="primary"
-            )
         else:
-            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+            st.warning("Koi Client data available nahi hai.")
     else:
-        st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
+        st.info("👈 Kripya pehle MIS file upload karein.")
 
+# ----------------- 3. BRANCHES -----------------
+elif selected_nav == "🏢 Branches":
+    st.title("🏢 Controlling Staff Performance")
+    st.info("Showing Performance Breakdown by Controlling Staff Name.")
+    
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data.copy()
+        staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower() or 'branch' in c.lower()), None)
+        
+        if staff_col:
+            staff_summary = []
+            staff_list = mis_df[staff_col].dropna().unique()
+            for staff in staff_list:
+                s_df = mis_df[mis_df[staff_col] == staff]
+                total = len(s_df)
+                ontime = len(s_df[s_df['Status_Category'] == 'On-Time Trip Closed'])
+                delay = len(s_df[s_df['Status_Category'] == 'Delay Trip Closed'])
+                ontime_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
+                staff_summary.append({
+                    "Controlling Staff Name": staff,
+                    "Total Trips": total,
+                    "On-Time Trips": ontime,
+                    "Delay Trips": delay,
+                    "Performance (%)": ontime_pct
+                })
+            
+            staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
+            st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
+        else:
+            st.warning("Data mein 'Controlling Staff Name' column nahi mila.")
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 4. VEHICLE UTILISATION -----------------
+elif selected_nav == "🚚 Vehicle Utilisation":
+    st.title("🚚 Vehicle Utilisation (Current Month)")
+    st.info("Showing Total Trips valid for the Current Month (Order Done & Final Touching Time mentioned).")
+    
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data.copy()
+        
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        month_name = datetime.now().strftime("%B %Y")
+        
+        if 'Parsed_Date' in mis_df.columns:
+            curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)]
+            
+            # Since valid_mis only contains 'On-Time Trip Closed' & 'Delay Trip Closed' 
+            # (which already checks for 'order done' and valid Final Touching time), we just count rows.
+            total_valid_trips = len(curr_month_df)
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.markdown(f"""
+                    <div class="metric-card" style="text-align: center; padding: 40px;">
+                        <div class="metric-title" style="font-size: 18px;">Total Trip Count ({month_name})</div>
+                        <div class="metric-value" style="font-size: 60px; color: #48cae4;">{total_valid_trips}</div>
+                        <div class="metric-sub-green" style="font-size: 14px; margin-top: 15px;">Status: Order Done + Final Touching Recorded</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("Data mein date column properly format nahi ho paya.")
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 5. MONTHLY BREAKDOWN -----------------
 elif selected_nav == "📈 Monthly Breakdown":
     st.title("📈 Monthly Breakdown")
     st.info("🔒 Showing monthly performance breakdown.")
@@ -552,6 +623,8 @@ elif selected_nav == "📈 Monthly Breakdown":
             st.warning("Date column not found for monthly breakdown.")
     else:
         st.info("👈 Kripya pehle MIS files upload karein.")
+
+# ----------------- OTHER PAGES -----------------
 else:
     st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
