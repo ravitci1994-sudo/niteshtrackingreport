@@ -393,4 +393,27 @@ if "Dashboard" in selected_nav:
         
         # Performance Metrics
         total_trips = len(filtered_mis)
-        ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-
+        ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
+        delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
+        
+        ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
+        delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
+
+        col1, col2, col3 = st.columns([1.2, 1.8, 1])
+
+        with col1:
+            client_label = "ALL CLIENTS" if selected_client == "ALL" else selected_client.upper()
+            col1_html = (
+                f'<div class="metric-card" style="min-height: 200px;">'
+                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({client_label})</div>'
+                f'<div class="metric-value">{total_callouts}</div>'
+                f'<div class="metric-sub-green" style="margin-bottom: 6px; font-weight:700;">Breakdown & Accident</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{dhl_c}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{busy_c}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{trk_c}</b></span>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
+                f'<span>Busybees: <b
