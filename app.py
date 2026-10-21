@@ -120,52 +120,53 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
-# Helper function to process data columns safely according to strict Trip Closed rule
+# Safe data processor with error shielding
 def process_dataframe(df):
-    df.columns = df.columns.str.strip()
-    
-    desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
-    if desp_col:
-        df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
-
-    # Shorten Vendor/Party Names
-    vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
-    def clean_party_name(val):
-        val_str = str(val).upper().strip()
-        if "DHL" in val_str:
-            return "DHL"
-        elif "BUSYBEES" in val_str:
-            return "Busybees"
-        elif "TRACKON" in val_str:
-            return "Trackon"
-        return str(val).strip()
-
-    if vendor_c:
-        df['VendorName'] = df[vendor_c].apply(clean_party_name)
-    else:
-        df['VendorName'] = "TEJAS CARGO"
-
-    def get_trip_closed_status(row):
-        status_col = next((c for c in df.columns if 'status' in c.lower()), None)
-        status_val = str(row.get(status_col, '')).lower() if status_col else ''
+    try:
+        df.columns = df.columns.str.strip()
         
-        final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
-        
-        # Strict Condition: Status mein "order done" aur Final Touching Reporting Date & Time mention ho
-        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
-            late_hrs = row.get('Late Hrs')
+        # 1. Category Filter: Only Breakdown & Accident (if column exists)
+        cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
+        if cat_col:
+            df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
+
+        # 2. Customer Filter: Only DHL, Busybees, Trackon
+        vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
+        def clean_party_name(val):
+            val_str = str(val).upper().strip()
+            if "DHL" in val_str:
+                return "DHL"
+            elif "BUSYBEES" in val_str:
+                return "Busybees"
+            elif "TRACKON" in val_str:
+                return "Trackon"
+            return "OTHER"
+
+        if vendor_c:
+            df['VendorName'] = df[vendor_c].apply(clean_party_name)
+            df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+        else:
+            df['VendorName'] = "TEJAS CARGO"
+
+        # 3. Month Filter: August, September, October (Aug, Sept, Oct)
+        date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
+        if date_col:
+            df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
+            df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
+
+        # 4. Status Category (On-Time vs Delay)
+        def get_trip_closed_status(row):
+            late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
             if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
                 return "On-Time Trip Closed"
             else:
                 return "Delay Trip Closed"
-        else:
-            return "Invalid"
-            
-    df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
-    
-    # Only keep Trip Closed data, drop everything else
-    df = df[df['Status_Category'].isin(['On-Time Trip Closed', 'Delay Trip Closed'])].copy()
-    return df
+                
+        df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
+        return df
+    except Exception as e:
+        st.error(f"Data processing error: {e}")
+        return df
 
 # ================= MEMORY SETUP =================
 if 'vendor_data' not in st.session_state:
@@ -173,7 +174,7 @@ if 'vendor_data' not in st.session_state:
         try:
             df_loaded = pd.read_pickle(DATA_FILE)
             st.session_state.vendor_data = process_dataframe(df_loaded)
-        except:
+        except Exception:
             st.session_state.vendor_data = None
     else:
         st.session_state.vendor_data = None
@@ -198,7 +199,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             df_list = []
             for uploaded_file in uploaded_files:
                 if uploaded_file.name.endswith('.csv'):
-                    temp_df = pd.read_csv(uploaded_file)
+                    temp_df = pd.read_csv(uploaded_file, low_memory=False)
                 else:
                     temp_df = pd.read_excel(uploaded_file)
                 df_list.append(temp_df)
@@ -252,7 +253,6 @@ if selected_nav == "📊 Dashboard":
         df = st.session_state.vendor_data
         st.markdown("---")
 
-        # Client Filter Dropdown on Dashboard
         client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
         selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
 
@@ -267,7 +267,6 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
@@ -362,33 +361,25 @@ if selected_nav == "📊 Dashboard":
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Trip Closed Records")
+        st.subheader("📄 Live Detailed Filtered Records")
         
-        required_columns = [
-            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-        ]
-        available_cols = [c for c in required_columns if c in filtered_df.columns]
+        available_cols = [c for c in filtered_df.columns if c != 'Parsed_Date']
         show_df = filtered_df[available_cols] if available_cols else filtered_df
         
         if not show_df.empty:
             st.dataframe(show_df, use_container_width=True, hide_index=True)
         else:
-            st.warning("Is selection ke liye koi Trip Closed data available nahi hai.")
+            st.warning("Is selection ke liye koi data available nahi hai.")
 
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             export_df = filtered_df[available_cols] if available_cols else filtered_df
-            export_df.to_excel(writer, index=False, sheet_name='Trip_Closed_Report')
+            export_df.to_excel(writer, index=False, sheet_name='Filtered_Report')
         
         st.download_button(
-            label="📥 Download Trip Closed Report (Excel)",
+            label="📥 Download Filtered Report (Excel)",
             data=buffer_excel.getvalue(),
-            file_name="Trip_Closed_Report.xlsx",
+            file_name="Filtered_Callout_Report.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
@@ -400,11 +391,10 @@ elif selected_nav == "📈 Monthly Breakdown":
     st.info("🔒 Showing monthly performance breakdown and trends.")
     if st.session_state.vendor_data is not None:
         df = st.session_state.vendor_data
-        date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower()), None)
-        if date_col:
+        if 'Parsed_Date' in df.columns:
             try:
-                df['Month'] = pd.to_datetime(df[date_col], errors='coerce').dt.strftime('%B %Y')
-                monthly_summary = df.groupby(['Month', 'Status_Category']).size().unstack(fill_value=0).reset_index()
+                df['Month'] = df['Parsed_Date'].dt.strftime('%B %Y')
+                monthly_summary = df.groupby(['Month', 'VendorName', 'Status_Category']).size().unstack(fill_value=0).reset_index()
                 st.dataframe(monthly_summary, use_container_width=True, hide_index=True)
             except Exception as e:
                 st.warning(f"Could not parse monthly breakdown: {e}")
