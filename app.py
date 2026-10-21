@@ -153,7 +153,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
-# Helper function to render crash-proof HTML table (avoids DataFrame.js error)
+# Helper function to render crash-proof HTML table
 def render_html_table(df_to_show):
     clean_df = df_to_show.fillna("").astype(str)
     headers = "".join([f"<th>{col}</th>" for col in clean_df.columns])
@@ -178,9 +178,7 @@ def process_uploaded_files(uploaded_files):
             
             temp_df.columns = temp_df.columns.str.strip()
             
-            # Check if it's Callout file or MIS file
             if 'callout' in uploaded_file.name.lower() or any('category' in c.lower() for c in temp_df.columns):
-                # Callout specific processing: Breakdown & Accident only, Aug/Sept/Oct only, DHL/Busybees/Trackon only
                 cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
                 if cat_col:
                     temp_df = temp_df[temp_df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
@@ -203,7 +201,6 @@ def process_uploaded_files(uploaded_files):
                 
                 callout_dfs.append(temp_df)
             else:
-                # MIS file processing strictly for Performance
                 desp_col = next((c for c in temp_df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
                 if desp_col:
                     temp_df = temp_df[pd.notna(temp_df[desp_col]) & (temp_df[desp_col].astype(str).str.strip() != "") & (temp_df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
@@ -224,7 +221,6 @@ def process_uploaded_files(uploaded_files):
                 if date_col:
                     temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
 
-                # Strict Trip Closed Status check for MIS Performance
                 status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
                 def get_status(row):
                     status_val = str(row.get(status_col, '')).lower() if status_col else ''
@@ -326,7 +322,6 @@ if selected_nav == "📊 Dashboard":
         
         st.markdown("---")
 
-        # Combine unique client names from both datasets
         clients_set = set()
         if not mis_df.empty and 'VendorName' in mis_df.columns:
             clients_set.update(mis_df['VendorName'].dropna().unique())
@@ -345,18 +340,34 @@ if selected_nav == "📊 Dashboard":
             if not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
                 filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
-        # Callout Metrics
         total_callouts = len(filtered_callout)
-        if not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
-            aug_count = int((filtered_callout['Parsed_Date'].dt.month == 8).sum())
-            sept_count = int((filtered_callout['Parsed_Date'].dt.month == 9).sum())
-            oct_count = int((filtered_callout['Parsed_Date'].dt.month == 10).sum())
-        else:
-            aug_count, sept_count, oct_count = 0, 0, 0
-
+        
+        # Client-wise counts (DHL, Busybees, Trackon)
         dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
+
+        # Month & Client-wise breakdown for August, September, October
+        if not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
+            aug_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 8]
+            sept_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 9]
+            oct_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 10]
+
+            aug_dhl = int((aug_df['VendorName'] == 'DHL').sum())
+            aug_busy = int((aug_df['VendorName'] == 'Busybees').sum())
+            aug_trk = int((aug_df['VendorName'] == 'Trackon').sum())
+
+            sept_dhl = int((sept_df['VendorName'] == 'DHL').sum())
+            sept_busy = int((sept_df['VendorName'] == 'Busybees').sum())
+            sept_trk = int((sept_df['VendorName'] == 'Trackon').sum())
+
+            oct_dhl = int((oct_df['VendorName'] == 'DHL').sum())
+            oct_busy = int((oct_df['VendorName'] == 'Busybees').sum())
+            oct_trk = int((oct_df['VendorName'] == 'Trackon').sum())
+        else:
+            aug_dhl, aug_busy, aug_trk = 0, 0, 0
+            sept_dhl, sept_busy, sept_trk = 0, 0, 0
+            oct_dhl, oct_busy, oct_trk = 0, 0, 0
         
         # Performance Metrics (Strictly from MIS data)
         total_trips = len(filtered_mis)
@@ -366,24 +377,37 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        col1, col2, col3 = st.columns([1.1, 1.9, 1])
+        col1, col2, col3 = st.columns([1.2, 1.8, 1])
 
         with col1:
-            client_label = "All Clients" if selected_client == "ALL" else selected_client
+            client_label = "ALL CLIENTS" if selected_client == "ALL" else selected_client.upper()
             col1_html = (
-                f'<div class="metric-card" style="min-height: 175px;">'
-                f'<div class="metric-title">Total Callout Count ({client_label})</div>'
+                f'<div class="metric-card" style="min-height: 200px;">'
+                f'<div class="metric-title">TOTAL CALLOUT COUNT ({client_label})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
-                f'<div class="metric-sub-green">Breakdown & Accident</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a506b; color: #ffffff;">'
+                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown & Accident</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #3a506b; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{dhl_c}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{busy_c}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{trk_c}</b></span>'
                 f'</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3a506b; color: #ffffff;">'
-                f'<span>Aug: <b style="color:#ffb703;">{aug_count}</b></span>'
-                f'<span>Sept: <b style="color:#2ec4b6;">{sept_count}</b></span>'
-                f'<span>Oct: <b style="color:#e63946;">{oct_count}</b></span>'
+                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 8px; font-weight: bold; text-transform: uppercase;">August Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{aug_busy}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{aug_trk}</b></span>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 6px; font-weight: bold; text-transform: uppercase;">September Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{sept_dhl}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{sept_busy}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{sept_trk}</b></span>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 6px; font-weight: bold; text-transform: uppercase;">October Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{oct_dhl}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{oct_busy}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{oct_trk}</b></span>'
                 f'</div>'
                 f'</div>'
             )
@@ -391,9 +415,9 @@ if selected_nav == "📊 Dashboard":
 
         with col2:
             col2_html = (
-                f'<div class="metric-card" style="min-height: 175px;">'
+                f'<div class="metric-card" style="min-height: 200px;">'
                 f'<div class="metric-title">Over All Performance</div>'
-                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 22px; padding-top: 15px; border-top: 1px solid #3a506b;">'
+                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #3a506b;">'
                 f'<div>'
                 f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Count</div>'
                 f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
@@ -442,7 +466,7 @@ if selected_nav == "📊 Dashboard":
                 lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No MIS performance data</div>'
 
             col3_html = (
-                f'<div class="metric-card" style="min-height: 175px;">'
+                f'<div class="metric-card" style="min-height: 200px;">'
                 f'<div class="metric-title">Customer Leaderboard (Performance)</div>'
                 f'{lb_rows_html}'
                 f'</div>'
@@ -487,7 +511,6 @@ if selected_nav == "📊 Dashboard":
                 available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
             show_df = filtered_mis[available_cols]
             
-            # Render crash-proof HTML Table instead of st.dataframe
             st.markdown(render_html_table(show_df), unsafe_allow_html=True)
             
             buffer_excel = io.BytesIO()
