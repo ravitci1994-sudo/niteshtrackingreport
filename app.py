@@ -54,11 +54,11 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     clamped_rate = max(0.0, min(100.0, float(rate)))
     
     if clamped_rate >= 80:
-        val_color = "#2ec4b6"  # Green
+        val_color = "#2ec4b6"
     elif clamped_rate >= 50:
-        val_color = "#ffb703"  # Yellow
+        val_color = "#ffb703"
     else:
-        val_color = "#e63946"  # Red
+        val_color = "#e63946"
 
     cx, cy = 120, 110
     
@@ -120,54 +120,53 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
-# Helper function to process data safely with strict filters
 def process_dataframe(df):
-    df.columns = df.columns.str.strip()
-    
-    # 1. Category Filter: Only "Breakdown" & "Accident" (if column exists)
-    cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
-    if cat_col:
-        df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
-
-    # 2. Customer Filter: Only DHL, Busybees, Trackon
-    vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
-    def clean_party_name(val):
-        val_str = str(val).upper().strip()
-        if "DHL" in val_str:
-            return "DHL"
-        elif "BUSYBEES" in val_str:
-            return "Busybees"
-        elif "TRACKON" in val_str:
-            return "Trackon"
-        return "OTHER"
-
-    if vendor_c:
-        df['VendorName'] = df[vendor_c].apply(clean_party_name)
-        df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
-    else:
-        df['VendorName'] = "TEJAS CARGO"
-
-    # 3. Month Filter: August, September, October (Aug, Sept, Oct)
-    date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
-    if date_col:
-        df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-        df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
-
-    # 4. Status Category (On-Time vs Delay)
-    def get_trip_closed_status(row):
-        status_col = next((c for c in df.columns if 'status' in c.lower()), None)
-        status_val = str(row.get(status_col, '')).lower() if status_col else ''
+    try:
+        df.columns = df.columns.str.strip()
         
-        late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
-        if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-            return "On-Time Trip Closed"
-        else:
-            return "Delay Trip Closed"
-            
-    df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
-    return df
+        # 1. Category Filter: Only Breakdown & Accident
+        cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
+        if cat_col:
+            df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
 
-# ================= MEMORY SETUP =================
+        # 2. Customer Filter: Only DHL, Busybees, Trackon
+        vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
+        def clean_party_name(val):
+            val_str = str(val).upper().strip()
+            if "DHL" in val_str:
+                return "DHL"
+            elif "BUSYBEES" in val_str:
+                return "Busybees"
+            elif "TRACKON" in val_str:
+                return "Trackon"
+            return None
+
+        if vendor_c:
+            df['VendorName'] = df[vendor_c].apply(clean_party_name)
+            df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+        else:
+            df['VendorName'] = "TEJAS CARGO"
+
+        # 3. Month Filter: August, September, October (8, 9, 10)
+        date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
+        if date_col:
+            df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
+            df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
+
+        # 4. Status Category (On-Time vs Delay)
+        def get_trip_closed_status(row):
+            late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
+            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
+                return "On-Time Trip Closed"
+            else:
+                return "Delay Trip Closed"
+                
+        df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
+        return df
+    except Exception as e:
+        st.error(f"Data processing error: {e}")
+        return df
+
 if 'vendor_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
         try:
@@ -178,13 +177,12 @@ if 'vendor_data' not in st.session_state:
     else:
         st.session_state.vendor_data = None
 
-# ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
-st.sidebar.markdown("📂 **Upload Vendor MIS Files**")
+st.sidebar.markdown("📂 **Upload Callout File**")
 uploaded_files = st.sidebar.file_uploader(
     "Choose Excel/CSV files", 
     type=["xlsx", "csv"], 
@@ -201,10 +199,15 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
                     temp_df = pd.read_csv(uploaded_file, low_memory=False)
                 else:
                     temp_df = pd.read_excel(uploaded_file)
-                df_list.append(temp_df)
+                
+                processed_temp = process_dataframe(temp_df)
+                if not processed_temp.empty:
+                    df_list.append(processed_temp)
             
-            df = pd.concat(df_list, ignore_index=True)
-            df = process_dataframe(df)
+            if df_list:
+                df = pd.concat(df_list, ignore_index=True)
+            else:
+                df = pd.DataFrame()
             
             st.session_state.vendor_data = df
             if os.path.exists(DATA_FILE):
@@ -214,10 +217,10 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             st.sidebar.success("✅ Data successfully processed!")
             st.rerun()
         except Exception as e:
-            st.sidebar.error(f"Error processing file: {e}")
+            st.sidebar.error(f"Error: {e}")
     else:
         if st.session_state.vendor_data is None:
-            st.sidebar.warning("⚠️ Pehle koi file upload karein!")
+            st.sidebar.warning("⚠️ Pehle apni callout file upload karein!")
 
 st.sidebar.markdown("---")
 
@@ -242,19 +245,16 @@ st.sidebar.markdown("---")
 if st.sidebar.button("Logout", use_container_width=True):
     st.sidebar.warning("Logged out successfully!")
 
-
-# ================= MAIN PAGE LOGIC =================
 if selected_nav == "📊 Dashboard":
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
-    st.info("🔒 **Restricted Vendor View:** Live executive monitoring & Trip Closed tracking for TEJAS CARGO INDIA PVT LTD")
+    st.info("🔒 **Restricted Vendor View:** Callout Analysis (Breakdown & Accident) for Aug, Sept, Oct")
 
-    if st.session_state.vendor_data is not None:
+    if st.session_state.vendor_data is not None and not st.session_state.vendor_data.empty:
         df = st.session_state.vendor_data
         st.markdown("---")
 
-        # Client Filter Dropdown on Dashboard
         client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
-        selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
+        selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
 
         filtered_df = df.copy()
         if selected_client != "ALL":
@@ -267,15 +267,14 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
             col1_html = (
                 f'<div class="metric-card" style="min-height: 155px;">'
-                f'<div class="metric-title">Total Trip Closed</div>'
+                f'<div class="metric-title">Total Callout Count</div>'
                 f'<div class="metric-value">{total_trips}</div>'
-                f'<div class="metric-sub-green">Successfully Completed</div>'
+                f'<div class="metric-sub-green">Breakdown & Accident</div>'
                 f'</div>'
             )
             st.markdown(col1_html, unsafe_allow_html=True)
@@ -283,12 +282,12 @@ if selected_nav == "📊 Dashboard":
         with col2:
             col2_html = (
                 f'<div class="metric-card" style="min-height: 155px;">'
-                f'<div class="metric-title">Trip Closed Performance (%)</div>'
+                f'<div class="metric-title">Performance Breakdown (%)</div>'
                 f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 15px; padding-top: 12px; border-top: 1px solid #3a506b;">'
                 f'<div>'
-                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Trip Count</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Count</div>'
                 f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
-                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">100% Trips</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Aug, Sept, Oct</div>'
                 f'</div>'
                 f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
                 f'<div>'
@@ -334,15 +333,14 @@ if selected_nav == "📊 Dashboard":
 
             col3_html = (
                 f'<div class="metric-card" style="min-height: 155px;">'
-                f'<div class="metric-title">Today\'s Leaderboard (Client Trips)</div>'
+                f'<div class="metric-title">Customer Leaderboard</div>'
                 f'{lb_rows_html}'
                 f'</div>'
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
-        # ================= CLIENT-WISE SPEEDOMETER CARDS =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Client-wise Performance Speedometer")
+        st.subheader("🎯 Customer-wise Performance Speedometer")
         
         unique_clients = filtered_df['VendorName'].dropna().unique()
         if len(unique_clients) > 0:
@@ -360,7 +358,6 @@ if selected_nav == "📊 Dashboard":
                         unsafe_allow_html=True
                     )
 
-        # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("📄 Live Detailed Filtered Records")
         
@@ -375,22 +372,22 @@ if selected_nav == "📊 Dashboard":
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             export_df = filtered_df[available_cols] if available_cols else filtered_df
-            export_df.to_excel(writer, index=False, sheet_name='Filtered_Report')
+            export_df.to_excel(writer, index=False, sheet_name='Callout_Report')
         
         st.download_button(
             label="📥 Download Filtered Report (Excel)",
             data=buffer_excel.getvalue(),
-            file_name="Filtered_Callout_Report.xlsx",
+            file_name="Callout_Filtered_Report.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
     else:
-        st.info("👈 Kripya Sidebar se apni file upload karein aur 'Process Data' button par click karein.")
+        st.info("👈 Kripya Sidebar se sirf apni Callout file upload karein aur 'Process Data' par click karein taaki 0 ki jagah sahi count dikhai de.")
 
 elif selected_nav == "📈 Monthly Breakdown":
     st.title("📈 Monthly Breakdown")
-    st.info("🔒 Showing monthly performance breakdown and trends.")
-    if st.session_state.vendor_data is not None:
+    st.info("🔒 Showing monthly performance breakdown and trends for Aug, Sept, Oct.")
+    if st.session_state.vendor_data is not None and not st.session_state.vendor_data.empty:
         df = st.session_state.vendor_data
         if 'Parsed_Date' in df.columns:
             try:
@@ -402,7 +399,7 @@ elif selected_nav == "📈 Monthly Breakdown":
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle Sidebar se file upload karein.")
+        st.info("👈 Kripya pehle Callout file upload karein.")
 else:
     st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
