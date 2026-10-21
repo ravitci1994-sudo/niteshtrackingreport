@@ -8,49 +8,52 @@ import os
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for Dark Theme Executive Dashboard Styling
+# Custom CSS for Dynamic & Attractive Modern Dark Theme Styling
 st.markdown("""
     <style>
     .main {
-        background-color: #0b132b;
+        background: linear-gradient(135deg, #0b132b 0%, #1c2541 100%);
     }
     .metric-card {
-        background-color: #1c2541;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #3a506b;
+        background: linear-gradient(145deg, #1c2541, #131b2e);
+        padding: 22px;
+        border-radius: 14px;
+        border: 1px solid #48cae4;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
         margin-bottom: 15px;
         color: white;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-4px;);
+        box-shadow: 0 12px 25px rgba(72, 202, 228, 0.25);
+        border-color: #90e0ef;
     }
     .metric-title {
-        font-size: 14px;
-        color: #8d99ae;
-        font-weight: 600;
+        font-size: 15px;
+        color: #90e0ef;
+        font-weight: 800;
         text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border-bottom: 2px solid rgba(72, 202, 228, 0.3);
+        padding-bottom: 6px;
+        margin-bottom: 10px;
     }
     .metric-value {
-        font-size: 32px;
+        font-size: 36px;
         color: #ffffff;
-        font-weight: bold;
+        font-weight: 900;
         margin-top: 5px;
-    }
-    .metric-sub {
-        font-size: 12px;
-        color: #e63946;
-        margin-top: 5px;
-    }
-    .metric-sub-green {
-        font-size: 12px;
-        color: #2ec4b6;
-        margin-top: 5px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .custom-table-container {
         overflow-x: auto;
         max-height: 450px;
         overflow-y: auto;
-        border: 1px solid #3a506b;
-        border-radius: 8px;
+        border: 1px solid #48cae4;
+        border-radius: 12px;
         background-color: #1c2541;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
         margin-bottom: 15px;
     }
     .custom-table {
@@ -62,22 +65,29 @@ st.markdown("""
         white-space: nowrap;
     }
     .custom-table th {
-        background-color: #0b132b;
-        color: #2ec4b6;
-        padding: 10px 12px;
+        background: linear-gradient(90deg, #0b132b, #1c2541);
+        color: #48cae4;
+        padding: 12px 15px;
         text-align: left;
         position: sticky;
         top: 0;
-        border-bottom: 2px solid #3a506b;
+        border-bottom: 3px solid #48cae4;
+        font-weight: 800;
         z-index: 1;
     }
     .custom-table td {
-        padding: 8px 12px;
+        padding: 10px 15px;
         border-bottom: 1px solid #2b3a55;
         color: #e0e6ed;
     }
     .custom-table tr:hover td {
         background-color: #2b3a55;
+        color: #90e0ef;
+    }
+    h1, h2, h3 {
+        color: #ffffff;
+        font-weight: 900 !important;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -105,7 +115,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
         x2 = cx + r_outer * math.cos(rad)
         y2 = cy - r_outer * math.sin(rad)
         stroke_w = "2" if p % 20 == 0 else "1"
-        ticks_svg += f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#8d99ae" stroke-width="{stroke_w}"/>'
+        ticks_svg += f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#90e0ef" stroke-width="{stroke_w}"/>'
 
     labels_svg = ""
     for p in [0, 25, 50, 75, 100]:
@@ -113,7 +123,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
         r_lbl = 98
         lx = cx + r_lbl * math.cos(rad)
         ly = cy - r_lbl * math.sin(rad) + 4
-        labels_svg += f'<text x="{lx:.1f}" y="{ly:.1f}" fill="#8d99ae" font-size="10" font-weight="bold" text-anchor="middle" font-family="Arial">{p}%</text>'
+        labels_svg += f'<text x="{lx:.1f}" y="{ly:.1f}" fill="#90e0ef" font-size="10" font-weight="bold" text-anchor="middle" font-family="Arial">{p}%</text>'
 
     n_rad = math.radians(180 - (clamped_rate * 1.8))
     tip_x = cx + 65 * math.cos(n_rad)
@@ -131,7 +141,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
 
     html_lines = [
         f'<div class="metric-card" style="text-align: center; padding: 18px 15px;">',
-        f'<div class="metric-title" style="margin-bottom: 8px;">{client_name} Performance</div>',
+        f'<div class="metric-title" style="margin-bottom: 8px;">🔥 {client_name} PERFORMANCE</div>',
         f'<svg viewBox="0 0 240 130" width="100%" style="max-width: 260px; margin: 0 auto; display: block;">',
         f'<path d="M 40 110 A 80 80 0 0 1 200 110" fill="none" stroke="#0b132b" stroke-width="18" stroke-linecap="round"/>',
         f'<path d="M 40 110 A 80 80 0 0 1 120 30" fill="none" stroke="#e63946" stroke-width="14" stroke-linecap="butt"/>',
@@ -143,8 +153,8 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
         f'<circle cx="{cx}" cy="{cy}" r="8" fill="#ffffff"/>',
         f'<circle cx="{cx}" cy="{cy}" r="4" fill="#1c2541"/>',
         f'</svg>',
-        f'<div style="font-size: 32px; font-weight: bold; color: {val_color}; margin-top: 2px;">{rate}%</div>',
-        f'<div style="font-size: 13px; color: #8d99ae; margin-top: 6px;">',
+        f'<div style="font-size: 34px; font-weight: 900; color: {val_color}; margin-top: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.4);">{rate}%</div>',
+        f'<div style="font-size: 13px; color: #90e0ef; margin-top: 6px; font-weight: 700;">',
         f'<span style="color:#2ec4b6;">On-Time: <b>{ontime}</b></span> &nbsp;|&nbsp; ',
         f'<span style="color:#e63946;">Delay: <b>{delay}</b></span> &nbsp;|&nbsp; ',
         f'<span style="color:#ffffff;">Total: <b>{total}</b></span>',
@@ -380,27 +390,27 @@ if selected_nav == "📊 Dashboard":
             client_label = "ALL CLIENTS" if selected_client == "ALL" else selected_client.upper()
             col1_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">TOTAL CALLOUT COUNT ({client_label})</div>'
+                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({client_label})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
-                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown & Accident</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #3a506b; color: #ffffff;">'
+                f'<div class="metric-sub-green" style="margin-bottom: 6px; font-weight:700;">Breakdown & Accident</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{dhl_c}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{busy_c}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{trk_c}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 8px; font-weight: bold; text-transform: uppercase;">August Breakdown</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{aug_busy}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{aug_trk}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 6px; font-weight: bold; text-transform: uppercase;">September Breakdown</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">September Breakdown</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{sept_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{sept_busy}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{sept_trk}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #8d99ae; margin-top: 6px; font-weight: bold; text-transform: uppercase;">October Breakdown</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">October Breakdown</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{oct_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{oct_busy}</b></span>'
@@ -413,24 +423,24 @@ if selected_nav == "📊 Dashboard":
         with col2:
             col2_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">Over All Performance</div>'
-                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #3a506b;">'
+                f'<div class="metric-title">⚡ OVER ALL PERFORMANCE</div>'
+                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #48cae4;">'
                 f'<div>'
-                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Count</div>'
-                f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
-                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Total Count</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
+                f'<div style="font-size: 12px; color: #90e0ef; margin-top: 2px;">Performance Trips</div>'
                 f'</div>'
-                f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
+                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
                 f'<div>'
-                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">On-Time</div>'
-                f'<div style="font-size: 28px; font-weight: bold; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
-                f'<div style="font-size: 13px; font-weight: bold; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">On-Time</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: 900; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
                 f'</div>'
-                f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
+                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
                 f'<div>'
-                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Delay</div>'
-                f'<div style="font-size: 28px; font-weight: bold; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
-                f'<div style="font-size: 13px; font-weight: bold; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Delay</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: 900; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
                 f'</div>'
                 f'</div>'
                 f'</div>'
@@ -447,10 +457,10 @@ if selected_nav == "📊 Dashboard":
                 c_delay = len(c_df[c_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in c_df.columns else 0
                 
                 lb_rows_html += (
-                    f'<div style="border-top: 1px solid #3a506b; padding-top: 8px; margin-top: 8px;">'
-                    f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">'
+                    f'<div style="border-top: 1px solid #48cae4; padding-top: 8px; margin-top: 8px;">'
+                    f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">'
                     f'<span style="color: #ffffff;">{c_name}</span>'
-                    f'<span style="color: #ffffff;">Total: {c_tot}</span>'
+                    f'<span style="color: #90e0ef;">Total: {c_tot}</span>'
                     f'</div>'
                     f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;">'
                     f'<span style="color: #2ec4b6;">On-Time: <b>{c_ontime}</b></span>'
@@ -460,18 +470,18 @@ if selected_nav == "📊 Dashboard":
                 )
 
             if not lb_rows_html:
-                lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No MIS performance data</div>'
+                lb_rows_html = '<div style="font-size: 13px; color: #90e0ef; margin-top: 8px;">No MIS performance data</div>'
 
             col3_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">Customer Leaderboard (Performance)</div>'
+                f'<div class="metric-title">🏆 CUSTOMER LEADERBOARD</div>'
                 f'{lb_rows_html}'
                 f'</div>'
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Customer-wise Performance Speedometer")
+        st.markdown("## 🎯 Customer-wise Performance Speedometer")
         
         unique_clients = filtered_mis['VendorName'].dropna().unique() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
         if len(unique_clients) > 0:
@@ -491,7 +501,7 @@ if selected_nav == "📊 Dashboard":
 
         # ================= ONLY PERFORMANCE DATA TABLE =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Performance Records")
+        st.markdown("## 📄 Live Detailed Performance Records")
         
         required_columns = [
             'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
