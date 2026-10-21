@@ -14,7 +14,6 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # Filter only rows where Dispatched Time / Desp. Date & Time is present safely using .str
     desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
     if desp_col:
         df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
@@ -41,7 +40,6 @@ def process_dataframe(df):
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Check if Trip is Closed
         if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
             late_hrs = row.get('Late Hrs')
             if pd.notna(late_hrs) and str(late_hrs).strip() != "" and str(late_hrs).strip() != "0":
@@ -118,12 +116,11 @@ if st.sidebar.button("🔄 REFRESH / CLEAR DATA", use_container_width=True):
 
 st.sidebar.markdown("Navigation:")
 selected_nav = st.sidebar.radio("", [
-    "📊 Vendor Performance (Routewise/Legwise)",
-    "🚚 Operations Summary",
-    "💳 Payment Dashboard",
-    "📱 Communication Hub",
-    "💰 Network Utilization",
-    "📝 Today's Call Action Plan",
+    "📡 Control Tower",
+    "📊 Client Performance",
+    "🏢 Branches",
+    "🚚 Vehicle Utilisation",
+    "📝 Today call Action",
     "🔐 User & Access Control"
 ], label_visibility="collapsed")
 
@@ -133,8 +130,8 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 
 # ================= MAIN PAGE LOGIC =================
-if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operations Summary"]:
-    st.title("Vendor Performance (Routewise/Legwise)")
+if selected_nav == "📡 Control Tower":
+    st.title("Control Tower (Vendor Performance)")
     st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
 
     # ================= DASHBOARD =================
@@ -242,7 +239,7 @@ if selected_nav in ["📊 Vendor Performance (Routewise/Legwise)", "🚚 Operati
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ================= ONLY 3 STATUS BUTTONS WITH COUNTS =================
+            # ================= 3 STATUS BUTTONS WITH COUNTS =================
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
             closed_count = len(filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])])
