@@ -5,7 +5,7 @@ import io
 import os
 
 # 1. Page Configuration
-st.set_page_config(page_title="Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 DATA_FILE = "saved_vendor_data.pkl"
 
@@ -55,22 +55,6 @@ def process_dataframe(df):
     desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
     if desp_col:
         df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
-    
-    ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower() or 'from' in c.lower()), None)
-    df['Origin RO'] = df[ro_col].astype(str).str.strip() if ro_col else "DELRO"
-    
-    from_c = next((c for c in df.columns if 'from' in c.lower() or 'origin' in c.lower()), None)
-    dest_c = next((c for c in df.columns if 'dest' in c.lower() or 'to' in c.lower()), None)
-    if from_c and dest_c:
-        df['Route Path'] = df[from_c].astype(str).str.strip().str.upper() + "-" + df[dest_c].astype(str).str.strip().str.upper()
-    else:
-        df['Route Path'] = "BWNDLH-DELAP"
-
-    if 'Legwise' not in df.columns:
-        df['Legwise'] = "Leg1"
-    
-    if 'Legs' not in df.columns:
-        df['Legs'] = df['Route Path']
 
     # Shorten Vendor/Party Names
     vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
@@ -97,6 +81,7 @@ def process_dataframe(df):
 
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
+        # Jisme Final Touching Reporting Date & Time mention ho woh Trip Closed, warna In-Transit
         if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
             late_hrs = row.get('Late Hrs')
             if pd.notna(late_hrs) and str(late_hrs).strip() != "" and str(late_hrs).strip() != "0":
@@ -194,15 +179,24 @@ if selected_nav == "📊 Dashboard":
         df = st.session_state.vendor_data
         st.markdown("---")
 
-        total_trips = len(df)
-        ontime_trips = len(df[df['Status_Category'] == 'Trip Closed (On-Time)'])
-        delay_trips = len(df[df['Status_Category'] == 'Trip Closed (Delay)'])
-        intransit_trips = len(df[df['Status_Category'] == 'In-Transit'])
-        breakdown_trips = len(df[df['Status_Category'] == 'Breakdown'])
-        
-        on_time_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
+        # Client Filter Dropdown on Dashboard
+        client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
+        selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
 
-        # Top Row Widgets (Metrics & Gauges style)
+        filtered_df = df.copy()
+        if selected_client != "ALL":
+            filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
+
+        total_trips = len(filtered_df)
+        ontime_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (On-Time)'])
+        delay_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (Delay)'])
+        intransit_trips = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
+        breakdown_trips = len(filtered_df[filtered_df['Status_Category'] == 'Breakdown'])
+        
+        total_closed_trips = ontime_trips + delay_trips
+        on_time_pct = round((ontime_trips / total_closed_trips) * 100, 1) if total_closed_trips > 0 else 0
+
+        # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
@@ -229,58 +223,32 @@ if selected_nav == "📊 Dashboard":
             with g1:
                 st.metric(label="On-Time Rate", value=f"{on_time_pct}%", delta="Stable")
             with g2:
-                st.metric(label="Closed Trips", value=f"{ontime_trips + delay_trips}", delta="Completed")
+                st.metric(label="Total Closed Trips", value=f"{total_closed_trips}", delta="Completed")
             with g3:
-                st.metric(label="Breakdowns", value=f"{breakdown_trips}", delta="-2 vs yesterday", delta_color="inverse")
+                st.metric(label="Breakdowns", value=f"{breakdown_trips}", delta="Action Required", delta_color="inverse")
             
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col3:
-            # Leaderboard style client volume
             st.markdown("""
                 <div class="metric-card">
                     <div class="metric-title">Today's Leaderboard (Client Trips)</div>
             """, unsafe_allow_html=True)
             
-            leaderboard = df['VendorName'].value_counts().reset_index()
+            leaderboard = filtered_df['VendorName'].value_counts().reset_index()
             leaderboard.columns = ['Client', 'Trips']
             for idx, row in leaderboard.head(4).iterrows():
                 st.markdown(f"<div style='display: flex; justify-content: space-between; font-size:14px; margin-top:6px;'><span>{row['Client']}</span><span style='color:#2ec4b6; font-weight:bold;'>{row['Trips']} Trips</span></div>", unsafe_allow_html=True)
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Second Row - Trend / Line chart & Live Alerts
-        col_chart, col_leads = st.columns([2, 1])
-
-        with col_chart:
-            st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-title">Volume & Movement Trend (This Week vs Last Week)</div>
-            """, unsafe_allow_html=True)
-            
-            # Simulated trend line chart for live monitoring feel
-            trend_data = pd.DataFrame({
-                'Mon': [120, 90], 'Tue': [105, 85], 'Wed': [115, 95], 'Thu': [140, 110], 'Fri': [130, 100]
-            }, index=['This Week', 'Last Week']).T
-            st.line_chart(trend_data)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        with col_leads:
-            st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-title">Live Action Queue</div>
-                    <div style="font-size: 24px; font-weight: bold; margin-top: 10px; color: #e63946;">{breakdown_trips} Breakdowns</div>
-                    <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">Require immediate intervention & escalation.</div>
-                    <hr style="border-color: #3a506b;">
-                    <div style="font-size: 24px; font-weight: bold; color: #ffb703;">{delay_trips} Delayed Trips</div>
-                    <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">Running behind expected delivery SLA.</div>
-                </div>
-            """, unsafe_allow_html=True)
-
+        # Live Detailed Trip Records (Only Trip Closed data as requested)
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("### 📄 Live Detailed Trip Records")
+        st.subheader("📄 Live Detailed Trip Records (Trip Closed Only)")
         
+        # Filter only closed trips for live details table
+        closed_details_df = filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])].copy()
+
         required_columns = [
             'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
             '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
@@ -289,17 +257,21 @@ if selected_nav == "📊 Dashboard":
             'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
             'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
         ]
-        available_cols = [c for c in required_columns if c in df.columns]
-        show_df = df[available_cols] if available_cols else df
-        st.dataframe(show_df, use_container_width=True, hide_index=True)
+        available_cols = [c for c in required_columns if c in closed_details_df.columns]
+        show_df = closed_details_df[available_cols] if available_cols else closed_details_df
+        
+        if not show_df.empty:
+            st.dataframe(show_df, use_container_width=True, hide_index=True)
+        else:
+            st.warning("Is client ke liye koi Trip Closed data available nahi hai.")
 
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-            export_df = df[available_cols] if available_cols else df
+            export_df = closed_details_df[available_cols] if available_cols else closed_details_df
             export_df.to_excel(writer, index=False, sheet_name='Live_Monitoring_Report')
         
         st.download_button(
-            label="📥 Download Live Monitoring Report (Excel)",
+            label="📥 Download Trip Closed Report (Excel)",
             data=buffer_excel.getvalue(),
             file_name="Live_Monitoring_Report.xlsx",
             mime="application/vnd.ms-excel",
