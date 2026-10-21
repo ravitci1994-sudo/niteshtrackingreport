@@ -272,6 +272,14 @@ if selected_nav == "📊 Dashboard":
 
         total_callouts = len(filtered_callout)
         
+        # Month-wise Callout Count (Aug, Sept, Oct)
+        if 'Parsed_Date' in filtered_callout.columns:
+            aug_count = int((filtered_callout['Parsed_Date'].dt.month == 8).sum())
+            sept_count = int((filtered_callout['Parsed_Date'].dt.month == 9).sum())
+            oct_count = int((filtered_callout['Parsed_Date'].dt.month == 10).sum())
+        else:
+            aug_count, sept_count, oct_count = 0, 0, 0
+        
         # Performance metrics from MIS data
         total_trips = len(filtered_mis) if not filtered_mis.empty else len(filtered_callout)
         ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty else len(filtered_callout[filtered_callout['Status_Category'] == 'On-Time Trip Closed'] if 'Status_Category' in filtered_callout.columns else [])
@@ -288,6 +296,11 @@ if selected_nav == "📊 Dashboard":
                 f'<div class="metric-title">Total Callout Count</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
                 f'<div class="metric-sub-green">Breakdown & Accident</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #3a506b; color: #ffffff;">'
+                f'<span>Aug: <b style="color:#ffb703;">{aug_count}</b></span>'
+                f'<span>Sept: <b style="color:#2ec4b6;">{sept_count}</b></span>'
+                f'<span>Oct: <b style="color:#e63946;">{oct_count}</b></span>'
+                f'</div>'
                 f'</div>'
             )
             st.markdown(col1_html, unsafe_allow_html=True)
