@@ -46,6 +46,11 @@ st.markdown("""
         margin-top: 5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
+    .metric-sub-green {
+        font-size: 12px;
+        color: #2ec4b6;
+        margin-top: 5px;
+    }
     .custom-table-container {
         overflow-x: auto;
         max-height: 450px;
@@ -231,7 +236,6 @@ def process_uploaded_files(uploaded_files):
                 if date_col:
                     temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
 
-                # Logic: Status has "order done" AND Final Touching has time
                 status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
                 def get_status(row):
                     status_val = str(row.get(status_col, '')).lower() if status_col else ''
@@ -337,10 +341,10 @@ if st.sidebar.button("Logout", use_container_width=True):
     st.sidebar.warning("Logged out successfully!")
 
 
-# ================= MAIN PAGE LOGIC =================
+# ================= MAIN PAGE LOGIC (Fixing Exact Navigation Matching) =================
 
 # ----------------- 1. DASHBOARD -----------------
-if selected_nav == "📊 Dashboard":
+if "Dashboard" in selected_nav:
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
     st.info("🔒 **Restricted Vendor View:** Callout Count & Overall Performance")
 
@@ -439,7 +443,7 @@ if selected_nav == "📊 Dashboard":
                 f'<div>'
                 f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Total Count</div>'
                 f'<div style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
-                f'<div style="font-size: 12px; color: #90e0ef; margin-top: 2px;">Performance Trips</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
                 f'</div>'
                 f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
                 f'<div>'
@@ -515,7 +519,7 @@ if selected_nav == "📊 Dashboard":
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
 # ----------------- 2. CLIENT PERFORMANCE -----------------
-elif selected_nav == "📊 Client Performance":
+elif "Client Performance" in selected_nav:
     st.title("🎯 Client-wise Performance Speedometer")
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         mis_df = st.session_state.mis_data
@@ -541,7 +545,7 @@ elif selected_nav == "📊 Client Performance":
         st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- 3. BRANCHES -----------------
-elif selected_nav == "🏢 Branches":
+elif "Branches" in selected_nav:
     st.title("🏢 Controlling Staff Performance")
     st.info("Showing Performance Breakdown by Controlling Staff Name.")
     
@@ -553,30 +557,34 @@ elif selected_nav == "🏢 Branches":
             staff_summary = []
             staff_list = mis_df[staff_col].dropna().unique()
             for staff in staff_list:
+                if pd.isna(staff) or str(staff).strip() == "": continue
                 s_df = mis_df[mis_df[staff_col] == staff]
                 total = len(s_df)
                 ontime = len(s_df[s_df['Status_Category'] == 'On-Time Trip Closed'])
                 delay = len(s_df[s_df['Status_Category'] == 'Delay Trip Closed'])
                 ontime_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
                 staff_summary.append({
-                    "Controlling Staff Name": staff,
+                    "Controlling Staff Name": str(staff).strip(),
                     "Total Trips": total,
                     "On-Time Trips": ontime,
                     "Delay Trips": delay,
                     "Performance (%)": ontime_pct
                 })
             
-            staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
-            st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
+            if staff_summary:
+                staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
+                st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
+            else:
+                st.warning("Koi valid Controlling Staff ka data nahi mila.")
         else:
             st.warning("Data mein 'Controlling Staff Name' column nahi mila.")
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- 4. VEHICLE UTILISATION -----------------
-elif selected_nav == "🚚 Vehicle Utilisation":
+elif "Vehicle Utilisation" in selected_nav:
     st.title("🚚 Vehicle Utilisation (Current Month)")
-    st.info("Showing Total Trips valid for the Current Month (Order Done & Final Touching Time mentioned).")
+    st.info("Showing Total Trips valid for the Current Month (Status = 'Order Done' & Final Touching Time mentioned).")
     
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         mis_df = st.session_state.mis_data.copy()
@@ -588,8 +596,7 @@ elif selected_nav == "🚚 Vehicle Utilisation":
         if 'Parsed_Date' in mis_df.columns:
             curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)]
             
-            # Since valid_mis only contains 'On-Time Trip Closed' & 'Delay Trip Closed' 
-            # (which already checks for 'order done' and valid Final Touching time), we just count rows.
+            # Since mis_dfs only stores rows that passed the strict valid Trip Closed checks
             total_valid_trips = len(curr_month_df)
             
             col1, col2, col3 = st.columns([1, 2, 1])
@@ -598,7 +605,7 @@ elif selected_nav == "🚚 Vehicle Utilisation":
                     <div class="metric-card" style="text-align: center; padding: 40px;">
                         <div class="metric-title" style="font-size: 18px;">Total Trip Count ({month_name})</div>
                         <div class="metric-value" style="font-size: 60px; color: #48cae4;">{total_valid_trips}</div>
-                        <div class="metric-sub-green" style="font-size: 14px; margin-top: 15px;">Status: Order Done + Final Touching Recorded</div>
+                        <div class="metric-sub-green" style="font-size: 14px; margin-top: 15px;">Valid Trips Executed This Month</div>
                     </div>
                 """, unsafe_allow_html=True)
         else:
@@ -607,7 +614,7 @@ elif selected_nav == "🚚 Vehicle Utilisation":
         st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- 5. MONTHLY BREAKDOWN -----------------
-elif selected_nav == "📈 Monthly Breakdown":
+elif "Monthly Breakdown" in selected_nav:
     st.title("📈 Monthly Breakdown")
     st.info("🔒 Showing monthly performance breakdown.")
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
