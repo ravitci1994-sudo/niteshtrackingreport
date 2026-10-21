@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import io
 import os
+import plotly.graph_objects as go
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -74,22 +75,22 @@ def process_dataframe(df):
         df['VendorName'] = "TEJAS CARGO"
 
     def get_arrival_status(row):
-        remark_col = next((c for c in df.columns if 'remark' in c.lower() or 'tracking' in c.lower()), None)
-        if remark_col and pd.notna(row.get(remark_col)):
-            if "breakdown" in str(row.get(remark_col)).lower():
-                return "Breakdown"
-
+        status_col = next((c for c in df.columns if 'status' in c.lower()), None)
+        status_val = str(row.get(status_col, '')).lower() if status_col else ''
+        
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Jisme Final Touching Reporting Date & Time mention ho woh Trip Closed, warna In-Transit
-        if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
-            late_hrs = row.get('Late Hrs')
-            if pd.notna(late_hrs) and str(late_hrs).strip() != "" and str(late_hrs).strip() != "0":
-                return "Trip Closed (Delay)"
-            else:
-                return "Trip Closed (On-Time)"
-        else:
+        # Check if Order Done and Final Touching Reporting Date & Time is present
+        if ("order done" in status_val or status_val == "order done") and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
+            return "Trip Closed"
+        elif "in-transit" in status_val or "intransit" in status_val:
             return "In-Transit"
+        else:
+            # Fallback logic if status column doesn't have exact text
+            if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
+                return "Trip Closed"
+            else:
+                return "In-Transit"
             
     df['Status_Category'] = df.apply(get_arrival_status, axis=1)
     return df
@@ -188,13 +189,10 @@ if selected_nav == "📊 Dashboard":
             filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
 
         total_trips = len(filtered_df)
-        ontime_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (On-Time)'])
-        delay_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed (Delay)'])
+        closed_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed'])
         intransit_trips = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
-        breakdown_trips = len(filtered_df[filtered_df['Status_Category'] == 'Breakdown'])
         
-        total_closed_trips = ontime_trips + delay_trips
-        on_time_pct = round((ontime_trips / total_closed_trips) * 100, 1) if total_closed_trips > 0 else 0
+        closure_rate = round((closed_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
         # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -219,13 +217,11 @@ if selected_nav == "📊 Dashboard":
                     <div class="metric-title">Today's Performance & KPIs</div>
             """, unsafe_allow_html=True)
             
-            g1, g2, g3 = st.columns(3)
+            g1, g2 = st.columns(2)
             with g1:
-                st.metric(label="On-Time Rate", value=f"{on_time_pct}%", delta="Stable")
+                st.metric(label="Trip Closure Rate", value=f"{closure_rate}%", delta="Stable")
             with g2:
-                st.metric(label="Total Closed Trips", value=f"{total_closed_trips}", delta="Completed")
-            with g3:
-                st.metric(label="Breakdowns", value=f"{breakdown_trips}", delta="Action Required", delta_color="inverse")
+                st.metric(label="Total Trip Closed", value=f"{closed_trips}", delta="Completed")
             
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -242,12 +238,50 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Live Detailed Trip Records (Only Trip Closed data as requested)
+        # ================= 3 SPEEDOMETERS FOR CLIENT-WISE PERFORMANCE =================
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("🎯 Client-wise Performance Speedometers (Gauges)")
+        
+        # Get top 3 clients or unique clients
+        unique_clients = df['VendorName'].dropna().unique()[:3]
+        
+        if len(unique_clients) > 0:
+            gauge_cols = st.columns(len(unique_clients))
+            for i, client_name in enumerate(unique_clients):
+                client_df = df[df['VendorName'] == client_name]
+                c_total = len(client_df)
+                c_closed = len(client_df[client_df['Status_Category'] == 'Trip Closed'])
+                c_rate = round((c_closed / c_total) * 100, 1) if c_total > 0 else 0
+                
+                with gauge_cols[i]:
+                    fig = go.Figure(go.Indicator(
+                        mode = "gauge+number",
+                        value = c_rate,
+                        title = {'text': f"{client_name} Performance", 'font': {'color': 'white', 'size': 16}},
+                        number = {'suffix': "%", 'font': {'color': 'white'}},
+                        gauge = {
+                            'axis': {'range': [0, 100], 'tickcolor': "white"},
+                            'bar': {'color': "#2ec4b6"},
+                            'steps': [
+                                {'range': [0, 50], 'color': "#1c2541"},
+                                {'range': [50, 80], 'color': "#3a506b"},
+                                {'range': [80, 100], 'color': "#0b132b"}
+                            ],
+                            'threshold': {
+                                'line': {'color': "red", 'width': 4},
+                                'thickness': 0.75,
+                                'value': 90
+                            }
+                        }
+                    ))
+                    fig.update_layout(paper_bgcolor="#1c2541", font={'color': "white"}, height=250, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig, use_container_width=True)
+
+        # Live Detailed Trip Records (Only Trip Closed data)
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("📄 Live Detailed Trip Records (Trip Closed Only)")
         
-        # Filter only closed trips for live details table
-        closed_details_df = filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])].copy()
+        closed_details_df = filtered_df[filtered_df['Status_Category'] == 'Trip Closed'].copy()
 
         required_columns = [
             'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
