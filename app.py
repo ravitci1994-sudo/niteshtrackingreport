@@ -6,7 +6,7 @@ import os
 import urllib.parse
 
 # 1. Page Configuration
-st.set_page_config(page_title="Vendor Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 DATA_FILE = "saved_vendor_data.pkl"
 
@@ -14,6 +14,7 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
+    # Filter only rows where Dispatched Time / Desp. Date & Time is present safely using .str
     desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
     if desp_col:
         df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
@@ -34,8 +35,22 @@ def process_dataframe(df):
     if 'Legs' not in df.columns:
         df['Legs'] = df['Route Path']
 
+    # Shorten Vendor/Party Names
     vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
-    df['VendorName'] = df[vendor_c].astype(str).str.strip() if vendor_c else "TEJAS CARGO INDIA PVT LTD"
+    def clean_party_name(val):
+        val_str = str(val).upper().strip()
+        if "DHL" in val_str:
+            return "DHL"
+        elif "BUSYBEES" in val_str:
+            return "Busybees"
+        elif "TRACKON" in val_str:
+            return "Trackon"
+        return str(val).strip()
+
+    if vendor_c:
+        df['VendorName'] = df[vendor_c].apply(clean_party_name)
+    else:
+        df['VendorName'] = "TEJAS CARGO"
 
     def get_arrival_status(row):
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
@@ -131,7 +146,7 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 # ================= MAIN PAGE LOGIC =================
 if selected_nav == "📡 Control Tower":
-    st.title("Control Tower (Vendor Performance)")
+    st.title("Control Tower - Party-wise Performance")
     st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
 
     # ================= DASHBOARD =================
@@ -139,7 +154,6 @@ if selected_nav == "📡 Control Tower":
         df = st.session_state.vendor_data
         st.markdown("---")
         
-        # Date & Duration Row
         d1, d2, d3 = st.columns([1, 1, 2])
         with d1:
             start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))
@@ -149,7 +163,6 @@ if selected_nav == "📡 Control Tower":
             st.markdown("<br>", unsafe_allow_html=True)
             st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
-        # ================= SEARCH / DROPDOWNS =================
         f1, f2, f3, f4, f5 = st.columns(5)
         
         zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
@@ -170,14 +183,13 @@ if selected_nav == "📡 Control Tower":
         if ro_filter != "ALL" and ro_col:
             ro_filtered_df = ro_filtered_df[ro_filtered_df[ro_col] == ro_filter]
 
-        vendor_col = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower()), None)
         with f3:
-            vendor_list = ["ALL"] + list(ro_filtered_df[vendor_col].dropna().unique()) if vendor_col else ["ALL"]
-            vendor_filter = st.selectbox("Search by Vendor:", vendor_list)
+            vendor_list = ["ALL"] + list(ro_filtered_df['VendorName'].dropna().unique())
+            vendor_filter = st.selectbox("Search by Party/Vendor:", vendor_list)
 
         vendor_filtered_df = ro_filtered_df.copy()
-        if vendor_filter != "ALL" and vendor_col:
-            vendor_filtered_df = vendor_filtered_df[vendor_filtered_df[vendor_col] == vendor_filter]
+        if vendor_filter != "ALL":
+            vendor_filtered_df = vendor_filtered_df[vendor_filtered_df['VendorName'] == vendor_filter]
 
         staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
         with f4:
@@ -220,10 +232,10 @@ if selected_nav == "📡 Control Tower":
             summary_df['Trip Closed_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed'], x['Total_Trips']), axis=1)
 
             final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'On-Time_fmt', 'Delay_fmt', 'Trip Closed_fmt']]
-            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'On-Time', 'Delay', 'Trip Closed']
+            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'Party', 'Total_Trips', 'On-Time', 'Delay', 'Trip Closed']
 
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("Vendor Arrival Performance Summary")
+            st.subheader("Party-wise Arrival Performance Summary")
             st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)
 
             styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['On-Time']) \
@@ -239,7 +251,6 @@ if selected_nav == "📡 Control Tower":
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # ================= 3 STATUS BUTTONS WITH COUNTS =================
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
             closed_count = len(filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])])
@@ -285,47 +296,15 @@ if selected_nav == "📡 Control Tower":
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
                 available_cols = [c for c in required_columns if c in filtered_df.columns]
                 export_df = filtered_df[available_cols] if available_cols else filtered_df
-                export_df.to_excel(writer, index=False, sheet_name='Vendor_Performance_Report')
+                export_df.to_excel(writer, index=False, sheet_name='Party_Performance_Report')
             
             st.download_button(
-                label="📥 Download Filtered Vendor Performance Report (Styled Excel)",
+                label="📥 Download Filtered Party Performance Report (Styled Excel)",
                 data=buffer_excel.getvalue(),
-                file_name="Filtered_Vendor_Performance_Report.xlsx",
+                file_name="Filtered_Party_Performance_Report.xlsx",
                 mime="application/vnd.ms-excel",
                 type="primary"
             )
-
-            # ================= LAST 7 DAYS PERFORMANCE DATA (TRIP CLOSED) =================
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            st.subheader("📍 Last 7 Days Route-wise Performance Data")
-            st.markdown("<small style='color:gray'>Pichle 7 dino ka Trip Closed performance summary data</small>", unsafe_allow_html=True)
-            
-            last_week_df = filtered_df.copy()
-            date_col = next((c for c in last_week_df.columns if 'date' in c.lower()), None)
-            if date_col:
-                try:
-                    last_week_df['Temp_Date'] = pd.to_datetime(last_week_df[date_col], errors='coerce').dt.date
-                    last_7_days_start = end_date - pd.Timedelta(days=7)
-                    last_week_df = last_week_df[(last_week_df['Temp_Date'] > last_7_days_start) & (last_week_df['Temp_Date'] <= end_date)]
-                except:
-                    pass
-            
-            if not last_week_df.empty:
-                week_summary = last_week_df.groupby('Route Path')['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
-                
-                if 'Trip Closed (On-Time)' not in week_summary.columns:
-                    week_summary['Trip Closed (On-Time)'] = 0
-                if 'Trip Closed (Delay)' not in week_summary.columns:
-                    week_summary['Trip Closed (Delay)'] = 0
-                
-                week_summary['Trip Closed'] = week_summary['Trip Closed (On-Time)'] + week_summary['Trip Closed (Delay)']
-                
-                final_week_summary = week_summary[['Route Path', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Trip Closed']]
-                final_week_summary.columns = ['Route Path', 'On-Time', 'Delay', 'Total_Trips']
-                
-                st.dataframe(final_week_summary, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Pichle 7 dino ka koi data available nahi hai.")
 
         else:
             st.warning("⚠️ Upload ki gayi file mein data nahi mila ya format galat hai.")
