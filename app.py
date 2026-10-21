@@ -272,10 +272,10 @@ if selected_nav == "📊 Dashboard":
 
         with col1:
             col1_html = (
-                f'<div class="metric-card">'
+                f'<div class="metric-card" style="min-height: 155px;">'
                 f'<div class="metric-title">Total Trip Closed</div>'
                 f'<div class="metric-value">{total_trips}</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a506b;">'
+                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 14px; padding-top: 10px; border-top: 1px solid #3a506b;">'
                 f'<span style="color: #2ec4b6;">✔ On-Time: <b>{ontime_trips}</b></span>'
                 f'<span style="color: #e63946;">✖ Delay: <b>{delay_trips}</b></span>'
                 f'</div>'
@@ -284,21 +284,33 @@ if selected_nav == "📊 Dashboard":
             st.markdown(col1_html, unsafe_allow_html=True)
 
         with col2:
-            st.markdown("""
-                <div class="metric-card" style="min-height: 125px;">
-                    <div class="metric-title">Trip Closed Performance (%)</div>
-            """, unsafe_allow_html=True)
-            
-            g1, g2 = st.columns(2)
-            with g1:
-                st.metric(label="On-Time Percentage", value=f"{ontime_pct}%", delta=f"{ontime_trips} Trips")
-            with g2:
-                st.metric(label="Delay Percentage", value=f"{delay_pct}%", delta=f"{delay_trips} Trips", delta_color="inverse")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+            col2_html = (
+                f'<div class="metric-card" style="min-height: 155px;">'
+                f'<div class="metric-title">Trip Closed Performance (%)</div>'
+                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 15px; padding-top: 12px; border-top: 1px solid #3a506b;">'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Trip Count</div>'
+                f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">100% Trips</div>'
+                f'</div>'
+                f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">On-Time</div>'
+                f'<div style="font-size: 28px; font-weight: bold; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: bold; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
+                f'</div>'
+                f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Delay</div>'
+                f'<div style="font-size: 28px; font-weight: bold; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: bold; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(col2_html, unsafe_allow_html=True)
 
         with col3:
-            # Build Leaderboard rows with Total, On-Time, and Delay counts inside the card
             lb_clients = filtered_df['VendorName'].value_counts().index.tolist()
             lb_rows_html = ""
             for c_name in lb_clients[:4]:
@@ -311,7 +323,7 @@ if selected_nav == "📊 Dashboard":
                     f'<div style="border-top: 1px solid #3a506b; padding-top: 8px; margin-top: 8px;">'
                     f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">'
                     f'<span style="color: #ffffff;">{c_name}</span>'
-                    f'<span style="color: #ffffff;">{c_tot} Trips</span>'
+                    f'<span style="color: #ffffff;">Total: {c_tot}</span>'
                     f'</div>'
                     f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;">'
                     f'<span style="color: #2ec4b6;">On-Time: <b>{c_ontime}</b></span>'
@@ -324,7 +336,7 @@ if selected_nav == "📊 Dashboard":
                 lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No data available</div>'
 
             col3_html = (
-                f'<div class="metric-card">'
+                f'<div class="metric-card" style="min-height: 155px;">'
                 f'<div class="metric-title">Today\'s Leaderboard (Client Trips)</div>'
                 f'{lb_rows_html}'
                 f'</div>'
