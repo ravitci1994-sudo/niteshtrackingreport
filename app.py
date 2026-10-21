@@ -279,6 +279,11 @@ if selected_nav == "📊 Dashboard":
             oct_count = int((filtered_callout['Parsed_Date'].dt.month == 10).sum())
         else:
             aug_count, sept_count, oct_count = 0, 0, 0
+
+        # Client-wise Callout Count (DHL, Busybees, Trackon)
+        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if 'VendorName' in filtered_callout.columns else 0
+        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if 'VendorName' in filtered_callout.columns else 0
+        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if 'VendorName' in filtered_callout.columns else 0
         
         # Performance metrics from MIS data
         total_trips = len(filtered_mis) if not filtered_mis.empty else len(filtered_callout)
@@ -288,15 +293,21 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1.1, 1.9, 1])
 
         with col1:
+            client_label = "All Clients" if selected_client == "ALL" else selected_client
             col1_html = (
-                f'<div class="metric-card" style="min-height: 155px;">'
-                f'<div class="metric-title">Total Callout Count</div>'
+                f'<div class="metric-card" style="min-height: 175px;">'
+                f'<div class="metric-title">Total Callout Count ({client_label})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
                 f'<div class="metric-sub-green">Breakdown & Accident</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #3a506b; color: #ffffff;">'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a506b; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{dhl_c}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{busy_c}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{trk_c}</b></span>'
+                f'</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3a506b; color: #ffffff;">'
                 f'<span>Aug: <b style="color:#ffb703;">{aug_count}</b></span>'
                 f'<span>Sept: <b style="color:#2ec4b6;">{sept_count}</b></span>'
                 f'<span>Oct: <b style="color:#e63946;">{oct_count}</b></span>'
@@ -307,9 +318,9 @@ if selected_nav == "📊 Dashboard":
 
         with col2:
             col2_html = (
-                f'<div class="metric-card" style="min-height: 155px;">'
-                f'<div class="metric-title">Performance Breakdown (%)</div>'
-                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 15px; padding-top: 12px; border-top: 1px solid #3a506b;">'
+                f'<div class="metric-card" style="min-height: 175px;">'
+                f'<div class="metric-title">Over All Performance</div>'
+                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 22px; padding-top: 15px; border-top: 1px solid #3a506b;">'
                 f'<div>'
                 f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Count</div>'
                 f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
@@ -359,7 +370,7 @@ if selected_nav == "📊 Dashboard":
                 lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No data available</div>'
 
             col3_html = (
-                f'<div class="metric-card" style="min-height: 155px;">'
+                f'<div class="metric-card" style="min-height: 175px;">'
                 f'<div class="metric-title">Customer Leaderboard</div>'
                 f'{lb_rows_html}'
                 f'</div>'
