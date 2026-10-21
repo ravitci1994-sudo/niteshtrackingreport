@@ -120,16 +120,16 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
-# Helper function to process data columns safely according to strict rules
+# Helper function to process data safely with strict filters
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # 1. Category Filter: Only "Breakdown" & "Accident"
+    # 1. Category Filter: Only "Breakdown" & "Accident" (if column exists)
     cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
     if cat_col:
         df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
 
-    # 2. Customer/Party Filter: Only DHL, Busybees, Trackon
+    # 2. Customer Filter: Only DHL, Busybees, Trackon
     vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
     def clean_party_name(val):
         val_str = str(val).upper().strip()
@@ -143,33 +143,26 @@ def process_dataframe(df):
 
     if vendor_c:
         df['VendorName'] = df[vendor_c].apply(clean_party_name)
-        # Keep only DHL, Busybees, Trackon
         df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
     else:
         df['VendorName'] = "TEJAS CARGO"
 
-    # 3. Month Filter: Only August, September, October (Aug, Sept, Oct)
+    # 3. Month Filter: August, September, October (Aug, Sept, Oct)
     date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
     if date_col:
         df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-        # Filter months: 8 (Aug), 9 (Sept), 10 (Oct)
         df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
 
+    # 4. Status Category (On-Time vs Delay)
     def get_trip_closed_status(row):
         status_col = next((c for c in df.columns if 'status' in c.lower()), None)
         status_val = str(row.get(status_col, '')).lower() if status_col else ''
         
-        final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
-        
-        if ("order done" in status_val) or (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
-            late_hrs = row.get('Late Hrs')
-            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-                return "On-Time Trip Closed"
-            else:
-                return "Delay Trip Closed"
-        else:
-            # Agar Callout file mein status column nahi hai ya alag format hai, toh default On-Time ya Delay assign karein
+        late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
+        if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
             return "On-Time Trip Closed"
+        else:
+            return "Delay Trip Closed"
             
     df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
     return df
@@ -180,7 +173,7 @@ if 'vendor_data' not in st.session_state:
         try:
             df_loaded = pd.read_pickle(DATA_FILE)
             st.session_state.vendor_data = process_dataframe(df_loaded)
-        except:
+        except Exception:
             st.session_state.vendor_data = None
     else:
         st.session_state.vendor_data = None
@@ -205,7 +198,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             df_list = []
             for uploaded_file in uploaded_files:
                 if uploaded_file.name.endswith('.csv'):
-                    temp_df = pd.read_csv(uploaded_file)
+                    temp_df = pd.read_csv(uploaded_file, low_memory=False)
                 else:
                     temp_df = pd.read_excel(uploaded_file)
                 df_list.append(temp_df)
@@ -221,7 +214,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             st.sidebar.success("✅ Data successfully processed!")
             st.rerun()
         except Exception as e:
-            st.sidebar.error(f"Error: {e}")
+            st.sidebar.error(f"Error processing file: {e}")
     else:
         if st.session_state.vendor_data is None:
             st.sidebar.warning("⚠️ Pehle koi file upload karein!")
@@ -369,7 +362,7 @@ if selected_nav == "📊 Dashboard":
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Trip Closed Records")
+        st.subheader("📄 Live Detailed Filtered Records")
         
         available_cols = [c for c in filtered_df.columns if c != 'Parsed_Date']
         show_df = filtered_df[available_cols] if available_cols else filtered_df
@@ -382,12 +375,12 @@ if selected_nav == "📊 Dashboard":
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             export_df = filtered_df[available_cols] if available_cols else filtered_df
-            export_df.to_excel(writer, index=False, sheet_name='Callout_Report')
+            export_df.to_excel(writer, index=False, sheet_name='Filtered_Report')
         
         st.download_button(
             label="📥 Download Filtered Report (Excel)",
             data=buffer_excel.getvalue(),
-            file_name="Callout_Filtered_Report.xlsx",
+            file_name="Filtered_Callout_Report.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
