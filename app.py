@@ -120,53 +120,52 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
-# Safe data processor with error shielding
+# Helper function to process data safely with strict filters
 def process_dataframe(df):
-    try:
-        df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.strip()
+    
+    # 1. Category Filter: Only "Breakdown" & "Accident" (if column exists)
+    cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
+    if cat_col:
+        df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
+
+    # 2. Customer Filter: Only DHL, Busybees, Trackon
+    vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
+    def clean_party_name(val):
+        val_str = str(val).upper().strip()
+        if "DHL" in val_str:
+            return "DHL"
+        elif "BUSYBEES" in val_str:
+            return "Busybees"
+        elif "TRACKON" in val_str:
+            return "Trackon"
+        return "OTHER"
+
+    if vendor_c:
+        df['VendorName'] = df[vendor_c].apply(clean_party_name)
+        df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+    else:
+        df['VendorName'] = "TEJAS CARGO"
+
+    # 3. Month Filter: August, September, October (Aug, Sept, Oct)
+    date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
+    if date_col:
+        df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
+        df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
+
+    # 4. Status Category (On-Time vs Delay)
+    def get_trip_closed_status(row):
+        status_col = next((c for c in df.columns if 'status' in c.lower()), None)
+        status_val = str(row.get(status_col, '')).lower() if status_col else ''
         
-        # 1. Category Filter: Only Breakdown & Accident (if column exists)
-        cat_col = next((c for c in df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
-        if cat_col:
-            df = df[df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
-
-        # 2. Customer Filter: Only DHL, Busybees, Trackon
-        vendor_c = next((c for c in df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
-        def clean_party_name(val):
-            val_str = str(val).upper().strip()
-            if "DHL" in val_str:
-                return "DHL"
-            elif "BUSYBEES" in val_str:
-                return "Busybees"
-            elif "TRACKON" in val_str:
-                return "Trackon"
-            return "OTHER"
-
-        if vendor_c:
-            df['VendorName'] = df[vendor_c].apply(clean_party_name)
-            df = df[df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+        late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
+        if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
+            return "On-Time Trip Closed"
         else:
-            df['VendorName'] = "TEJAS CARGO"
-
-        # 3. Month Filter: August, September, October (Aug, Sept, Oct)
-        date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
-        if date_col:
-            df['Parsed_Date'] = pd.to_datetime(df[date_col], errors='coerce')
-            df = df[df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
-
-        # 4. Status Category (On-Time vs Delay)
-        def get_trip_closed_status(row):
-            late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
-            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-                return "On-Time Trip Closed"
-            else:
-                return "Delay Trip Closed"
-                
-        df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
-        return df
-    except Exception as e:
-        st.error(f"Data processing error: {e}")
-        return df
+            return "Delay Trip Closed"
+            
+    df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
+    return df
 
 # ================= MEMORY SETUP =================
 if 'vendor_data' not in st.session_state:
@@ -215,7 +214,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             st.sidebar.success("✅ Data successfully processed!")
             st.rerun()
         except Exception as e:
-            st.sidebar.error(f"Error: {e}")
+            st.sidebar.error(f"Error processing file: {e}")
     else:
         if st.session_state.vendor_data is None:
             st.sidebar.warning("⚠️ Pehle koi file upload karein!")
@@ -253,6 +252,7 @@ if selected_nav == "📊 Dashboard":
         df = st.session_state.vendor_data
         st.markdown("---")
 
+        # Client Filter Dropdown on Dashboard
         client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
         selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
 
@@ -267,6 +267,7 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
+        # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
