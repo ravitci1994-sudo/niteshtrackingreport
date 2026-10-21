@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import io
 import os
-import plotly.graph_objects as go
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -80,13 +79,11 @@ def process_dataframe(df):
         
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Check if Order Done and Final Touching Reporting Date & Time is present
         if ("order done" in status_val or status_val == "order done") and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
             return "Trip Closed"
         elif "in-transit" in status_val or "intransit" in status_val:
             return "In-Transit"
         else:
-            # Fallback logic if status column doesn't have exact text
             if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
                 return "Trip Closed"
             else:
@@ -238,44 +235,27 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================= 3 SPEEDOMETERS FOR CLIENT-WISE PERFORMANCE =================
+        # ================= CLIENT-WISE PERFORMANCE METRICS (REPLACING PLOTLY) =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Client-wise Performance Speedometers (Gauges)")
+        st.subheader("🎯 Client-wise Performance Overview")
         
-        # Get top 3 clients or unique clients
         unique_clients = df['VendorName'].dropna().unique()[:3]
-        
         if len(unique_clients) > 0:
-            gauge_cols = st.columns(len(unique_clients))
+            p_cols = st.columns(len(unique_clients))
             for i, client_name in enumerate(unique_clients):
                 client_df = df[df['VendorName'] == client_name]
                 c_total = len(client_df)
                 c_closed = len(client_df[client_df['Status_Category'] == 'Trip Closed'])
                 c_rate = round((c_closed / c_total) * 100, 1) if c_total > 0 else 0
                 
-                with gauge_cols[i]:
-                    fig = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = c_rate,
-                        title = {'text': f"{client_name} Performance", 'font': {'color': 'white', 'size': 16}},
-                        number = {'suffix': "%", 'font': {'color': 'white'}},
-                        gauge = {
-                            'axis': {'range': [0, 100], 'tickcolor': "white"},
-                            'bar': {'color': "#2ec4b6"},
-                            'steps': [
-                                {'range': [0, 50], 'color': "#1c2541"},
-                                {'range': [50, 80], 'color': "#3a506b"},
-                                {'range': [80, 100], 'color': "#0b132b"}
-                            ],
-                            'threshold': {
-                                'line': {'color': "red", 'width': 4},
-                                'thickness': 0.75,
-                                'value': 90
-                            }
-                        }
-                    ))
-                    fig.update_layout(paper_bgcolor="#1c2541", font={'color': "white"}, height=250, margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig, use_container_width=True)
+                with p_cols[i]:
+                    st.markdown(f"""
+                        <div class="metric-card" style="text-align: center;">
+                            <div class="metric-title">{client_name} Performance</div>
+                            <div class="metric-value" style="color: #2ec4b6; font-size: 36px;">{c_rate}%</div>
+                            <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">Closed: {c_closed} / Total: {c_total}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
         # Live Detailed Trip Records (Only Trip Closed data)
         st.markdown("<br>", unsafe_allow_html=True)
