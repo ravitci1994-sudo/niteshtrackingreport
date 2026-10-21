@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime
+from datetime import datetime
 import io
 import os
 import urllib.parse
@@ -158,15 +158,6 @@ if selected_nav == "📊 Dashboard":
     if st.session_state.vendor_data is not None:
         df = st.session_state.vendor_data
         st.markdown("---")
-        
-        d1, d2, d3 = st.columns([1, 1, 2])
-        with d1:
-            start_date = st.date_input("🗓️ Start Date (MCD_StartDate):", date(2026, 10, 1))
-        with d2:
-            end_date = st.date_input("🗓️ End Date (MCD_EndDate):", date(2026, 10, 18))
-        with d3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.info(f"⏱️ **Selected Duration:** 01 Oct 2026 to 18 Oct 2026 ({(end_date - start_date).days + 1} Days)")
             
         f1, f2, f3, f4, f5 = st.columns(5)
         
@@ -219,12 +210,11 @@ if selected_nav == "📊 Dashboard":
         if not filtered_df.empty:
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("📊 Client-wise Performance Chart")
-            st.markdown("<small style='color:gray'>Client (Party) ke anusaar total trips</small>", unsafe_allow_html=True)
+            st.markdown("<small style='color:gray'>Client (Party) ke anusaار total trips</small>", unsafe_allow_html=True)
 
             party_summary = filtered_df['VendorName'].value_counts().reset_index()
             party_summary.columns = ['Client', 'Total_Trips']
 
-            # Streamlit native bar chart (bina Plotly ke)
             st.bar_chart(party_summary.set_index('Client'))
 
             st.markdown("<br>", unsafe_allow_html=True)
