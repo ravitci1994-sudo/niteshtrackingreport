@@ -48,7 +48,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to process data columns safely and flexibly
+# Helper function to process data columns safely and flexibly according to strict rules
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
@@ -73,23 +73,25 @@ def process_dataframe(df):
     else:
         df['VendorName'] = "TEJAS CARGO"
 
-    def get_arrival_status(row):
+    def get_strict_arrival_status(row):
         status_col = next((c for c in df.columns if 'status' in c.lower()), None)
         status_val = str(row.get(status_col, '')).lower() if status_col else ''
         
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        if ("order done" in status_val or status_val == "order done") and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
+        # Rule 1: Order Done + Final Touching Reporting Date & Time -> Trip Closed
+        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
             return "Trip Closed"
+        # Rule 2: In-transit -> In-Transit
         elif "in-transit" in status_val or "intransit" in status_val:
             return "In-Transit"
         else:
-            if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
-                return "Trip Closed"
-            else:
-                return "In-Transit"
+            return "Invalid" # Baaki sabhi ko drop karne ke liye
             
-    df['Status_Category'] = df.apply(get_arrival_status, axis=1)
+    df['Status_Category'] = df.apply(get_strict_arrival_status, axis=1)
+    
+    # Only keep Trip Closed and In-Transit, drop rest
+    df = df[df['Status_Category'].isin(['Trip Closed', 'In-Transit'])].copy()
     return df
 
 # ================= MEMORY SETUP =================
@@ -177,7 +179,7 @@ if selected_nav == "📊 Dashboard":
         df = st.session_state.vendor_data
         st.markdown("---")
 
-        # Client Filter Dropdown on Dashboard
+        # Client Filter Dropdown on Dashboard (ALL or Specific Client)
         client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
         selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
 
@@ -235,7 +237,7 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================= CLIENT-WISE PERFORMANCE METRICS (REPLACING PLOTLY) =================
+        # ================= CLIENT-WISE PERFORMANCE METRICS =================
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("🎯 Client-wise Performance Overview")
         
@@ -257,12 +259,10 @@ if selected_nav == "📊 Dashboard":
                         </div>
                     """, unsafe_allow_html=True)
 
-        # Live Detailed Trip Records (Only Trip Closed data)
+        # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Trip Records (Trip Closed Only)")
+        st.subheader("📄 Live Detailed Trip Records")
         
-        closed_details_df = filtered_df[filtered_df['Status_Category'] == 'Trip Closed'].copy()
-
         required_columns = [
             'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
             '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
@@ -271,21 +271,21 @@ if selected_nav == "📊 Dashboard":
             'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
             'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
         ]
-        available_cols = [c for c in required_columns if c in closed_details_df.columns]
-        show_df = closed_details_df[available_cols] if available_cols else closed_details_df
+        available_cols = [c for c in required_columns if c in filtered_df.columns]
+        show_df = filtered_df[available_cols] if available_cols else filtered_df
         
         if not show_df.empty:
             st.dataframe(show_df, use_container_width=True, hide_index=True)
         else:
-            st.warning("Is client ke liye koi Trip Closed data available nahi hai.")
+            st.warning("Is selection ke liye koi data available nahi hai.")
 
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-            export_df = closed_details_df[available_cols] if available_cols else closed_details_df
+            export_df = filtered_df[available_cols] if available_cols else filtered_df
             export_df.to_excel(writer, index=False, sheet_name='Live_Monitoring_Report')
         
         st.download_button(
-            label="📥 Download Trip Closed Report (Excel)",
+            label="📥 Download Filtered Report (Excel)",
             data=buffer_excel.getvalue(),
             file_name="Live_Monitoring_Report.xlsx",
             mime="application/vnd.ms-excel",
