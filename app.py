@@ -48,7 +48,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to process data columns safely and flexibly according to strict rules
+# Helper function to process data columns safely according to strict rules
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
@@ -79,19 +79,17 @@ def process_dataframe(df):
         
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        # Rule 1: Order Done + Final Touching Reporting Date & Time -> Trip Closed
-        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
-            return "Trip Closed"
-        # Rule 2: In-transit -> In-Transit
-        elif "in-transit" in status_val or "intransit" in status_val:
-            return "In-Transit"
+        if ("order" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
+            late_hrs = row.get('Late Hrs')
+            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
+                return "On-Time Trip Closed"
+            else:
+                return "Delay Trip Closed"
         else:
-            return "Invalid" # Baaki sabhi ko drop karne ke liye
+            return "Invalid"
             
     df['Status_Category'] = df.apply(get_strict_arrival_status, axis=1)
-    
-    # Only keep Trip Closed and In-Transit, drop rest
-    df = df[df['Status_Category'].isin(['Trip Closed', 'In-Transit'])].copy()
+    df = df[df['Status_Category'].isin(['On-Time Trip Closed', 'Delay Trip Closed'])].copy()
     return df
 
 # ================= MEMORY SETUP =================
@@ -179,7 +177,7 @@ if selected_nav == "📊 Dashboard":
         df = st.session_state.vendor_data
         st.markdown("---")
 
-        # Client Filter Dropdown on Dashboard (ALL or Specific Client)
+        # Client Filter Dropdown on Dashboard
         client_list = ["ALL"] + list(df['VendorName'].dropna().unique())
         selected_client = st.selectbox("🏢 Filter by Client (Party):", client_list)
 
@@ -188,39 +186,35 @@ if selected_nav == "📊 Dashboard":
             filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
 
         total_trips = len(filtered_df)
-        closed_trips = len(filtered_df[filtered_df['Status_Category'] == 'Trip Closed'])
-        intransit_trips = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
+        ontime_trips = len(filtered_df[filtered_df['Status_Category'] == 'On-Time Trip Closed'])
+        delay_trips = len(filtered_df[filtered_df['Status_Category'] == 'Delay Trip Closed'])
         
-        closure_rate = round((closed_trips / total_trips) * 100, 1) if total_trips > 0 else 0
+        ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
+        delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        # Top Row Widgets
+        # Top Row Widgets with On-Time and Delay Percentages
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
             st.markdown(f"""
                 <div class="metric-card">
-                    <div class="metric-title">Total Active Trips</div>
+                    <div class="metric-title">Total Trips</div>
                     <div class="metric-value">{total_trips}</div>
-                    <div class="metric-sub-green">Live Fleet Volume</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">In-Transit Fleet</div>
-                    <div class="metric-value">{intransit_trips}</div>
-                    <div class="metric-sub">Active on Route</div>
+                    <div class="metric-sub-green">Processed Closed Trips</div>
                 </div>
             """, unsafe_allow_html=True)
 
         with col2:
             st.markdown("""
-                <div class="metric-card" style="min-height: 195px;">
-                    <div class="metric-title">Today's Performance & KPIs</div>
+                <div class="metric-card" style="min-height: 125px;">
+                    <div class="metric-title">Performance Breakdown (%)</div>
             """, unsafe_allow_html=True)
             
             g1, g2 = st.columns(2)
             with g1:
-                st.metric(label="Trip Closure Rate", value=f"{closure_rate}%", delta="Stable")
+                st.metric(label="On-Time Percentage", value=f"{ontime_pct}%", delta=f"{ontime_trips} Trips")
             with g2:
-                st.metric(label="Total Trip Closed", value=f"{closed_trips}", delta="Completed")
+                st.metric(label="Delay Percentage", value=f"{delay_pct}%", delta=f"{delay_trips} Trips", delta_color="inverse")
             
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -236,28 +230,6 @@ if selected_nav == "📊 Dashboard":
                 st.markdown(f"<div style='display: flex; justify-content: space-between; font-size:14px; margin-top:6px;'><span>{row['Client']}</span><span style='color:#2ec4b6; font-weight:bold;'>{row['Trips']} Trips</span></div>", unsafe_allow_html=True)
                 
             st.markdown("</div>", unsafe_allow_html=True)
-
-        # ================= CLIENT-WISE PERFORMANCE METRICS =================
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Client-wise Performance Overview")
-        
-        unique_clients = df['VendorName'].dropna().unique()[:3]
-        if len(unique_clients) > 0:
-            p_cols = st.columns(len(unique_clients))
-            for i, client_name in enumerate(unique_clients):
-                client_df = df[df['VendorName'] == client_name]
-                c_total = len(client_df)
-                c_closed = len(client_df[client_df['Status_Category'] == 'Trip Closed'])
-                c_rate = round((c_closed / c_total) * 100, 1) if c_total > 0 else 0
-                
-                with p_cols[i]:
-                    st.markdown(f"""
-                        <div class="metric-card" style="text-align: center;">
-                            <div class="metric-title">{client_name} Performance</div>
-                            <div class="metric-value" style="color: #2ec4b6; font-size: 36px;">{c_rate}%</div>
-                            <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">Closed: {c_closed} / Total: {c_total}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
