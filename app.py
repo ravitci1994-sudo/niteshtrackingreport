@@ -14,7 +14,6 @@ DATA_FILE = "saved_vendor_data.pkl"
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
-    # Filter only rows where Dispatched Time / Desp. Date & Time is present safely using .str
     desp_col = next((c for c in df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
     if desp_col:
         df = df[pd.notna(df[desp_col]) & (df[desp_col].astype(str).str.strip() != "") & (df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
@@ -53,6 +52,12 @@ def process_dataframe(df):
         df['VendorName'] = "TEJAS CARGO"
 
     def get_arrival_status(row):
+        # Check for Breakdown in tracking remarks
+        remark_col = next((c for c in df.columns if 'remark' in c.lower() or 'tracking' in c.lower()), None)
+        if remark_col and pd.notna(row.get(remark_col)):
+            if "breakdown" in str(row.get(remark_col)).lower():
+                return "Breakdown"
+
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
         if pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan":
@@ -123,7 +128,8 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 
 st.sidebar.markdown("---")
 
-if st.sidebar.button("🔄 REFRESH / CLEAR DATA", use_container_width=True):
+# REMOVE DATA button instead of Refresh/Clear
+if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
     st.session_state.vendor_data = None
@@ -131,7 +137,7 @@ if st.sidebar.button("🔄 REFRESH / CLEAR DATA", use_container_width=True):
 
 st.sidebar.markdown("Navigation:")
 selected_nav = st.sidebar.radio("", [
-    "📡 Control Tower",
+    "📊 Dashboard",
     "📊 Client Performance",
     "🏢 Branches",
     "🚚 Vehicle Utilisation",
@@ -145,8 +151,8 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 
 # ================= MAIN PAGE LOGIC =================
-if selected_nav == "📡 Control Tower":
-    st.title("Control Tower - Party-wise Performance")
+if selected_nav == "📊 Dashboard":
+    st.title("Dashboard - Party-wise Performance")
     st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
 
     # ================= DASHBOARD =================
@@ -215,12 +221,12 @@ if selected_nav == "📡 Control Tower":
             group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
             summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
             
-            for col in ['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)']:
+            for col in ['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Breakdown']:
                 if col not in summary_df.columns:
                     summary_df[col] = 0
                     
             summary_df['Trip Closed'] = summary_df['Trip Closed (On-Time)'] + summary_df['Trip Closed (Delay)']
-            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)']].sum(axis=1)
+            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Breakdown']].sum(axis=1)
 
             def format_pct(count, total):
                 if total > 0:
@@ -254,6 +260,7 @@ if selected_nav == "📡 Control Tower":
             total_count = len(filtered_df)
             transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
             closed_count = len(filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])])
+            breakdown_count = len(filtered_df[filtered_df['Status_Category'] == 'Breakdown'])
 
             st.markdown("🚦 **Status Filters:**")
             status_filter = st.radio(
@@ -261,7 +268,8 @@ if selected_nav == "📡 Control Tower":
                 [
                     f"All Data ({total_count})", 
                     f"In-Transit Vehicle ({transit_count})", 
-                    f"Trip Closed ({closed_count})"
+                    f"Trip Closed ({closed_count})",
+                    f"Breakdown ({breakdown_count})"
                 ],
                 horizontal=True,
                 label_visibility="collapsed"
@@ -272,6 +280,8 @@ if selected_nav == "📡 Control Tower":
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
             elif "Trip Closed" in status_filter:
                 display_detail_df = display_detail_df[display_detail_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])]
+            elif "Breakdown" in status_filter:
+                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Breakdown']
 
             st.markdown(f"### 📄 Trip Records ({status_filter})")
             
