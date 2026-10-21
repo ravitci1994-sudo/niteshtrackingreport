@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 from datetime import datetime
 import io
 import os
@@ -49,51 +48,45 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to create Client-wise Speedometer (Gauge Chart)
-def create_speedometer(client_name, rate, ontime, total):
-    # Bar color based on performance
+# Helper function to render Zero-Dependency SVG Speedometer Card
+def render_speedometer_html(client_name, rate, ontime, total):
+    # Needle rotation angle: -90 deg (0%) to +90 deg (100%)
+    angle = -90 + (max(0, min(100, rate)) * 1.8)
+    
     if rate >= 80:
-        bar_color = "#2ec4b6"  # Green
+        val_color = "#2ec4b6"  # Green
     elif rate >= 50:
-        bar_color = "#ffb703"  # Yellow/Orange
+        val_color = "#ffb703"  # Yellow
     else:
-        bar_color = "#e63946"  # Red
+        val_color = "#e63946"  # Red
 
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=rate,
-        number={'suffix': "%", 'font': {'color': '#ffffff', 'size': 30}},
-        title={
-            'text': f"<b>{client_name}</b><br><span style='font-size:12px;color:#8d99ae'>On-Time: {ontime} / Total: {total}</span>",
-            'font': {'color': '#ffffff', 'size': 15}
-        },
-        gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#8d99ae", 'tickfont': {'color': '#8d99ae'}},
-            'bar': {'color': bar_color, 'thickness': 0.35},
-            'bgcolor': "#0b132b",
-            'borderwidth': 1,
-            'bordercolor': "#3a506b",
-            'steps': [
-                {'range': [0, 50], 'color': "rgba(230, 57, 70, 0.2)"},
-                {'range': [50, 80], 'color': "rgba(255, 183, 3, 0.2)"},
-                {'range': [80, 100], 'color': "rgba(46, 196, 182, 0.2)"}
-            ],
-            'threshold': {
-                'line': {'color': "#ffffff", 'width': 3},
-                'thickness': 0.8,
-                'value': rate
-            }
-        }
-    ))
-
-    fig.update_layout(
-        paper_bgcolor="#1c2541",
-        plot_bgcolor="#1c2541",
-        font={'color': "#ffffff", 'family': "Arial"},
-        height=260,
-        margin=dict(l=25, r=25, t=65, b=20)
-    )
-    return fig
+    return f"""
+    <div class="metric-card" style="text-align: center; padding: 18px 15px;">
+        <div class="metric-title" style="margin-bottom: 5px;">{client_name} Performance</div>
+        <svg viewBox="0 0 200 115" width="100%" style="max-width: 230px; margin: 0 auto; display: block;">
+            <!-- Red Zone (0% - 50%) -->
+            <path d="M 25 100 A 75 75 0 0 1 100 25" fill="none" stroke="#e63946" stroke-width="16" stroke-linecap="butt"/>
+            <!-- Yellow Zone (50% - 80%) -->
+            <path d="M 100 25 A 75 75 0 0 1 160.68 55.92" fill="none" stroke="#ffb703" stroke-width="16" stroke-linecap="butt"/>
+            <!-- Green Zone (80% - 100%) -->
+            <path d="M 160.68 55.92 A 75 75 0 0 1 175 100" fill="none" stroke="#2ec4b6" stroke-width="16" stroke-linecap="butt"/>
+            
+            <!-- Labels -->
+            <text x="15" y="112" fill="#8d99ae" font-size="10" font-family="Arial">0%</text>
+            <text x="92" y="15" fill="#8d99ae" font-size="10" font-family="Arial">50%</text>
+            <text x="172" y="112" fill="#8d99ae" font-size="10" font-family="Arial">100%</text>
+            
+            <!-- Speedometer Needle -->
+            <g transform="rotate({angle}, 100, 100)">
+                <polygon points="96,100 100,32 104,100" fill="#ffffff" />
+            </g>
+            <circle cx="100" cy="100" r="7" fill="#ffffff" />
+            <circle cx="100" cy="100" r="3" fill="#1c2541" />
+        </svg>
+        <div style="font-size: 30px; font-weight: bold; color: {val_color}; margin-top: 2px;">{rate}%</div>
+        <div style="font-size: 13px; color: #8d99ae; margin-top: 4px;">On-Time: {ontime} / Total: {total}</div>
+    </div>
+    """
 
 # Helper function to process data columns safely according to strict Trip Closed rule
 def process_dataframe(df):
@@ -281,11 +274,10 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================= CLIENT-WISE SPEEDOMETERS =================
+        # ================= CLIENT-WISE SPEEDOMETER CARDS =================
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("🎯 Client-wise Performance Speedometer")
         
-        # Agar filter 'ALL' hai toh saare clients dikhenge, warna selected client
         unique_clients = filtered_df['VendorName'].dropna().unique()
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
@@ -296,8 +288,10 @@ if selected_nav == "📊 Dashboard":
                 c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
                 
                 with p_cols[i % 3]:
-                    gauge_fig = create_speedometer(client_name, c_rate, c_ontime, c_total)
-                    st.plotly_chart(gauge_fig, use_container_width=True, key=f"gauge_{client_name}_{i}")
+                    st.markdown(
+                        render_speedometer_html(client_name, c_rate, c_ontime, c_total),
+                        unsafe_allow_html=True
+                    )
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
