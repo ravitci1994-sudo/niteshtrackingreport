@@ -4,6 +4,7 @@ from datetime import date, datetime
 import io
 import os
 import urllib.parse
+import plotly.express as px
 
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -52,7 +53,6 @@ def process_dataframe(df):
         df['VendorName'] = "TEJAS CARGO"
 
     def get_arrival_status(row):
-        # Check for Breakdown in tracking remarks
         remark_col = next((c for c in df.columns if 'remark' in c.lower() or 'tracking' in c.lower()), None)
         if remark_col and pd.notna(row.get(remark_col)):
             if "breakdown" in str(row.get(remark_col)).lower():
@@ -128,7 +128,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 
 st.sidebar.markdown("---")
 
-# REMOVE DATA button instead of Refresh/Clear
+# REMOVE DATA button
 if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
@@ -142,6 +142,7 @@ selected_nav = st.sidebar.radio("", [
     "🏢 Branches",
     "🚚 Vehicle Utilisation",
     "📝 Today call Action",
+    "📈 Monthly Breakdown",
     "🔐 User & Access Control"
 ], label_visibility="collapsed")
 
@@ -152,10 +153,9 @@ if st.sidebar.button("Logout", use_container_width=True):
 
 # ================= MAIN PAGE LOGIC =================
 if selected_nav == "📊 Dashboard":
-    st.title("Dashboard - Party-wise Performance")
+    st.title("Dashboard - Client-wise Performance")
     st.info("🔒 **Restricted Vendor View:** Showing exclusive performance records for TEJAS CARGO INDIA PVT LTD, TEJAS")
 
-    # ================= DASHBOARD =================
     if st.session_state.vendor_data is not None:
         df = st.session_state.vendor_data
         st.markdown("---")
@@ -218,73 +218,21 @@ if selected_nav == "📊 Dashboard":
             filtered_df = df.copy()
 
         if not filtered_df.empty:
-            group_cols = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName']
-            summary_df = filtered_df.groupby(group_cols)['Status_Category'].value_counts().unstack(fill_value=0).reset_index()
-            
-            for col in ['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Breakdown']:
-                if col not in summary_df.columns:
-                    summary_df[col] = 0
-                    
-            summary_df['Trip Closed'] = summary_df['Trip Closed (On-Time)'] + summary_df['Trip Closed (Delay)']
-            summary_df['Total_Trips'] = summary_df[['In-Transit', 'Trip Closed (On-Time)', 'Trip Closed (Delay)', 'Breakdown']].sum(axis=1)
-
-            def format_pct(count, total):
-                if total > 0:
-                    return f"{round((count/total)*100, 1)}% ({int(count)})"
-                return "0.0% (0)"
-
-            summary_df['On-Time_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed (On-Time)'], x['Total_Trips']), axis=1)
-            summary_df['Delay_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed (Delay)'], x['Total_Trips']), axis=1)
-            summary_df['Trip Closed_fmt'] = summary_df.apply(lambda x: format_pct(x['Trip Closed'], x['Total_Trips']), axis=1)
-
-            final_summary = summary_df[['Origin RO', 'Route Path', 'Legwise', 'Legs', 'VendorName', 'Total_Trips', 'On-Time_fmt', 'Delay_fmt', 'Trip Closed_fmt']]
-            final_summary.columns = ['Origin RO', 'Route Path', 'Legwise', 'Legs', 'Party', 'Total_Trips', 'On-Time', 'Delay', 'Trip Closed']
-
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("Party-wise Arrival Performance Summary")
-            st.markdown("<small style='color:gray'>Click any trip count or performance rate to see the matching trip records.</small>", unsafe_allow_html=True)
+            st.subheader("📊 Client-wise Performance Pie Chart")
+            st.markdown("<small style='color:gray'>Client (Party) ke anusaar total trips ka distribution</small>", unsafe_allow_html=True)
 
-            styled_df = final_summary.style.map(lambda x: 'color: #00ff00; font-weight: bold' if '0.0%' not in str(x) and '(' in str(x) else 'color: gray', subset=['On-Time']) \
-                                           .map(lambda x: 'background-color: #3b1c1c; color: #ff6b6b; font-weight: bold' if '0.0%' not in str(x) and '0%' not in str(x) else '', subset=['Delay'])
+            # Group by Client (VendorName) for Pie Chart
+            party_summary = filtered_df['VendorName'].value_counts().reset_index()
+            party_summary.columns = ['Client', 'Total_Trips']
 
-            selection_event = st.dataframe(
-                styled_df, 
-                use_container_width=True, 
-                hide_index=True,
-                on_select="rerun",            
-                selection_mode="single-row"  
-            )
+            fig = px.pie(party_summary, names='Client', values='Total_Trips', hole=0.4, title="Client-wise Performance Share")
+            st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            total_count = len(filtered_df)
-            transit_count = len(filtered_df[filtered_df['Status_Category'] == 'In-Transit'])
-            closed_count = len(filtered_df[filtered_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])])
-            breakdown_count = len(filtered_df[filtered_df['Status_Category'] == 'Breakdown'])
-
-            st.markdown("🚦 **Status Filters:**")
-            status_filter = st.radio(
-                "Filter Status:",
-                [
-                    f"All Data ({total_count})", 
-                    f"In-Transit Vehicle ({transit_count})", 
-                    f"Trip Closed ({closed_count})",
-                    f"Breakdown ({breakdown_count})"
-                ],
-                horizontal=True,
-                label_visibility="collapsed"
-            )
-
-            display_detail_df = filtered_df.copy()
-            if "In-Transit Vehicle" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'In-Transit']
-            elif "Trip Closed" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'].isin(['Trip Closed (On-Time)', 'Trip Closed (Delay)'])]
-            elif "Breakdown" in status_filter:
-                display_detail_df = display_detail_df[display_detail_df['Status_Category'] == 'Breakdown']
-
-            st.markdown(f"### 📄 Trip Records ({status_filter})")
-            
+            # Show Raw Data Table of filtered records
+            st.markdown("### 📄 Filtered Trip Records")
             required_columns = [
                 'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
                 '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
@@ -293,33 +241,44 @@ if selected_nav == "📊 Dashboard":
                 'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
                 'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
             ]
+            available_cols = [c for c in required_columns if c in filtered_df.columns]
+            show_df = filtered_df[available_cols] if available_cols else filtered_df
+            st.dataframe(show_df, use_container_width=True, hide_index=True)
 
-            if not display_detail_df.empty:
-                available_cols = [c for c in required_columns if c in display_detail_df.columns]
-                show_df = display_detail_df[available_cols] if available_cols else display_detail_df
-                st.dataframe(show_df, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Is status category mein koi data nahi hai.")
-
-            st.markdown("<br>", unsafe_allow_html=True)
             buffer_excel = io.BytesIO()
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                available_cols = [c for c in required_columns if c in filtered_df.columns]
                 export_df = filtered_df[available_cols] if available_cols else filtered_df
-                export_df.to_excel(writer, index=False, sheet_name='Party_Performance_Report')
+                export_df.to_excel(writer, index=False, sheet_name='Client_Performance_Report')
             
             st.download_button(
-                label="📥 Download Filtered Party Performance Report (Styled Excel)",
+                label="📥 Download Client Performance Report (Excel)",
                 data=buffer_excel.getvalue(),
-                file_name="Filtered_Party_Performance_Report.xlsx",
+                file_name="Client_Performance_Report.xlsx",
                 mime="application/vnd.ms-excel",
                 type="primary"
             )
-
         else:
             st.warning("⚠️ Upload ki gayi file mein data nahi mila ya format galat hai.")
     else:
         st.info("👈 Kripya Sidebar se apni file upload karein aur 'Process Data' button par click karein.")
+
+elif selected_nav == "📈 Monthly Breakdown":
+    st.title("📈 Monthly Breakdown")
+    st.info("🔒 Showing monthly performance breakdown and trends.")
+    if st.session_state.vendor_data is not None:
+        df = st.session_state.vendor_data
+        date_col = next((c for c in df.columns if 'date' in c.lower() or 'desp' in c.lower()), None)
+        if date_col:
+            try:
+                df['Month'] = pd.to_datetime(df[date_col], errors='coerce').dt.strftime('%B %Y')
+                monthly_summary = df.groupby(['Month', 'Status_Category']).size().unstack(fill_value=0).reset_index()
+                st.dataframe(monthly_summary, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.warning(f"Could not parse monthly breakdown: {e}")
+        else:
+            st.warning("Date column not found for monthly breakdown.")
+    else:
+        st.info("👈 Kripya pehle Sidebar se file upload karein.")
 else:
     st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
