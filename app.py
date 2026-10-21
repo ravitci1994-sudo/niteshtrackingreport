@@ -342,12 +342,10 @@ if selected_nav == "📊 Dashboard":
 
         total_callouts = len(filtered_callout)
         
-        # Client-wise counts (DHL, Busybees, Trackon)
         dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
 
-        # Month & Client-wise breakdown for August, September, October
         if not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
             aug_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 8]
             sept_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 9]
@@ -369,7 +367,6 @@ if selected_nav == "📊 Dashboard":
             sept_dhl, sept_busy, sept_trk = 0, 0, 0
             oct_dhl, oct_busy, oct_trk = 0, 0, 0
         
-        # Performance Metrics (Strictly from MIS data)
         total_trips = len(filtered_mis)
         ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
         delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
