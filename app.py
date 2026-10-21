@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
 import io
 import os
@@ -47,6 +48,52 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Helper function to create Client-wise Speedometer (Gauge Chart)
+def create_speedometer(client_name, rate, ontime, total):
+    # Bar color based on performance
+    if rate >= 80:
+        bar_color = "#2ec4b6"  # Green
+    elif rate >= 50:
+        bar_color = "#ffb703"  # Yellow/Orange
+    else:
+        bar_color = "#e63946"  # Red
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=rate,
+        number={'suffix': "%", 'font': {'color': '#ffffff', 'size': 30}},
+        title={
+            'text': f"<b>{client_name}</b><br><span style='font-size:12px;color:#8d99ae'>On-Time: {ontime} / Total: {total}</span>",
+            'font': {'color': '#ffffff', 'size': 15}
+        },
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#8d99ae", 'tickfont': {'color': '#8d99ae'}},
+            'bar': {'color': bar_color, 'thickness': 0.35},
+            'bgcolor': "#0b132b",
+            'borderwidth': 1,
+            'bordercolor': "#3a506b",
+            'steps': [
+                {'range': [0, 50], 'color': "rgba(230, 57, 70, 0.2)"},
+                {'range': [50, 80], 'color': "rgba(255, 183, 3, 0.2)"},
+                {'range': [80, 100], 'color': "rgba(46, 196, 182, 0.2)"}
+            ],
+            'threshold': {
+                'line': {'color': "#ffffff", 'width': 3},
+                'thickness': 0.8,
+                'value': rate
+            }
+        }
+    ))
+
+    fig.update_layout(
+        paper_bgcolor="#1c2541",
+        plot_bgcolor="#1c2541",
+        font={'color': "#ffffff", 'family': "Arial"},
+        height=260,
+        margin=dict(l=25, r=25, t=65, b=20)
+    )
+    return fig
 
 # Helper function to process data columns safely according to strict Trip Closed rule
 def process_dataframe(df):
@@ -234,27 +281,23 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================= CLIENT-WISE PERFORMANCE CARDS =================
+        # ================= CLIENT-WISE SPEEDOMETERS =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Client-wise Performance Breakdown")
+        st.subheader("🎯 Client-wise Performance Speedometer")
         
-        unique_clients = df['VendorName'].dropna().unique()
+        # Agar filter 'ALL' hai toh saare clients dikhenge, warna selected client
+        unique_clients = filtered_df['VendorName'].dropna().unique()
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
-            for i, client_name in enumerate(unique_clients[:3]):
-                client_df = df[df['VendorName'] == client_name]
+            for i, client_name in enumerate(unique_clients):
+                client_df = filtered_df[filtered_df['VendorName'] == client_name]
                 c_total = len(client_df)
                 c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed'])
                 c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
                 
-                with p_cols[i]:
-                    st.markdown(f"""
-                        <div class="metric-card" style="text-align: center;">
-                            <div class="metric-title">{client_name} Performance</div>
-                            <div class="metric-value" style="color: #2ec4b6; font-size: 36px;">{c_rate}%</div>
-                            <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">On-Time: {c_ontime} / Total: {c_total}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                with p_cols[i % 3]:
+                    gauge_fig = create_speedometer(client_name, c_rate, c_ontime, c_total)
+                    st.plotly_chart(gauge_fig, use_container_width=True, key=f"gauge_{client_name}_{i}")
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
