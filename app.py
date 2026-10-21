@@ -48,7 +48,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to process data columns safely according to strict rules
+# Helper function to process data columns safely according to strict Trip Closed rule
 def process_dataframe(df):
     df.columns = df.columns.str.strip()
     
@@ -73,13 +73,14 @@ def process_dataframe(df):
     else:
         df['VendorName'] = "TEJAS CARGO"
 
-    def get_strict_arrival_status(row):
+    def get_trip_closed_status(row):
         status_col = next((c for c in df.columns if 'status' in c.lower()), None)
         status_val = str(row.get(status_col, '')).lower() if status_col else ''
         
         final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
         
-        if ("order" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
+        # Strict Condition: Status mein "order done" aur Final Touching Reporting Date & Time mention ho
+        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
             late_hrs = row.get('Late Hrs')
             if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
                 return "On-Time Trip Closed"
@@ -88,7 +89,9 @@ def process_dataframe(df):
         else:
             return "Invalid"
             
-    df['Status_Category'] = df.apply(get_strict_arrival_status, axis=1)
+    df['Status_Category'] = df.apply(get_trip_closed_status, axis=1)
+    
+    # Only keep Trip Closed data, drop everything else
     df = df[df['Status_Category'].isin(['On-Time Trip Closed', 'Delay Trip Closed'])].copy()
     return df
 
@@ -171,7 +174,7 @@ if st.sidebar.button("Logout", use_container_width=True):
 # ================= MAIN PAGE LOGIC =================
 if selected_nav == "📊 Dashboard":
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
-    st.info("🔒 **Restricted Vendor View:** Live executive monitoring & KPI tracking for TEJAS CARGO INDIA PVT LTD")
+    st.info("🔒 **Restricted Vendor View:** Live executive monitoring & Trip Closed tracking for TEJAS CARGO INDIA PVT LTD")
 
     if st.session_state.vendor_data is not None:
         df = st.session_state.vendor_data
@@ -192,22 +195,22 @@ if selected_nav == "📊 Dashboard":
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
-        # Top Row Widgets with On-Time and Delay Percentages
+        # Top Row Widgets
         col1, col2, col3 = st.columns([1, 2, 1])
 
         with col1:
             st.markdown(f"""
                 <div class="metric-card">
-                    <div class="metric-title">Total Trips</div>
+                    <div class="metric-title">Total Trip Closed</div>
                     <div class="metric-value">{total_trips}</div>
-                    <div class="metric-sub-green">Processed Closed Trips</div>
+                    <div class="metric-sub-green">Successfully Completed</div>
                 </div>
             """, unsafe_allow_html=True)
 
         with col2:
             st.markdown("""
                 <div class="metric-card" style="min-height: 125px;">
-                    <div class="metric-title">Performance Breakdown (%)</div>
+                    <div class="metric-title">Trip Closed Performance (%)</div>
             """, unsafe_allow_html=True)
             
             g1, g2 = st.columns(2)
@@ -233,7 +236,7 @@ if selected_nav == "📊 Dashboard":
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Trip Records")
+        st.subheader("📄 Live Detailed Trip Closed Records")
         
         required_columns = [
             'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
@@ -249,17 +252,17 @@ if selected_nav == "📊 Dashboard":
         if not show_df.empty:
             st.dataframe(show_df, use_container_width=True, hide_index=True)
         else:
-            st.warning("Is selection ke liye koi data available nahi hai.")
+            st.warning("Is selection ke liye koi Trip Closed data available nahi hai.")
 
         buffer_excel = io.BytesIO()
         with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
             export_df = filtered_df[available_cols] if available_cols else filtered_df
-            export_df.to_excel(writer, index=False, sheet_name='Live_Monitoring_Report')
+            export_df.to_excel(writer, index=False, sheet_name='Trip_Closed_Report')
         
         st.download_button(
-            label="📥 Download Filtered Report (Excel)",
+            label="📥 Download Trip Closed Report (Excel)",
             data=buffer_excel.getvalue(),
-            file_name="Live_Monitoring_Report.xlsx",
+            file_name="Trip_Closed_Report.xlsx",
             mime="application/vnd.ms-excel",
             type="primary"
         )
