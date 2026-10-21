@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import io
 import os
-import plotly.graph_objects as go
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -235,42 +234,27 @@ if selected_nav == "📊 Dashboard":
                 
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ================= SPEEDOMETERS (GAUGE CHARTS) CLIENT-WISE =================
+        # ================= CLIENT-WISE PERFORMANCE CARDS =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("🎯 Trip Closed Performance (%) - Client-wise Speedometers")
+        st.subheader("🎯 Client-wise Performance Breakdown")
         
         unique_clients = df['VendorName'].dropna().unique()
         if len(unique_clients) > 0:
-            gauge_cols = st.columns(min(len(unique_clients), 3))
+            p_cols = st.columns(min(len(unique_clients), 3))
             for i, client_name in enumerate(unique_clients[:3]):
                 client_df = df[df['VendorName'] == client_name]
                 c_total = len(client_df)
                 c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed'])
                 c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
                 
-                with gauge_cols[i]:
-                    fig = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = c_rate,
-                        title = {'text': f"{client_name} On-Time %", 'font': {'color': 'white', 'size': 16}},
-                        number = {'suffix': "%", 'font': {'color': 'white'}},
-                        gauge = {
-                            'axis': {'range': [0, 100], 'tickcolor': "white"},
-                            'bar': {'color': "#2ec4b6"},
-                            'steps': [
-                                {'range': [0, 50], 'color': "#1c2541"},
-                                {'range': [50, 80], 'color': "#3a506b"},
-                                {'range': [80, 100], 'color': "#0b132b"}
-                            ],
-                            'threshold': {
-                                'line': {'color': "red", 'width': 4},
-                                'thickness': 0.75,
-                                'value': 90
-                            }
-                        }
-                    ))
-                    fig.update_layout(paper_bgcolor="#1c2541", font={'color': "white"}, height=250, margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig, use_container_width=True)
+                with p_cols[i]:
+                    st.markdown(f"""
+                        <div class="metric-card" style="text-align: center;">
+                            <div class="metric-title">{client_name} Performance</div>
+                            <div class="metric-value" style="color: #2ec4b6; font-size: 36px;">{c_rate}%</div>
+                            <div style="font-size: 13px; color: #8d99ae; margin-top: 5px;">On-Time: {c_ontime} / Total: {c_total}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
         # Live Detailed Trip Records
         st.markdown("<br>", unsafe_allow_html=True)
