@@ -8,8 +8,6 @@ import os
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-DATA_FILE = "saved_vendor_data.pkl"
-
 # Custom CSS for Dark Theme Executive Dashboard Styling
 st.markdown("""
     <style>
@@ -45,6 +43,41 @@ st.markdown("""
         font-size: 12px;
         color: #2ec4b6;
         margin-top: 5px;
+    }
+    .custom-table-container {
+        overflow-x: auto;
+        max-height: 450px;
+        overflow-y: auto;
+        border: 1px solid #3a506b;
+        border-radius: 8px;
+        background-color: #1c2541;
+        margin-bottom: 15px;
+    }
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #ffffff;
+        font-size: 13px;
+        font-family: Arial, sans-serif;
+        white-space: nowrap;
+    }
+    .custom-table th {
+        background-color: #0b132b;
+        color: #2ec4b6;
+        padding: 10px 12px;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        border-bottom: 2px solid #3a506b;
+        z-index: 1;
+    }
+    .custom-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #2b3a55;
+        color: #e0e6ed;
+    }
+    .custom-table tr:hover td {
+        background-color: #2b3a55;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -120,6 +153,17 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     ]
     return "".join(html_lines)
 
+# Helper function to render crash-proof HTML table (avoids DataFrame.js error)
+def render_html_table(df_to_show):
+    clean_df = df_to_show.fillna("").astype(str)
+    headers = "".join([f"<th>{col}</th>" for col in clean_df.columns])
+    rows_html = []
+    for _, row in clean_df.iterrows():
+        cells = "".join([f"<td>{val if val.lower() != 'nan' else ''}</td>" for val in row])
+        rows_html.append(f"<tr>{cells}</tr>")
+    body = "".join(rows_html)
+    return f'<div class="custom-table-container"><table class="custom-table"><thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table></div>'
+
 # Helper function to process uploaded files separately
 def process_uploaded_files(uploaded_files):
     callout_dfs = []
@@ -134,9 +178,9 @@ def process_uploaded_files(uploaded_files):
             
             temp_df.columns = temp_df.columns.str.strip()
             
-            # Check if it's Callout file or MIS file based on columns or filename
+            # Check if it's Callout file or MIS file
             if 'callout' in uploaded_file.name.lower() or any('category' in c.lower() for c in temp_df.columns):
-                # Callout specific processing: Breakdown & Accident only, Aug/Sept/Oct only
+                # Callout specific processing: Breakdown & Accident only, Aug/Sept/Oct only, DHL/Busybees/Trackon only
                 cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
                 if cat_col:
                     temp_df = temp_df[temp_df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
@@ -159,32 +203,52 @@ def process_uploaded_files(uploaded_files):
                 
                 callout_dfs.append(temp_df)
             else:
-                # MIS file processing for Performance
+                # MIS file processing strictly for Performance
+                desp_col = next((c for c in temp_df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
+                if desp_col:
+                    temp_df = temp_df[pd.notna(temp_df[desp_col]) & (temp_df[desp_col].astype(str).str.strip() != "") & (temp_df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
+
                 vendor_c = next((c for c in temp_df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
                 if vendor_c:
-                    def clean_party(v):
+                    def clean_party_mis(v):
                         v_str = str(v).upper().strip()
                         if "DHL" in v_str: return "DHL"
                         elif "BUSYBEES" in v_str: return "Busybees"
                         elif "TRACKON" in v_str: return "Trackon"
-                        return None
-                    temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party)
-                    temp_df = temp_df[temp_df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+                        return str(v).strip()
+                    temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party_mis)
+                else:
+                    temp_df['VendorName'] = "TEJAS CARGO"
                 
                 date_col = next((c for c in temp_df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
                 if date_col:
                     temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
-                    temp_df = temp_df[temp_df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
-                
-                # Determine On-Time vs Delay status
+
+                # Strict Trip Closed Status check for MIS Performance
+                status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
                 def get_status(row):
-                    late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
-                    if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-                        return "On-Time Trip Closed"
+                    status_val = str(row.get(status_col, '')).lower() if status_col else ''
+                    final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
+                    
+                    if status_col and final_rep is not None:
+                        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
+                            late_hrs = row.get('Late Hrs')
+                            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
+                                return "On-Time Trip Closed"
+                            else:
+                                return "Delay Trip Closed"
+                        else:
+                            return "Invalid"
                     else:
-                        return "Delay Trip Closed"
+                        late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
+                        if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
+                            return "On-Time Trip Closed"
+                        else:
+                            return "Delay Trip Closed"
+
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                mis_dfs.append(temp_df)
+                valid_mis = temp_df[temp_df['Status_Category'].isin(['On-Time Trip Closed', 'Delay Trip Closed'])].copy()
+                mis_dfs.append(valid_mis if not valid_mis.empty else temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
             
@@ -251,44 +315,53 @@ if st.sidebar.button("Logout", use_container_width=True):
 # ================= MAIN PAGE LOGIC =================
 if selected_nav == "📊 Dashboard":
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
-    st.info("🔒 **Restricted Vendor View:** Breakdown & Accident Callout Count + MIS Performance (Aug, Sept, Oct)")
+    st.info("🔒 **Restricted Vendor View:** Breakdown & Accident Callout Count + MIS Performance")
 
-    if st.session_state.callout_data is not None and not st.session_state.callout_data.empty:
-        callout_df = st.session_state.callout_data
-        mis_df = st.session_state.mis_data if st.session_state.mis_data is not None else pd.DataFrame()
+    has_callout = st.session_state.callout_data is not None and not st.session_state.callout_data.empty
+    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
+
+    if has_callout or has_mis:
+        callout_df = st.session_state.callout_data if has_callout else pd.DataFrame()
+        mis_df = st.session_state.mis_data if has_mis else pd.DataFrame()
         
         st.markdown("---")
 
-        client_list = ["ALL"] + list(callout_df['VendorName'].dropna().unique())
+        # Combine unique client names from both datasets
+        clients_set = set()
+        if not mis_df.empty and 'VendorName' in mis_df.columns:
+            clients_set.update(mis_df['VendorName'].dropna().unique())
+        if not callout_df.empty and 'VendorName' in callout_df.columns:
+            clients_set.update(callout_df['VendorName'].dropna().unique())
+            
+        client_list = ["ALL"] + sorted(list(clients_set))
         selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
 
         filtered_callout = callout_df.copy()
         filtered_mis = mis_df.copy()
         
         if selected_client != "ALL":
-            filtered_callout = filtered_callout[filtered_callout['VendorName'] == selected_client]
+            if not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
+                filtered_callout = filtered_callout[filtered_callout['VendorName'] == selected_client]
             if not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
                 filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
+        # Callout Metrics
         total_callouts = len(filtered_callout)
-        
-        # Month-wise Callout Count (Aug, Sept, Oct)
-        if 'Parsed_Date' in filtered_callout.columns:
+        if not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
             aug_count = int((filtered_callout['Parsed_Date'].dt.month == 8).sum())
             sept_count = int((filtered_callout['Parsed_Date'].dt.month == 9).sum())
             oct_count = int((filtered_callout['Parsed_Date'].dt.month == 10).sum())
         else:
             aug_count, sept_count, oct_count = 0, 0, 0
 
-        # Client-wise Callout Count (DHL, Busybees, Trackon)
-        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if 'VendorName' in filtered_callout.columns else 0
-        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if 'VendorName' in filtered_callout.columns else 0
-        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if 'VendorName' in filtered_callout.columns else 0
+        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
+        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
+        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
         
-        # Performance metrics from MIS data
-        total_trips = len(filtered_mis) if not filtered_mis.empty else len(filtered_callout)
-        ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty else len(filtered_callout[filtered_callout['Status_Category'] == 'On-Time Trip Closed'] if 'Status_Category' in filtered_callout.columns else [])
-        delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty else total_callouts - ontime_trips
+        # Performance Metrics (Strictly from MIS data)
+        total_trips = len(filtered_mis)
+        ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
+        delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
         
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
@@ -324,7 +397,7 @@ if selected_nav == "📊 Dashboard":
                 f'<div>'
                 f'<div style="font-size: 12px; color: #8d99ae; font-weight: 600; text-transform: uppercase;">Total Count</div>'
                 f'<div style="font-size: 28px; font-weight: bold; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
-                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Aug, Sept, Oct</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
                 f'</div>'
                 f'<div style="border-left: 1px solid #3a506b; height: 55px;"></div>'
                 f'<div>'
@@ -344,14 +417,13 @@ if selected_nav == "📊 Dashboard":
             st.markdown(col2_html, unsafe_allow_html=True)
 
         with col3:
-            base_df = filtered_mis if not filtered_mis.empty else filtered_callout
-            lb_clients = base_df['VendorName'].value_counts().index.tolist() if 'VendorName' in base_df.columns else []
+            lb_clients = filtered_mis['VendorName'].value_counts().index.tolist() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
             lb_rows_html = ""
             for c_name in lb_clients[:4]:
-                c_df = base_df[base_df['VendorName'] == c_name]
+                c_df = filtered_mis[filtered_mis['VendorName'] == c_name]
                 c_tot = len(c_df)
-                c_ontime = len(c_df[c_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in c_df.columns else c_tot
-                c_delay = c_tot - c_ontime
+                c_ontime = len(c_df[c_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in c_df.columns else 0
+                c_delay = len(c_df[c_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in c_df.columns else 0
                 
                 lb_rows_html += (
                     f'<div style="border-top: 1px solid #3a506b; padding-top: 8px; margin-top: 8px;">'
@@ -367,11 +439,11 @@ if selected_nav == "📊 Dashboard":
                 )
 
             if not lb_rows_html:
-                lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No data available</div>'
+                lb_rows_html = '<div style="font-size: 13px; color: #8d99ae; margin-top: 8px;">No MIS performance data</div>'
 
             col3_html = (
                 f'<div class="metric-card" style="min-height: 175px;">'
-                f'<div class="metric-title">Customer Leaderboard</div>'
+                f'<div class="metric-title">Customer Leaderboard (Performance)</div>'
                 f'{lb_rows_html}'
                 f'</div>'
             )
@@ -380,14 +452,14 @@ if selected_nav == "📊 Dashboard":
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("🎯 Customer-wise Performance Speedometer")
         
-        unique_clients = base_df['VendorName'].dropna().unique() if 'VendorName' in base_df.columns else []
+        unique_clients = filtered_mis['VendorName'].dropna().unique() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
             for i, client_name in enumerate(unique_clients):
-                client_df = base_df[base_df['VendorName'] == client_name]
+                client_df = filtered_mis[filtered_mis['VendorName'] == client_name]
                 c_total = len(client_df)
-                c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in client_df.columns else c_total
-                c_delay = c_total - c_ontime
+                c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in client_df.columns else 0
+                c_delay = len(client_df[client_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in client_df.columns else 0
                 c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
                 
                 with p_cols[i % 3]:
@@ -396,48 +468,60 @@ if selected_nav == "📊 Dashboard":
                         unsafe_allow_html=True
                     )
 
+        # ================= ONLY PERFORMANCE DATA TABLE =================
         st.markdown("<br>", unsafe_allow_html=True)
-        st.subheader("📄 Live Detailed Callout Records (Breakdown & Accident)")
+        st.subheader("📄 Live Detailed Performance Records")
         
-        available_cols = [c for c in filtered_callout.columns if c != 'Parsed_Date']
-        show_df = filtered_callout[available_cols] if available_cols else filtered_callout
+        required_columns = [
+            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+        ]
         
-        if not show_df.empty:
-            st.dataframe(show_df, use_container_width=True, hide_index=True)
+        if not filtered_mis.empty:
+            available_cols = [c for c in required_columns if c in filtered_mis.columns]
+            if not available_cols:
+                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
+            show_df = filtered_mis[available_cols]
+            
+            # Render crash-proof HTML Table instead of st.dataframe
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+            
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                show_df.to_excel(writer, index=False, sheet_name='Performance_Report')
+            
+            st.download_button(
+                label="📥 Download Performance Report (Excel)",
+                data=buffer_excel.getvalue(),
+                file_name="Performance_Report.xlsx",
+                mime="application/vnd.ms-excel",
+                type="primary"
+            )
         else:
-            st.warning("Is selection ke liye koi callout data available nahi hai.")
-
-        buffer_excel = io.BytesIO()
-        with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-            export_df = filtered_callout[available_cols] if available_cols else filtered_callout
-            export_df.to_excel(writer, index=False, sheet_name='Callout_Breakdown_Accident')
-        
-        st.download_button(
-            label="📥 Download Callout Report (Excel)",
-            data=buffer_excel.getvalue(),
-            file_name="Callout_Breakdown_Accident_Report.xlsx",
-            mime="application/vnd.ms-excel",
-            type="primary"
-        )
+            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
-        st.info("👈 Kripya Sidebar se apni Callout aur MIS files upload karein aur 'Process Data' par click karein.")
+        st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
 elif selected_nav == "📈 Monthly Breakdown":
     st.title("📈 Monthly Breakdown")
-    st.info("🔒 Showing monthly performance breakdown and trends for Aug, Sept, Oct.")
-    if st.session_state.callout_data is not None and not st.session_state.callout_data.empty:
-        df = st.session_state.callout_data
+    st.info("🔒 Showing monthly performance breakdown.")
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        df = st.session_state.mis_data.copy()
         if 'Parsed_Date' in df.columns:
             try:
                 df['Month'] = df['Parsed_Date'].dt.strftime('%B %Y')
-                monthly_summary = df.groupby(['Month', 'VendorName']).size().reset_index(name='Callout Count')
-                st.dataframe(monthly_summary, use_container_width=True, hide_index=True)
+                monthly_summary = df.groupby(['Month', 'VendorName', 'Status_Category']).size().unstack(fill_value=0).reset_index()
+                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"Could not parse monthly breakdown: {e}")
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle files upload karein.")
+        st.info("👈 Kripya pehle MIS files upload karein.")
 else:
     st.title(selected_nav)
     st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
