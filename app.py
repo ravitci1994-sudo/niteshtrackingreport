@@ -4,7 +4,6 @@ from datetime import date, datetime
 import io
 import os
 import urllib.parse
-import plotly.express as px
 
 # 1. Page Configuration
 st.set_page_config(page_title="Client Performance Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -219,19 +218,17 @@ if selected_nav == "📊 Dashboard":
 
         if not filtered_df.empty:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("📊 Client-wise Performance Pie Chart")
-            st.markdown("<small style='color:gray'>Client (Party) ke anusaar total trips ka distribution</small>", unsafe_allow_html=True)
+            st.subheader("📊 Client-wise Performance Chart")
+            st.markdown("<small style='color:gray'>Client (Party) ke anusaar total trips</small>", unsafe_allow_html=True)
 
-            # Group by Client (VendorName) for Pie Chart
             party_summary = filtered_df['VendorName'].value_counts().reset_index()
             party_summary.columns = ['Client', 'Total_Trips']
 
-            fig = px.pie(party_summary, names='Client', values='Total_Trips', hole=0.4, title="Client-wise Performance Share")
-            st.plotly_chart(fig, use_container_width=True)
+            # Streamlit native bar chart (bina Plotly ke)
+            st.bar_chart(party_summary.set_index('Client'))
 
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Show Raw Data Table of filtered records
             st.markdown("### 📄 Filtered Trip Records")
             required_columns = [
                 'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
