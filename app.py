@@ -158,59 +158,13 @@ if selected_nav == "📊 Dashboard":
     if st.session_state.vendor_data is not None:
         df = st.session_state.vendor_data
         st.markdown("---")
-            
-        f1, f2, f3, f4, f5 = st.columns(5)
         
-        zone_col = next((c for c in df.columns if 'zone' in c.lower()), None)
-        with f1:
-            zone_list = ["ALL", "North", "East", "West", "South"]
-            zone_filter = st.selectbox("Search by Zone:", zone_list)
-            
-        zone_filtered_df = df.copy()
-        if zone_filter != "ALL" and zone_col and zone_col in df.columns:
-            zone_filtered_df = zone_filtered_df[zone_filtered_df[zone_col] == zone_filter]
-
-        ro_col = next((c for c in df.columns if 'ro' in c.lower() or 'origin' in c.lower()), None)
-        with f2:
-            ro_list = ["ALL"] + list(zone_filtered_df[ro_col].dropna().unique()) if ro_col else ["ALL"]
-            ro_filter = st.selectbox("Search by RO:", ro_list)
-            
-        ro_filtered_df = zone_filtered_df.copy()
-        if ro_filter != "ALL" and ro_col:
-            ro_filtered_df = ro_filtered_df[ro_filtered_df[ro_col] == ro_filter]
-
-        with f3:
-            vendor_list = ["ALL"] + list(ro_filtered_df['VendorName'].dropna().unique())
-            vendor_filter = st.selectbox("Search by Party/Vendor:", vendor_list)
-
-        vendor_filtered_df = ro_filtered_df.copy()
-        if vendor_filter != "ALL":
-            vendor_filtered_df = vendor_filtered_df[vendor_filtered_df['VendorName'] == vendor_filter]
-
-        staff_col = next((c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()), None)
-        with f4:
-            staff_list = ["ALL"] + list(vendor_filtered_df[staff_col].dropna().unique()) if staff_col else ["ALL"]
-            staff_filter = st.selectbox("Search by Staff Control:", staff_list)
-
-        staff_filtered_df = vendor_filtered_df.copy()
-        if staff_filter != "ALL" and staff_col:
-            staff_filtered_df = staff_filtered_df[staff_filtered_df[staff_col] == staff_filter]
-
-        lorry_col = next((c for c in df.columns if 'lorry' in c.lower() or 'vehicle' in c.lower() or 'truck' in c.lower()), None)
-        with f5:
-            search_vehicle = st.text_input("🔍 Vehicle No:", placeholder="Enter Vehicle No...")
-            
-        filtered_df = staff_filtered_df.copy()
-        if search_vehicle and lorry_col:
-            filtered_df = filtered_df[filtered_df[lorry_col].astype(str).str.contains(search_vehicle, case=False, na=False)]
-        
-        if filtered_df.empty:
-            filtered_df = df.copy()
+        filtered_df = df.copy()
 
         if not filtered_df.empty:
             st.markdown("<br>", unsafe_allow_html=True)
             st.subheader("📊 Client-wise Performance Chart")
-            st.markdown("<small style='color:gray'>Client (Party) ke anusaار total trips</small>", unsafe_allow_html=True)
+            st.markdown("<small style='color:gray'>Client (Party) ke anusaar total trips</small>", unsafe_allow_html=True)
 
             party_summary = filtered_df['VendorName'].value_counts().reset_index()
             party_summary.columns = ['Client', 'Total_Trips']
