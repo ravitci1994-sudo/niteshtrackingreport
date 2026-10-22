@@ -326,10 +326,13 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 st.sidebar.markdown("---")
 
 if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
+    # Hard Delete Files
     if os.path.exists(DATA_FILE_CALLOUT): os.remove(DATA_FILE_CALLOUT)
     if os.path.exists(DATA_FILE_MIS): os.remove(DATA_FILE_MIS)
+    # Clear Session Memory
     st.session_state.callout_data = None
     st.session_state.mis_data = None
+    # Reset File Uploader UI
     st.session_state.uploader_key += 1
     st.rerun()
 
@@ -644,12 +647,31 @@ elif "Branches" in selected_nav:
                 st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("## 📄 Detailed Filtered Records")
+                
+                required_columns = [
+                    'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+                    '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+                    '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+                    'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+                    'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+                    'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+                ]
+                available_cols = [c for c in required_columns if c in filtered_df.columns]
+                if not available_cols:
+                    available_cols = [c for c in filtered_df.columns if c not in ['Parsed_Date', 'VendorName']]
+                show_raw_df = filtered_df[available_cols]
+                
+                st.markdown(render_html_table(show_raw_df), unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
                 buffer_excel = io.BytesIO()
                 with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                    staff_df.to_excel(writer, index=False, sheet_name='Staff_Performance')
+                    staff_df.to_excel(writer, index=False, sheet_name='Staff_Performance_Summary')
+                    show_raw_df.to_excel(writer, index=False, sheet_name='Detailed_Records')
                 
                 st.download_button(
-                    label="📥 Download Staff Performance Report (Excel)",
+                    label="📥 Download Summary & Detailed Data (Excel)",
                     data=buffer_excel.getvalue(),
                     file_name="Controlling_Staff_Performance_Report.xlsx",
                     mime="application/vnd.ms-excel",
