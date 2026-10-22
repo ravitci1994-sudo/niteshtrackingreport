@@ -267,18 +267,19 @@ def process_uploaded_files(uploaded_files):
     mis_df = pd.concat(mis_dfs, ignore_index=True) if mis_dfs else pd.DataFrame()
     return callout_df, mis_df
 
-# ================= MEMORY SETUP =================
+# ================= MEMORY SETUP (Hard Persistence Logic) =================
 DATA_FILE_CALLOUT = "saved_callout_data.pkl"
 DATA_FILE_MIS = "saved_mis_data.pkl"
 
-if 'callout_data' not in st.session_state:
+# Force load data from Pickle files if it's missing from current session
+if 'callout_data' not in st.session_state or st.session_state.callout_data is None:
     if os.path.exists(DATA_FILE_CALLOUT):
         try: st.session_state.callout_data = pd.read_pickle(DATA_FILE_CALLOUT)
         except: st.session_state.callout_data = None
     else:
         st.session_state.callout_data = None
 
-if 'mis_data' not in st.session_state:
+if 'mis_data' not in st.session_state or st.session_state.mis_data is None:
     if os.path.exists(DATA_FILE_MIS):
         try: st.session_state.mis_data = pd.read_pickle(DATA_FILE_MIS)
         except: st.session_state.mis_data = None
@@ -299,6 +300,18 @@ st.sidebar.markdown(f"<div style='color: #90e0ef; font-size: 13px; font-weight: 
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
+# Persistent Data Check Indicator
+data_exists = (st.session_state.callout_data is not None and not st.session_state.callout_data.empty) or \
+              (st.session_state.mis_data is not None and not st.session_state.mis_data.empty)
+
+if data_exists:
+    st.sidebar.markdown("""
+        <div style="background-color: rgba(46, 196, 182, 0.15); border: 1px solid #2ec4b6; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px;">
+            <span style="color: #2ec4b6; font-size: 14px; font-weight: 800;">🟢 Data Active in System</span><br>
+            <span style="color: #90e0ef; font-size: 11px;">Aapko dobara file upload karne ki zaroorat nahi hai.</span>
+        </div>
+    """, unsafe_allow_html=True)
+
 st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
 uploaded_files = st.sidebar.file_uploader(
     "Choose Excel/CSV files", 
@@ -318,7 +331,7 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             if not c_df.empty: c_df.to_pickle(DATA_FILE_CALLOUT)
             if not m_df.empty: m_df.to_pickle(DATA_FILE_MIS)
             
-            st.sidebar.success("✅ Data successfully processed!")
+            st.sidebar.success("✅ Data successfully processed and saved!")
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"Error: {e}")
@@ -328,11 +341,13 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 st.sidebar.markdown("---")
 
 if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
+    # Hard Delete Files
     if os.path.exists(DATA_FILE_CALLOUT): os.remove(DATA_FILE_CALLOUT)
     if os.path.exists(DATA_FILE_MIS): os.remove(DATA_FILE_MIS)
+    # Clear Session Memory
     st.session_state.callout_data = None
     st.session_state.mis_data = None
-    # Reset the file uploader key to clear the uploaded files UI
+    # Reset File Uploader UI
     st.session_state.uploader_key += 1
     st.rerun()
 
