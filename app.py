@@ -699,16 +699,23 @@ elif "Vehicle Utilisation" in selected_nav:
         if 'Parsed_Date' in mis_df.columns:
             curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)].copy()
             
+            # Identify Lorry Column
+            lorry_col = next((c for c in curr_month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), 'Lorry No.')
+            
+            # Clean TBC / TBA from Lorry Column so they do not show up in the dropdown or table
+            if lorry_col in curr_month_df.columns:
+                curr_month_df = curr_month_df[~curr_month_df[lorry_col].astype(str).str.upper().str.contains('TBC|TBA', na=False)]
+                curr_month_df = curr_month_df[curr_month_df[lorry_col].astype(str).str.strip() != ""]
+            
             # Create Route column
             from_col = next((c for c in curr_month_df.columns if 'from' in c.lower()), None)
             dest_col = next((c for c in curr_month_df.columns if 'destination' in c.lower() or 'to' in c.lower()), None)
             if from_col and dest_col:
-                curr_month_df['Route'] = curr_month_df[from_col].astype(str) + " ➔ " + curr_month_df[dest_col].astype(str)
+                curr_month_df['Route'] = curr_month_df[from_col].astype(str).str.upper() + " ➔ " + curr_month_df[dest_col].astype(str).str.upper()
             else:
                 curr_month_df['Route'] = "N/A"
 
-            # Filter by Vehicle No
-            lorry_col = next((c for c in curr_month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), 'Lorry No.')
+            # Vehicle Dropdown
             if lorry_col in curr_month_df.columns:
                 vehicle_list = ["ALL"] + sorted([str(x).strip() for x in curr_month_df[lorry_col].dropna().unique() if str(x).strip() != ""])
                 selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
@@ -724,108 +731,8 @@ elif "Vehicle Utilisation" in selected_nav:
             if km_col:
                 total_km = pd.to_numeric(curr_month_df[km_col], errors='coerce').fillna(0).sum()
             
-            client_counts_html = ""
-            if 'VendorName' in curr_month_df.columns and total_valid_trips > 0:
-                counts = curr_month_df['VendorName'].value_counts()
-                colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
-                items = []
-                for i, (c_name, c_val) in enumerate(counts.items()):
-                    color = colors[i % len(colors)]
-                    items.append(f'<span style="padding: 5px 10px;">{c_name}: <b style="color:{color}; font-size:18px;">{c_val}</b></span>')
-                client_counts_html = f'<div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; font-size: 14px; padding-top: 20px; border-top: 1px dashed #48cae4; color: #ffffff; font-weight: 800; margin-top: 20px;">{"".join(items)}</div>'
-            
-            # Specific Route Info for selected vehicle
-            route_html = ""
-            if selected_vehicle != "ALL" and total_valid_trips > 0:
-                route_counts = curr_month_df['Route'].value_counts()
-                routes_str = "<br>".join([f"📍 {r} <span style='color:#2ec4b6;'>(Trips: {c})</span>" for r, c in route_counts.items()])
-                route_html = f'''
-                <div style="font-size: 13px; color: #ffb703; margin-top: 15px; font-weight: 800; border-top: 1px solid #3a506b; padding-top: 15px; text-align: left;">
-                    ROUTES COVERED BY {selected_vehicle}:<br>
-                    <div style="color: #ffffff; font-size: 13px; font-weight: normal; margin-top: 5px; line-height: 1.6;">{routes_str}</div>
-                </div>
-                '''
-
-            col1, col2, col3 = st.columns([1, 2.5, 1])
-            with col2:
-                st.markdown(f"""
-                    <div class="metric-card" style="text-align: center; padding: 40px;">
-                        <div class="metric-title" style="font-size: 18px;">TOTAL TRIP COUNT ({month_name})</div>
-                        <div class="metric-value" style="font-size: 60px; color: #48cae4; margin-bottom: 5px;">{total_valid_trips}</div>
-                        <div class="metric-sub-green" style="font-size: 14px; margin-bottom: 10px;">Valid Trips Executed This Month</div>
-                        <div style="font-size: 16px; color: #90e0ef; margin-top: 15px; font-weight: bold; border-top: 1px solid #3a506b; padding-top: 15px;">
-                            TOTAL DISTANCE: <span style="color: #ffffff; font-size: 26px;">{total_km:,.0f} KM</span>
-                        </div>
-                        {route_html}
-                        {client_counts_html}
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("## 📄 Detailed Vehicle Utilisation Records")
-
-            show_df = curr_month_df.copy()
-            
-            # Exact columns filtering
-            veh_type_col = next((c for c in show_df.columns if 'veh' in c.lower() and 'type' in c.lower()), 'Veh.Type')
-            vendor_col = 'VendorName'
-            
-            cols_to_keep = []
-            for c in [lorry_col, veh_type_col, 'Route', km_col, vendor_col]:
-                if c and c in show_df.columns:
-                    cols_to_keep.append(c)
-            
-            show_df = show_df[cols_to_keep].copy()
-            
-            # Rename ensuring exact requested names
-            rename_dict = {}
-            if lorry_col != 'Lorry No.': rename_dict[lorry_col] = 'Lorry No.'
-            if veh_type_col != 'Veh.Type': rename_dict[veh_type_col] = 'Veh.Type'
-            if km_col and km_col != 'KM': rename_dict[km_col] = 'KM'
-            
-            show_df.rename(columns=rename_dict, inplace=True)
-            
-            # Add S.No as first column
-            show_df.insert(0, 'S.No', range(1, 1 + len(show_df)))
-            
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-            
-            buffer_excel = io.BytesIO()
-            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                show_df.to_excel(writer, index=False, sheet_name='Vehicle_Utilisation')
-            
-            st.download_button(
-                label="📥 Download Utilisation Report (Excel)",
-                data=buffer_excel.getvalue(),
-                file_name="Vehicle_Utilisation_Report.xlsx",
-                mime="application/vnd.ms-excel",
-                type="primary"
-            )
-
-        else:
-            st.warning("Data mein date column properly format nahi ho paya.")
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 5. MONTHLY BREAKDOWN -----------------
-elif "Monthly Breakdown" in selected_nav:
-    st.title("📈 Monthly Breakdown")
-    st.info("🔒 Showing monthly performance breakdown.")
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        df = st.session_state.mis_data.copy()
-        if 'Parsed_Date' in df.columns:
-            try:
-                df['Month'] = df['Parsed_Date'].dt.strftime('%B %Y')
-                monthly_summary = df.groupby(['Month', 'VendorName', 'Status_Category']).size().unstack(fill_value=0).reset_index()
-                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
-            except Exception as e:
-                st.warning(f"Could not parse monthly breakdown: {e}")
-        else:
-            st.warning("Date column not found for monthly breakdown.")
-    else:
-        st.info("👈 Kripya pehle MIS files upload karein.")
-
-# ----------------- OTHER PAGES -----------------
-else:
-    st.title(selected_nav)
-    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
+            # Dynamic HTML generation for the Main Card based on Selection
+            breakdown_html = ""
+            if selected_vehicle == "ALL":
+                if 'VendorName' in curr_month_df.columns and total_valid_trips > 0:
+                    counts = curr_month_df['VendorName'].value_
