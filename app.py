@@ -425,4 +425,304 @@ if "Dashboard" in selected_nav:
                 f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{aug_busy}</b></span>'
-                f'<span>Trackon:
+                f'<span>Trackon: <b style="color:#e63946;">{aug_trk}</b></span>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">September Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{sept_dhl}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{sept_busy}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{sept_trk}</b></span>'
+                f'</div>'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">October Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<span>DHL: <b style="color:#2ec4b6;">{oct_dhl}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703;">{oct_busy}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946;">{oct_trk}</b></span>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(col1_html, unsafe_allow_html=True)
+
+        with col2:
+            col2_html = (
+                f'<div class="metric-card" style="min-height: 200px;">'
+                f'<div class="metric-title">⚡ OVER ALL PERFORMANCE</div>'
+                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #48cae4;">'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Total Count</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
+                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
+                f'</div>'
+                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">On-Time</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: 900; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
+                f'</div>'
+                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
+                f'<div>'
+                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Delay</div>'
+                f'<div style="font-size: 28px; font-weight: 900; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
+                f'<div style="font-size: 13px; font-weight: 900; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(col2_html, unsafe_allow_html=True)
+
+        with col3:
+            lb_clients = filtered_mis['VendorName'].value_counts().index.tolist() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
+            lb_rows_html = ""
+            for c_name in lb_clients[:4]:
+                c_df = filtered_mis[filtered_mis['VendorName'] == c_name]
+                c_tot = len(c_df)
+                c_ontime = len(c_df[c_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in c_df.columns else 0
+                c_delay = len(c_df[c_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in c_df.columns else 0
+                
+                lb_rows_html += (
+                    f'<div style="border-top: 1px solid #48cae4; padding-top: 8px; margin-top: 8px;">'
+                    f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">'
+                    f'<span style="color: #ffffff;">{c_name}</span>'
+                    f'<span style="color: #90e0ef;">Total: {c_tot}</span>'
+                    f'</div>'
+                    f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;">'
+                    f'<span style="color: #2ec4b6;">On-Time: <b>{c_ontime}</b></span>'
+                    f'<span style="color: #e63946;">Delay: <b>{c_delay}</b></span>'
+                    f'</div>'
+                    f'</div>'
+                )
+
+            if not lb_rows_html:
+                lb_rows_html = '<div style="font-size: 13px; color: #90e0ef; margin-top: 8px;">No MIS performance data</div>'
+
+            col3_html = (
+                f'<div class="metric-card" style="min-height: 200px;">'
+                f'<div class="metric-title">🏆 CUSTOMER LEADERBOARD</div>'
+                f'{lb_rows_html}'
+                f'</div>'
+            )
+            st.markdown(col3_html, unsafe_allow_html=True)
+
+        # Dashboard Data Table
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("## 📄 Live Detailed Performance Records")
+        required_columns = [
+            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+        ]
+        if not filtered_mis.empty:
+            available_cols = [c for c in required_columns if c in filtered_mis.columns]
+            if not available_cols:
+                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
+            show_df = filtered_mis[available_cols]
+            
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+        else:
+            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+    else:
+        st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
+
+# ----------------- 2. CLIENT PERFORMANCE -----------------
+elif "Client Performance" in selected_nav:
+    st.title("🎯 Customer-wise Performance Speedometer")
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data
+        
+        client_list = ["ALL"] + list(mis_df['VendorName'].dropna().unique()) if 'VendorName' in mis_df.columns else ["ALL"]
+        selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
+        
+        filtered_mis = mis_df.copy()
+        if selected_client != "ALL":
+            filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
+
+        unique_clients = filtered_mis['VendorName'].dropna().unique() if 'VendorName' in filtered_mis.columns else []
+        
+        if len(unique_clients) > 0:
+            p_cols = st.columns(min(len(unique_clients), 3))
+            for i, client_name in enumerate(unique_clients):
+                client_df = filtered_mis[filtered_mis['VendorName'] == client_name]
+                c_total = len(client_df)
+                c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in client_df.columns else 0
+                c_delay = len(client_df[client_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in client_df.columns else 0
+                c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
+                
+                with p_cols[i % 3]:
+                    st.markdown(
+                        render_speedometer_html(client_name, c_rate, c_ontime, c_delay, c_total),
+                        unsafe_allow_html=True
+                    )
+        else:
+            st.warning("Koi Client data available nahi hai.")
+
+        # ================= ONLY PERFORMANCE DATA TABLE =================
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("## 📄 Live Detailed Performance Records")
+        
+        required_columns = [
+            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+        ]
+        
+        if not filtered_mis.empty:
+            available_cols = [c for c in required_columns if c in filtered_mis.columns]
+            if not available_cols:
+                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
+            show_df = filtered_mis[available_cols]
+            
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+            
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                show_df.to_excel(writer, index=False, sheet_name='Performance_Report')
+            
+            st.download_button(
+                label="📥 Download Performance Report (Excel)",
+                data=buffer_excel.getvalue(),
+                file_name="Client_Performance_Report.xlsx",
+                mime="application/vnd.ms-excel",
+                type="primary"
+            )
+        else:
+            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 3. BRANCHES -----------------
+elif "Branches" in selected_nav:
+    st.title("🏢 Controlling Staff Performance")
+    st.info("Showing Performance Breakdown by Controlling Staff Name and Client.")
+    
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data.copy()
+        staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower() or 'branch' in c.lower()), None)
+        
+        if staff_col:
+            # Layout for Client and Staff Filters
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                client_list = ["ALL"] + sorted(list(mis_df['VendorName'].dropna().unique())) if 'VendorName' in mis_df.columns else ["ALL"]
+                selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list, key="branch_client_filter")
+            with f_col2:
+                staff_list = ["ALL"] + sorted([str(x).strip() for x in mis_df[staff_col].dropna().unique() if str(x).strip() != ""])
+                selected_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="branch_staff_filter")
+
+            # Apply Filters
+            filtered_df = mis_df.copy()
+            if selected_client != "ALL":
+                filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
+            if selected_staff != "ALL":
+                filtered_df = filtered_df[filtered_df[staff_col].astype(str).str.strip() == selected_staff]
+
+            staff_summary = []
+            if not filtered_df.empty:
+                grouped = filtered_df.groupby([staff_col, 'VendorName'])
+                for (staff, client), s_df in grouped:
+                    if pd.isna(staff) or str(staff).strip() == "": continue
+                    total = len(s_df)
+                    ontime = len(s_df[s_df['Status_Category'] == 'On-Time Trip Closed'])
+                    delay = len(s_df[s_df['Status_Category'] == 'Delay Trip Closed'])
+                    ontime_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
+                    staff_summary.append({
+                        "Controlling Staff Name": str(staff).strip(),
+                        "Client": str(client).strip(),
+                        "Total Trips": total,
+                        "On-Time Trips": ontime,
+                        "Delay Trips": delay,
+                        "Performance (%)": ontime_pct
+                    })
+            
+            if staff_summary:
+                staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
+                st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                buffer_excel = io.BytesIO()
+                with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                    staff_df.to_excel(writer, index=False, sheet_name='Staff_Performance')
+                
+                st.download_button(
+                    label="📥 Download Staff Performance Report (Excel)",
+                    data=buffer_excel.getvalue(),
+                    file_name="Controlling_Staff_Performance_Report.xlsx",
+                    mime="application/vnd.ms-excel",
+                    type="primary"
+                )
+            else:
+                st.warning("Is selection ke liye koi valid data nahi mila.")
+        else:
+            st.warning("Data mein 'Controlling Staff Name' column nahi mila.")
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 4. VEHICLE UTILISATION -----------------
+elif "Vehicle Utilisation" in selected_nav:
+    st.title("🚚 Vehicle Utilisation (Current Month)")
+    st.info("Showing Total Trips valid for the Current Month (Status = 'Order Done' & Final Touching Time mentioned).")
+    
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data.copy()
+        
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        month_name = datetime.now().strftime("%B %Y").upper()
+        
+        if 'Parsed_Date' in mis_df.columns:
+            curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)]
+            
+            total_valid_trips = len(curr_month_df)
+            
+            client_counts_html = ""
+            if 'VendorName' in curr_month_df.columns and total_valid_trips > 0:
+                counts = curr_month_df['VendorName'].value_counts()
+                colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
+                items = []
+                for i, (c_name, c_val) in enumerate(counts.items()):
+                    color = colors[i % len(colors)]
+                    items.append(f'<span style="padding: 5px 10px;">{c_name}: <b style="color:{color}; font-size:18px;">{c_val}</b></span>')
+                client_counts_html = f'<div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; font-size: 14px; padding-top: 20px; border-top: 1px dashed #48cae4; color: #ffffff; font-weight: 800; margin-top: 20px;">{"".join(items)}</div>'
+            
+            col1, col2, col3 = st.columns([1, 2.5, 1])
+            with col2:
+                st.markdown(f"""
+                    <div class="metric-card" style="text-align: center; padding: 40px;">
+                        <div class="metric-title" style="font-size: 18px;">TOTAL TRIP COUNT ({month_name})</div>
+                        <div class="metric-value" style="font-size: 60px; color: #48cae4; margin-bottom: 10px;">{total_valid_trips}</div>
+                        <div class="metric-sub-green" style="font-size: 14px; margin-bottom: 10px;">Valid Trips Executed This Month</div>
+                        {client_counts_html}
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("Data mein date column properly format nahi ho paya.")
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 5. MONTHLY BREAKDOWN -----------------
+elif "Monthly Breakdown" in selected_nav:
+    st.title("📈 Monthly Breakdown")
+    st.info("🔒 Showing monthly performance breakdown.")
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        df = st.session_state.mis_data.copy()
+        if 'Parsed_Date' in df.columns:
+            try:
+                df['Month'] = df['Parsed_Date'].dt.strftime('%B %Y')
+                monthly_summary = df.groupby(['Month', 'VendorName', 'Status_Category']).size().unstack(fill_value=0).reset_index()
+                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
+            except Exception as e:
+                st.warning(f"Could not parse monthly breakdown: {e}")
+        else:
+            st.warning("Date column not found for monthly breakdown.")
+    else:
+        st.info("👈 Kripya pehle MIS files upload karein.")
+
+# ----------------- OTHER PAGES -----------------
+else:
+    st.title(selected_nav)
+    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
