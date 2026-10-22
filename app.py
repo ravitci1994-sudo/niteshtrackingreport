@@ -4,6 +4,7 @@ from datetime import datetime
 import math
 import io
 import os
+import html as html_lib
 
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -11,7 +12,7 @@ st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout=
 # Custom CSS for Dynamic & Attractive Modern Dark Theme Styling
 st.markdown("""
     <style>
-    .main {
+    .main, [data-testid="stAppViewContainer"] {
         background: linear-gradient(135deg, #0b132b 0%, #1c2541 100%);
     }
     .metric-card {
@@ -97,10 +98,95 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper function to render Proper Speedometer
+# ================= CONSTANTS =================
+REQUIRED_COLUMNS = [
+    'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+    '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+    '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+    'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+    'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+    'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+]
+ONTIME = 'On-Time Trip Closed'
+DELAY = 'Delay Trip Closed'
+EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+# ================= HELPERS =================
+def is_blank(v):
+    if v is None:
+        return True
+    try:
+        if pd.isna(v):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return str(v).strip().lower() in ("", "nan", "nat", "none")
+
+
+def first_valid(row, names):
+    """Return first non-blank value from the given column names."""
+    for n in names:
+        if n in row.index and not is_blank(row[n]):
+            return row[n]
+    return None
+
+
+def is_zero_late(v):
+    """True if Late Hrs is empty / zero / negative (i.e. trip is on time)."""
+    if is_blank(v):
+        return True
+    s = str(v).strip().lower()
+    if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00"):
+        return True
+    try:
+        return pd.to_timedelta(s) <= pd.Timedelta(0)
+    except Exception:
+        pass
+    try:
+        return float(s) <= 0
+    except Exception:
+        return False
+
+
+def clean_party(v, keep_other=False):
+    v_str = str(v).upper().strip()
+    if "DHL" in v_str:
+        return "DHL"
+    elif "BUSYBEES" in v_str:
+        return "Busybees"
+    elif "TRACKON" in v_str:
+        return "Trackon"
+    return str(v).strip() if keep_other else None
+
+
+def find_col(df, exact=None, contains=None):
+    """Find a column by exact (case-insensitive) names first, then by substring."""
+    if exact:
+        for c in df.columns:
+            if c.lower().strip() in exact:
+                return c
+    if contains:
+        for c in df.columns:
+            if any(k in c.lower() for k in contains):
+                return c
+    return None
+
+
+def vendor_column(df):
+    return next((c for c in df.columns if any(k in c.lower() for k in ('vendor', 'party', 'client', 'customer'))), None)
+
+
+def show_cols(df):
+    cols = [c for c in REQUIRED_COLUMNS if c in df.columns]
+    if not cols:
+        cols = [c for c in df.columns if c not in ['Parsed_Date', 'VendorName', 'Status_Category', 'MonthKey']]
+    return df[cols]
+
+
 def render_speedometer_html(client_name, rate, ontime, delay, total):
     clamped_rate = max(0.0, min(100.0, float(rate)))
-    
+
     if clamped_rate >= 80:
         val_color = "#2ec4b6"
     elif clamped_rate >= 50:
@@ -109,7 +195,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
         val_color = "#e63946"
 
     cx, cy = 120, 110
-    
+
     ticks_svg = ""
     for p in range(0, 101, 10):
         rad = math.radians(180 - (p * 1.8))
@@ -133,7 +219,7 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     n_rad = math.radians(180 - (clamped_rate * 1.8))
     tip_x = cx + 65 * math.cos(n_rad)
     tip_y = cy - 65 * math.sin(n_rad)
-    
+
     perp_rad = n_rad + (math.pi / 2)
     b1_x = cx + 4.5 * math.cos(perp_rad)
     b1_y = cy - 4.5 * math.sin(perp_rad)
@@ -143,129 +229,137 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
     tail_y = cy + 12 * math.sin(n_rad)
 
     needle_points = f"{b1_x:.1f},{b1_y:.1f} {tip_x:.1f},{tip_y:.1f} {b2_x:.1f},{b2_y:.1f} {tail_x:.1f},{tail_y:.1f}"
+    safe_name = html_lib.escape(str(client_name))
 
     html_lines = [
-        f'<div class="metric-card" style="text-align: center; padding: 18px 15px;">',
-        f'<div class="metric-title" style="margin-bottom: 8px;">🔥 {client_name} PERFORMANCE</div>',
-        f'<svg viewBox="0 0 240 130" width="100%" style="max-width: 260px; margin: 0 auto; display: block;">',
-        f'<path d="M 40 110 A 80 80 0 0 1 200 110" fill="none" stroke="#0b132b" stroke-width="18" stroke-linecap="round"/>',
-        f'<path d="M 40 110 A 80 80 0 0 1 120 30" fill="none" stroke="#e63946" stroke-width="14" stroke-linecap="butt"/>',
-        f'<path d="M 120 30 A 80 80 0 0 1 184.72 62.98" fill="none" stroke="#ffb703" stroke-width="14" stroke-linecap="butt"/>',
-        f'<path d="M 184.72 62.98 A 80 80 0 0 1 200 110" fill="none" stroke="#2ec4b6" stroke-width="14" stroke-linecap="butt"/>',
+        '<div class="metric-card" style="text-align: center; padding: 18px 15px;">',
+        f'<div class="metric-title" style="margin-bottom: 8px;">🔥 {safe_name} PERFORMANCE</div>',
+        '<svg viewBox="0 0 240 130" width="100%" style="max-width: 260px; margin: 0 auto; display: block;">',
+        '<path d="M 40 110 A 80 80 0 0 1 200 110" fill="none" stroke="#0b132b" stroke-width="18" stroke-linecap="round"/>',
+        '<path d="M 40 110 A 80 80 0 0 1 120 30" fill="none" stroke="#e63946" stroke-width="14" stroke-linecap="butt"/>',
+        '<path d="M 120 30 A 80 80 0 0 1 184.72 62.98" fill="none" stroke="#ffb703" stroke-width="14" stroke-linecap="butt"/>',
+        '<path d="M 184.72 62.98 A 80 80 0 0 1 200 110" fill="none" stroke="#2ec4b6" stroke-width="14" stroke-linecap="butt"/>',
         ticks_svg,
         labels_svg,
         f'<polygon points="{needle_points}" fill="#ffffff"/>',
         f'<circle cx="{cx}" cy="{cy}" r="8" fill="#ffffff"/>',
         f'<circle cx="{cx}" cy="{cy}" r="4" fill="#1c2541"/>',
-        f'</svg>',
+        '</svg>',
         f'<div style="font-size: 34px; font-weight: 900; color: {val_color}; margin-top: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.4);">{rate}%</div>',
-        f'<div style="font-size: 13px; color: #90e0ef; margin-top: 6px; font-weight: 700;">',
+        '<div style="font-size: 13px; color: #90e0ef; margin-top: 6px; font-weight: 700;">',
         f'<span style="color:#2ec4b6;">On-Time: <b>{ontime}</b></span> &nbsp;|&nbsp; ',
         f'<span style="color:#e63946;">Delay: <b>{delay}</b></span> &nbsp;|&nbsp; ',
         f'<span style="color:#ffffff;">Total: <b>{total}</b></span>',
-        f'</div>',
-        f'</div>'
+        '</div>',
+        '</div>'
     ]
     return "".join(html_lines)
 
-# Helper function to render crash-proof HTML table
-def render_html_table(df_to_show):
+
+def render_html_table(df_to_show, max_rows=2000):
     clean_df = df_to_show.fillna("").astype(str)
-    headers = "".join([f"<th>{col}</th>" for col in clean_df.columns])
+    note = ""
+    if len(clean_df) > max_rows:
+        note = f'<div style="color:#ffb703; font-size:12px; margin-bottom:6px;">Showing first {max_rows} of {len(clean_df)} rows. Full data Excel download me milega.</div>'
+        clean_df = clean_df.head(max_rows)
+    headers = "".join([f"<th>{html_lib.escape(str(col))}</th>" for col in clean_df.columns])
     rows_html = []
     for _, row in clean_df.iterrows():
-        cells = "".join([f"<td>{val if val.lower() != 'nan' else ''}</td>" for val in row])
+        cells = "".join([f"<td>{html_lib.escape('' if val.lower() in ('nan', 'nat') else val)}</td>" for val in row])
         rows_html.append(f"<tr>{cells}</tr>")
     body = "".join(rows_html)
-    return f'<div class="custom-table-container"><table class="custom-table"><thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table></div>'
+    return f'{note}<div class="custom-table-container"><table class="custom-table"><thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table></div>'
 
-# Helper function to process uploaded files separately
+
+def to_excel_bytes(sheets):
+    buffer_excel = io.BytesIO()
+    with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+        for name, frame in sheets.items():
+            frame.to_excel(writer, index=False, sheet_name=name)
+    return buffer_excel.getvalue()
+
+
+# ================= FILE PROCESSING =================
 def process_uploaded_files(uploaded_files):
     callout_dfs = []
     mis_dfs = []
-    
+    current_year = datetime.now().year
+
     for uploaded_file in uploaded_files:
         try:
-            if uploaded_file.name.endswith('.csv'):
+            if uploaded_file.name.lower().endswith('.csv'):
                 temp_df = pd.read_csv(uploaded_file, low_memory=False)
             else:
                 temp_df = pd.read_excel(uploaded_file)
-            
-            temp_df.columns = temp_df.columns.str.strip()
-            
-            if 'callout' in uploaded_file.name.lower() or any('category' in c.lower() for c in temp_df.columns):
+
+            temp_df.columns = temp_df.columns.astype(str).str.strip()
+            fname = uploaded_file.name.lower()
+            has_category = any('category' in c.lower() for c in temp_df.columns)
+            is_callout = ('callout' in fname) or (has_category and 'mis' not in fname)
+
+            if is_callout:
                 cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
                 if cat_col:
                     temp_df = temp_df[temp_df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
-                
-                vendor_c = next((c for c in temp_df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
+
+                vendor_c = vendor_column(temp_df)
                 if vendor_c:
-                    def clean_party(v):
-                        v_str = str(v).upper().strip()
-                        if "DHL" in v_str: return "DHL"
-                        elif "BUSYBEES" in v_str: return "Busybees"
-                        elif "TRACKON" in v_str: return "Trackon"
-                        return None
                     temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party)
                     temp_df = temp_df[temp_df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
-                
+
                 date_col = next((c for c in temp_df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
                 if date_col:
-                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
-                    temp_df = temp_df[temp_df['Parsed_Date'].dt.month.isin([8, 9, 10])].copy()
-                
+                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce', dayfirst=True)
+                    temp_df = temp_df[
+                        temp_df['Parsed_Date'].dt.month.isin([8, 9, 10]) &
+                        (temp_df['Parsed_Date'].dt.year == current_year)
+                    ].copy()
+
                 callout_dfs.append(temp_df)
             else:
                 desp_col = next((c for c in temp_df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
                 if desp_col:
-                    temp_df = temp_df[pd.notna(temp_df[desp_col]) & (temp_df[desp_col].astype(str).str.strip() != "") & (temp_df[desp_col].astype(str).str.strip().str.lower() != "nan")].copy()
+                    temp_df = temp_df[~temp_df[desp_col].apply(is_blank)].copy()
 
-                vendor_c = next((c for c in temp_df.columns if 'vendor' in c.lower() or 'party' in c.lower() or 'client' in c.lower() or 'customer' in c.lower()), None)
+                vendor_c = vendor_column(temp_df)
                 if vendor_c:
-                    def clean_party_mis(v):
-                        v_str = str(v).upper().strip()
-                        if "DHL" in v_str: return "DHL"
-                        elif "BUSYBEES" in v_str: return "Busybees"
-                        elif "TRACKON" in v_str: return "Trackon"
-                        return str(v).strip()
-                    temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party_mis)
+                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda v: clean_party(v, keep_other=True))
                 else:
                     temp_df['VendorName'] = "TEJAS CARGO"
-                
-                date_col = next((c for c in temp_df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
+
+                # Despatch date column preferred; otherwise any date column
+                date_col = (
+                    next((c for c in temp_df.columns if 'desp' in c.lower() and 'date' in c.lower()), None)
+                    or next((c for c in temp_df.columns if 'date' in c.lower()), None)
+                    or next((c for c in temp_df.columns if 'desp' in c.lower() or 'time' in c.lower()), None)
+                )
                 if date_col:
-                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce')
+                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce', dayfirst=True)
 
                 status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
+                final_cols = [c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in temp_df.columns]
+                late_cols = [c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in temp_df.columns]
+
                 def get_status(row):
-                    status_val = str(row.get(status_col, '')).lower() if status_col else ''
-                    final_rep = row.get('Final Touching Reporting Date & Time') or row.get('Reporting Date') or row.get('Reporting Date & Time')
-                    
-                    if status_col and final_rep is not None:
-                        if ("order done" in status_val) and (pd.notna(final_rep) and str(final_rep).strip() != "" and str(final_rep).strip().lower() != "nan"):
-                            late_hrs = row.get('Late Hrs')
-                            if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-                                return "On-Time Trip Closed"
-                            else:
-                                return "Delay Trip Closed"
-                        else:
-                            return "Invalid"
-                    else:
-                        late_hrs = row.get('Late Hrs') or row.get('Delay Hrs') or row.get('Delay')
-                        if pd.isna(late_hrs) or str(late_hrs).strip() == "" or str(late_hrs).strip().lower() == "nan" or str(late_hrs).strip() == "0":
-                            return "On-Time Trip Closed"
-                        else:
-                            return "Delay Trip Closed"
+                    late_val = first_valid(row, late_cols) if late_cols else None
+                    if status_col and final_cols:
+                        status_val = str(row.get(status_col, '')).lower()
+                        final_rep = first_valid(row, final_cols)
+                        if ("order done" in status_val) and final_rep is not None:
+                            return ONTIME if is_zero_late(late_val) else DELAY
+                        return "Invalid"
+                    return ONTIME if is_zero_late(late_val) else DELAY
 
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                valid_mis = temp_df[temp_df['Status_Category'].isin(['On-Time Trip Closed', 'Delay Trip Closed'])].copy()
+                valid_mis = temp_df[temp_df['Status_Category'].isin([ONTIME, DELAY])].copy()
                 mis_dfs.append(valid_mis if not valid_mis.empty else temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
-            
+
     callout_df = pd.concat(callout_dfs, ignore_index=True) if callout_dfs else pd.DataFrame()
     mis_df = pd.concat(mis_dfs, ignore_index=True) if mis_dfs else pd.DataFrame()
     return callout_df, mis_df
+
 
 # ================= MEMORY SETUP (Hard Persistence Logic) =================
 DATA_FILE_CALLOUT = "saved_callout_data.pkl"
@@ -273,20 +367,32 @@ DATA_FILE_MIS = "saved_mis_data.pkl"
 
 if 'callout_data' not in st.session_state or st.session_state.callout_data is None:
     if os.path.exists(DATA_FILE_CALLOUT):
-        try: st.session_state.callout_data = pd.read_pickle(DATA_FILE_CALLOUT)
-        except: st.session_state.callout_data = None
+        try:
+            st.session_state.callout_data = pd.read_pickle(DATA_FILE_CALLOUT)
+        except Exception:
+            st.session_state.callout_data = None
     else:
         st.session_state.callout_data = None
 
 if 'mis_data' not in st.session_state or st.session_state.mis_data is None:
     if os.path.exists(DATA_FILE_MIS):
-        try: st.session_state.mis_data = pd.read_pickle(DATA_FILE_MIS)
-        except: st.session_state.mis_data = None
+        try:
+            st.session_state.mis_data = pd.read_pickle(DATA_FILE_MIS)
+        except Exception:
+            st.session_state.mis_data = None
     else:
         st.session_state.mis_data = None
 
 if 'uploader_key' not in st.session_state:
     st.session_state.uploader_key = 0
+
+
+def save_or_delete(df, path):
+    if df is not None and not df.empty:
+        df.to_pickle(path)
+    elif os.path.exists(path):
+        os.remove(path)
+
 
 # ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
@@ -299,8 +405,8 @@ st.sidebar.markdown("---")
 
 st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
 uploaded_files = st.sidebar.file_uploader(
-    "Choose Excel/CSV files", 
-    type=["xlsx", "csv"], 
+    "Choose Excel/CSV files",
+    type=["xlsx", "csv"],
     accept_multiple_files=True,
     label_visibility="collapsed",
     key=f"uploader_{st.session_state.uploader_key}"
@@ -312,10 +418,10 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             c_df, m_df = process_uploaded_files(uploaded_files)
             st.session_state.callout_data = c_df
             st.session_state.mis_data = m_df
-            
-            if not c_df.empty: c_df.to_pickle(DATA_FILE_CALLOUT)
-            if not m_df.empty: m_df.to_pickle(DATA_FILE_MIS)
-            
+
+            save_or_delete(c_df, DATA_FILE_CALLOUT)
+            save_or_delete(m_df, DATA_FILE_MIS)
+
             st.sidebar.success("✅ Data successfully processed and saved!")
             st.rerun()
         except Exception as e:
@@ -326,18 +432,17 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 st.sidebar.markdown("---")
 
 if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
-    # Hard Delete Files
-    if os.path.exists(DATA_FILE_CALLOUT): os.remove(DATA_FILE_CALLOUT)
-    if os.path.exists(DATA_FILE_MIS): os.remove(DATA_FILE_MIS)
-    # Clear Session Memory
+    if os.path.exists(DATA_FILE_CALLOUT):
+        os.remove(DATA_FILE_CALLOUT)
+    if os.path.exists(DATA_FILE_MIS):
+        os.remove(DATA_FILE_MIS)
     st.session_state.callout_data = None
     st.session_state.mis_data = None
-    # Reset File Uploader UI
     st.session_state.uploader_key += 1
     st.rerun()
 
 st.sidebar.markdown("Navigation:")
-selected_nav = st.sidebar.radio("", [
+selected_nav = st.sidebar.radio("Navigation", [
     "📊 Dashboard",
     "📊 Client Performance",
     "🏢 Branches",
@@ -365,20 +470,20 @@ if "Dashboard" in selected_nav:
     if has_callout or has_mis:
         callout_df = st.session_state.callout_data if has_callout else pd.DataFrame()
         mis_df = st.session_state.mis_data if has_mis else pd.DataFrame()
-        
+
         st.markdown("---")
         clients_set = set()
         if not mis_df.empty and 'VendorName' in mis_df.columns:
             clients_set.update(mis_df['VendorName'].dropna().unique())
         if not callout_df.empty and 'VendorName' in callout_df.columns:
             clients_set.update(callout_df['VendorName'].dropna().unique())
-            
+
         client_list = ["ALL"] + sorted(list(clients_set))
         selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
 
         filtered_callout = callout_df.copy()
         filtered_mis = mis_df.copy()
-        
+
         if selected_client != "ALL":
             if not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
                 filtered_callout = filtered_callout[filtered_callout['VendorName'] == selected_client]
@@ -387,11 +492,12 @@ if "Dashboard" in selected_nav:
 
         # Callout Metrics
         total_callouts = len(filtered_callout)
-        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
-        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
-        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if not filtered_callout.empty and 'VendorName' in filtered_callout.columns else 0
+        co_has_vendor = not filtered_callout.empty and 'VendorName' in filtered_callout.columns
+        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if co_has_vendor else 0
+        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if co_has_vendor else 0
+        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if co_has_vendor else 0
 
-        if not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
+        if co_has_vendor and 'Parsed_Date' in filtered_callout.columns:
             aug_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 8]
             sept_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 9]
             oct_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 10]
@@ -400,20 +506,21 @@ if "Dashboard" in selected_nav:
             sept_dhl, sept_busy, sept_trk = int((sept_df['VendorName'] == 'DHL').sum()), int((sept_df['VendorName'] == 'Busybees').sum()), int((sept_df['VendorName'] == 'Trackon').sum())
             oct_dhl, oct_busy, oct_trk = int((oct_df['VendorName'] == 'DHL').sum()), int((oct_df['VendorName'] == 'Busybees').sum()), int((oct_df['VendorName'] == 'Trackon').sum())
         else:
-            aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0]*9
-        
+            aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0] * 9
+
         # Performance Metrics
         total_trips = len(filtered_mis)
-        ontime_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'On-Time Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
-        delay_trips = len(filtered_mis[filtered_mis['Status_Category'] == 'Delay Trip Closed']) if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns else 0
-        
+        has_status = not filtered_mis.empty and 'Status_Category' in filtered_mis.columns
+        ontime_trips = int((filtered_mis['Status_Category'] == ONTIME).sum()) if has_status else 0
+        delay_trips = int((filtered_mis['Status_Category'] == DELAY).sum()) if has_status else 0
+
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
 
         col1, col2, col3 = st.columns([1.2, 1.8, 1])
 
         with col1:
-            client_label = "ALL CLIENTS" if selected_client == "ALL" else selected_client.upper()
+            client_label = "ALL CLIENTS" if selected_client == "ALL" else html_lib.escape(str(selected_client).upper())
             col1_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
                 f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({client_label})</div>'
@@ -479,13 +586,13 @@ if "Dashboard" in selected_nav:
             for c_name in lb_clients[:4]:
                 c_df = filtered_mis[filtered_mis['VendorName'] == c_name]
                 c_tot = len(c_df)
-                c_ontime = len(c_df[c_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in c_df.columns else 0
-                c_delay = len(c_df[c_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in c_df.columns else 0
-                
+                c_ontime = int((c_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in c_df.columns else 0
+                c_delay = int((c_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in c_df.columns else 0
+
                 lb_rows_html += (
                     f'<div style="border-top: 1px solid #48cae4; padding-top: 8px; margin-top: 8px;">'
                     f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">'
-                    f'<span style="color: #ffffff;">{c_name}</span>'
+                    f'<span style="color: #ffffff;">{html_lib.escape(str(c_name))}</span>'
                     f'<span style="color: #90e0ef;">Total: {c_tot}</span>'
                     f'</div>'
                     f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;">'
@@ -509,21 +616,8 @@ if "Dashboard" in selected_nav:
         # Dashboard Data Table
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("## 📄 Live Detailed Performance Records")
-        required_columns = [
-            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-        ]
         if not filtered_mis.empty:
-            available_cols = [c for c in required_columns if c in filtered_mis.columns]
-            if not available_cols:
-                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
-            show_df = filtered_mis[available_cols]
-            
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+            st.markdown(render_html_table(show_cols(filtered_mis)), unsafe_allow_html=True)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
@@ -534,26 +628,26 @@ elif "Client Performance" in selected_nav:
     st.title("🎯 Customer-wise Performance Speedometer")
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         mis_df = st.session_state.mis_data
-        
-        client_list = ["ALL"] + list(mis_df['VendorName'].dropna().unique()) if 'VendorName' in mis_df.columns else ["ALL"]
+
+        client_list = ["ALL"] + sorted(list(mis_df['VendorName'].dropna().unique())) if 'VendorName' in mis_df.columns else ["ALL"]
         selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
-        
+
         filtered_mis = mis_df.copy()
         if selected_client != "ALL":
             filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
         unique_clients = filtered_mis['VendorName'].dropna().unique() if 'VendorName' in filtered_mis.columns else []
-        
+
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
             for i, client_name in enumerate(unique_clients):
                 client_df = filtered_mis[filtered_mis['VendorName'] == client_name]
                 c_total = len(client_df)
-                c_ontime = len(client_df[client_df['Status_Category'] == 'On-Time Trip Closed']) if 'Status_Category' in client_df.columns else 0
-                c_delay = len(client_df[client_df['Status_Category'] == 'Delay Trip Closed']) if 'Status_Category' in client_df.columns else 0
+                c_ontime = int((client_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in client_df.columns else 0
+                c_delay = int((client_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in client_df.columns else 0
                 c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
-                
-                with p_cols[i % 3]:
+
+                with p_cols[i % len(p_cols)]:
                     st.markdown(
                         render_speedometer_html(client_name, c_rate, c_ontime, c_delay, c_total),
                         unsafe_allow_html=True
@@ -561,36 +655,18 @@ elif "Client Performance" in selected_nav:
         else:
             st.warning("Koi Client data available nahi hai.")
 
-        # ================= ONLY PERFORMANCE DATA TABLE =================
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("## 📄 Live Detailed Performance Records")
-        
-        required_columns = [
-            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-        ]
-        
+
         if not filtered_mis.empty:
-            available_cols = [c for c in required_columns if c in filtered_mis.columns]
-            if not available_cols:
-                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
-            show_df = filtered_mis[available_cols]
-            
+            show_df = show_cols(filtered_mis)
             st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-            
-            buffer_excel = io.BytesIO()
-            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                show_df.to_excel(writer, index=False, sheet_name='Performance_Report')
-            
+
             st.download_button(
                 label="📥 Download Performance Report (Excel)",
-                data=buffer_excel.getvalue(),
+                data=to_excel_bytes({'Performance_Report': show_df}),
                 file_name="Client_Performance_Report.xlsx",
-                mime="application/vnd.ms-excel",
+                mime=EXCEL_MIME,
                 type="primary"
             )
         else:
@@ -602,13 +678,12 @@ elif "Client Performance" in selected_nav:
 elif "Branches" in selected_nav:
     st.title("🏢 Controlling Staff Performance")
     st.info("Showing Performance Breakdown by Controlling Staff Name and Client.")
-    
+
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         mis_df = st.session_state.mis_data.copy()
         staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower() or 'branch' in c.lower()), None)
-        
+
         if staff_col:
-            # Layout for Client and Staff Filters
             f_col1, f_col2 = st.columns(2)
             with f_col1:
                 client_list = ["ALL"] + sorted(list(mis_df['VendorName'].dropna().unique())) if 'VendorName' in mis_df.columns else ["ALL"]
@@ -617,7 +692,6 @@ elif "Branches" in selected_nav:
                 staff_list = ["ALL"] + sorted([str(x).strip() for x in mis_df[staff_col].dropna().unique() if str(x).strip() != ""])
                 selected_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="branch_staff_filter")
 
-            # Apply Filters
             filtered_df = mis_df.copy()
             if selected_client != "ALL":
                 filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
@@ -628,10 +702,11 @@ elif "Branches" in selected_nav:
             if not filtered_df.empty:
                 grouped = filtered_df.groupby([staff_col, 'VendorName'])
                 for (staff, client), s_df in grouped:
-                    if pd.isna(staff) or str(staff).strip() == "": continue
+                    if pd.isna(staff) or str(staff).strip() == "":
+                        continue
                     total = len(s_df)
-                    ontime = len(s_df[s_df['Status_Category'] == 'On-Time Trip Closed'])
-                    delay = len(s_df[s_df['Status_Category'] == 'Delay Trip Closed'])
+                    ontime = int((s_df['Status_Category'] == ONTIME).sum())
+                    delay = int((s_df['Status_Category'] == DELAY).sum())
                     ontime_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
                     staff_summary.append({
                         "Controlling Staff Name": str(staff).strip(),
@@ -641,40 +716,22 @@ elif "Branches" in selected_nav:
                         "Delay Trips": delay,
                         "Performance (%)": ontime_pct
                     })
-            
+
             if staff_summary:
                 staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
                 st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("## 📄 Detailed Filtered Records")
-                
-                required_columns = [
-                    'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-                    '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-                    '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-                    'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-                    'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-                    'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-                ]
-                available_cols = [c for c in required_columns if c in filtered_df.columns]
-                if not available_cols:
-                    available_cols = [c for c in filtered_df.columns if c not in ['Parsed_Date', 'VendorName']]
-                show_raw_df = filtered_df[available_cols]
-                
+                show_raw_df = show_cols(filtered_df)
                 st.markdown(render_html_table(show_raw_df), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                buffer_excel = io.BytesIO()
-                with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                    staff_df.to_excel(writer, index=False, sheet_name='Staff_Performance_Summary')
-                    show_raw_df.to_excel(writer, index=False, sheet_name='Detailed_Records')
-                
                 st.download_button(
                     label="📥 Download Summary & Detailed Data (Excel)",
-                    data=buffer_excel.getvalue(),
+                    data=to_excel_bytes({'Staff_Performance_Summary': staff_df, 'Detailed_Records': show_raw_df}),
                     file_name="Controlling_Staff_Performance_Report.xlsx",
-                    mime="application/vnd.ms-excel",
+                    mime=EXCEL_MIME,
                     type="primary"
                 )
             else:
@@ -686,137 +743,138 @@ elif "Branches" in selected_nav:
 
 # ----------------- 4. VEHICLE UTILISATION -----------------
 elif "Vehicle Utilisation" in selected_nav:
-    st.title("🚚 Vehicle Utilisation (Current Month)")
-    st.info("Showing Total Trips valid for the Current Month (Status = 'Order Done' & Final Touching Time mentioned).")
-    
+    st.title("🚚 Vehicle Utilisation")
+    st.info("Closed trips (Status = 'Order Done' & Final Touching Time mentioned) vehicle-wise, route-wise aur client-wise.")
+
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         mis_df = st.session_state.mis_data.copy()
-        
-        current_month = datetime.now().month
-        current_year = datetime.now().year
-        month_name = datetime.now().strftime("%B %Y").upper()
-        
-        if 'Parsed_Date' in mis_df.columns:
-            curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)].copy()
-            
-            lorry_col = next((c for c in curr_month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), 'Lorry No.')
-            
-            # 1. Clean Lorry Data (Remove TBC, TBA, Empty and NAN)
-            if lorry_col in curr_month_df.columns:
-                curr_month_df[lorry_col] = curr_month_df[lorry_col].astype(str).str.strip()
-                valid_lorry_mask = curr_month_df[lorry_col] != ""
-                valid_lorry_mask &= curr_month_df[lorry_col].str.upper() != "NAN"
-                valid_lorry_mask &= ~curr_month_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-                curr_month_df = curr_month_df[valid_lorry_mask]
-            
-            # 2. Create Route Column
-            from_col = next((c for c in curr_month_df.columns if 'from' in c.lower()), None)
-            dest_col = next((c for c in curr_month_df.columns if 'destination' in c.lower() or 'to' in c.lower()), None)
-            if from_col and dest_col:
-                curr_month_df['Route'] = curr_month_df[from_col].astype(str).str.upper() + " ➔ " + curr_month_df[dest_col].astype(str).str.upper()
-            else:
-                curr_month_df['Route'] = "N/A"
 
-            # 3. Vehicle Dropdown Setup
-            if lorry_col in curr_month_df.columns:
-                vehicle_list = ["ALL"] + sorted(list(curr_month_df[lorry_col].unique()))
-                selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
-                
-                if selected_vehicle != "ALL":
-                    curr_month_df = curr_month_df[curr_month_df[lorry_col] == selected_vehicle]
-            
-            total_valid_trips = len(curr_month_df)
-            
-            km_col = next((c for c in curr_month_df.columns if c.strip().upper() == 'KM'), None)
-            total_km = 0
-            if km_col:
-                total_km = pd.to_numeric(curr_month_df[km_col], errors='coerce').fillna(0).sum()
-            
-            # 4. Generate HTML Breakdown based on selection
-            breakdown_html = ""
-            if selected_vehicle == "ALL":
-                if 'VendorName' in curr_month_df.columns and total_valid_trips > 0:
-                    counts = curr_month_df['VendorName'].value_counts()
-                    colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
-                    items = []
-                    for i, (c_name, c_val) in enumerate(counts.items()):
-                        color = colors[i % len(colors)]
-                        items.append(f'<span style="padding: 5px 10px;">{c_name}: <b style="color:{color}; font-size:18px;">{c_val}</b></span>')
-                    breakdown_html = f'<div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; font-size: 14px; padding-top: 20px; border-top: 1px dashed #48cae4; color: #ffffff; font-weight: 800; margin-top: 20px;">{"".join(items)}</div>'
-            else:
-                if total_valid_trips > 0:
-                    route_client_counts = curr_month_df.groupby(['Route', 'VendorName']).size().reset_index(name='count')
-                    breakdown_html += f"<div style='text-align: left; margin-top: 20px; border-top: 1px solid #48cae4; padding-top: 15px;'>"
-                    breakdown_html += f"<div style='font-size: 14px; color: #90e0ef; font-weight: 800; margin-bottom: 12px; text-transform: uppercase;'>Route & Client Breakdown for {selected_vehicle}:</div>"
-                    for _, row in route_client_counts.iterrows():
-                        r = row['Route']
-                        v = row['VendorName']
-                        c = row['count']
-                        breakdown_html += f"<div style='color: #ffffff; font-size: 14px; margin-bottom: 8px; background-color: #0b132b; padding: 10px; border-radius: 6px; border-left: 4px solid #ffb703;'>📍 {r} &nbsp;|&nbsp; <span style='color: #ffb703;'>Client: {v}</span> &nbsp;|&nbsp; <span style='color: #2ec4b6;'>Trips: <b>{c}</b></span></div>"
-                    breakdown_html += "</div>"
-
-            # 5. Render Metric Card safely
-            col1, col2, col3 = st.columns([1, 2.5, 1])
-            with col2:
-                html_content = f"""
-                <div class="metric-card" style="text-align: center; padding: 40px;">
-                    <div class="metric-title" style="font-size: 18px;">TOTAL TRIP COUNT ({month_name})</div>
-                    <div class="metric-value" style="font-size: 60px; color: #48cae4; margin-bottom: 5px;">{total_valid_trips}</div>
-                    <div class="metric-sub-green" style="font-size: 14px; margin-bottom: 10px;">Valid Trips Executed This Month</div>
-                    <div style="font-size: 16px; color: #90e0ef; margin-top: 15px; font-weight: bold; border-top: 1px solid #3a506b; padding-top: 15px;">
-                        TOTAL DISTANCE: <span style="color: #ffffff; font-size: 26px;">{total_km:,.0f} KM</span>
-                    </div>
-                    {breakdown_html}
-                </div>
-                """
-                st.markdown(html_content, unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("## 📄 Detailed Vehicle Utilisation Records")
-
-            # 6. Strict Column Table Definition
-            show_df = curr_month_df.copy()
-            veh_type_col = next((c for c in show_df.columns if 'veh' in c.lower() and 'type' in c.lower()), 'Veh.Type')
-            vendor_col = 'VendorName'
-            
-            final_cols = []
-            rename_dict = {}
-            
-            if lorry_col in show_df.columns:
-                final_cols.append(lorry_col)
-                rename_dict[lorry_col] = 'Lorry No.'
-            if veh_type_col in show_df.columns:
-                final_cols.append(veh_type_col)
-                rename_dict[veh_type_col] = 'Veh.Type'
-            if 'Route' in show_df.columns:
-                final_cols.append('Route')
-            if km_col in show_df.columns:
-                final_cols.append(km_col)
-                rename_dict[km_col] = 'KM'
-            if vendor_col in show_df.columns:
-                final_cols.append(vendor_col)
-                
-            show_df = show_df[final_cols].copy()
-            show_df.rename(columns=rename_dict, inplace=True)
-            
-            show_df.insert(0, 'S.No', range(1, 1 + len(show_df)))
-            
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-            
-            buffer_excel = io.BytesIO()
-            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                show_df.to_excel(writer, index=False, sheet_name='Vehicle_Utilisation')
-            
-            st.download_button(
-                label="📥 Download Utilisation Report (Excel)",
-                data=buffer_excel.getvalue(),
-                file_name="Vehicle_Utilisation_Report.xlsx",
-                mime="application/vnd.ms-excel",
-                type="primary"
-            )
-
+        if 'Parsed_Date' not in mis_df.columns or mis_df['Parsed_Date'].notna().sum() == 0:
+            st.warning("Date column sahi se read nahi hua. Despatch Date column check karein.")
         else:
-            st.warning("Data mein date column properly format nahi ho paya.")
+            mis_df = mis_df[mis_df['Parsed_Date'].notna()].copy()
+
+            # Sirf closed trips
+            if 'Status_Category' in mis_df.columns:
+                mis_df = mis_df[mis_df['Status_Category'].isin([ONTIME, DELAY])]
+
+            # Month selector (default = current month, warna latest available month)
+            mis_df['MonthKey'] = mis_df['Parsed_Date'].dt.strftime('%Y-%m')
+            month_options = sorted(mis_df['MonthKey'].unique(), reverse=True)
+
+            if not month_options:
+                st.warning("Koi closed trip data nahi mila.")
+            else:
+                current_key = datetime.now().strftime('%Y-%m')
+                default_idx = month_options.index(current_key) if current_key in month_options else 0
+
+                selected_month = st.selectbox(
+                    "📅 Select Month:", month_options, index=default_idx,
+                    format_func=lambda k: pd.Period(k).strftime('%B %Y').upper()
+                )
+                month_label = pd.Period(selected_month).strftime('%B %Y').upper()
+                month_df = mis_df[mis_df['MonthKey'] == selected_month].copy()
+
+                lorry_col = next((c for c in month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), None)
+                if lorry_col is None:
+                    st.warning("'Lorry No.' column nahi mila.")
+                else:
+                    month_df[lorry_col] = month_df[lorry_col].astype(str).str.strip()
+                    mask = (month_df[lorry_col] != "") & (month_df[lorry_col].str.upper() != "NAN")
+                    mask &= ~month_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+                    month_df = month_df[mask]
+
+                    from_col = find_col(month_df, exact=('from',))
+                    dest_col = find_col(month_df, exact=('destination', 'to'))
+                    if from_col and dest_col:
+                        month_df['Route'] = (
+                            month_df[from_col].astype(str).str.upper().str.strip() + " ➔ " +
+                            month_df[dest_col].astype(str).str.upper().str.strip()
+                        )
+                    else:
+                        month_df['Route'] = "N/A"
+
+                    km_col = next((c for c in month_df.columns if c.strip().upper() == 'KM'), None)
+                    month_df['_KM'] = pd.to_numeric(month_df[km_col], errors='coerce').fillna(0) if km_col else 0
+
+                    if 'VendorName' not in month_df.columns:
+                        month_df['VendorName'] = "N/A"
+
+                    # Vehicle dropdown: saari gadiyan
+                    selected_vehicle = "ALL"
+                    vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
+                    selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
+
+                    view_df = month_df if selected_vehicle == "ALL" else month_df[month_df[lorry_col] == selected_vehicle]
+
+                    total_trips = len(view_df)
+                    total_km = view_df['_KM'].sum()
+
+                    # Client-wise chips
+                    colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
+                    chips = ""
+                    for i, (c_name, c_val) in enumerate(view_df['VendorName'].value_counts().items()):
+                        chips += (f'<span style="padding:5px 12px;">{html_lib.escape(str(c_name))}: '
+                                  f'<b style="color:{colors[i % len(colors)]}; font-size:20px;">{c_val}</b></span>')
+
+                    title = (f"TOTAL TRIP COUNT ({month_label})" if selected_vehicle == "ALL"
+                             else f"{html_lib.escape(selected_vehicle)} - TOTAL CLOSED TRIPS ({month_label})")
+
+                    card_html = (
+                        '<div class="metric-card" style="text-align:center; padding:35px;">'
+                        f'<div class="metric-title" style="font-size:18px;">{title}</div>'
+                        f'<div class="metric-value" style="font-size:60px; color:#48cae4;">{total_trips}</div>'
+                        '<div class="metric-sub-green" style="font-size:14px;">Closed Trips (Client-wise)</div>'
+                        '<div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; '
+                        f'margin-top:15px; padding-top:15px; border-top:1px dashed #48cae4; color:#ffffff; font-weight:800;">{chips}</div>'
+                        '<div style="font-size:16px; color:#90e0ef; margin-top:15px; font-weight:bold; '
+                        'border-top:1px solid #3a506b; padding-top:15px;">TOTAL DISTANCE: '
+                        f'<span style="color:#ffffff; font-size:26px;">{total_km:,.0f} KM</span></div>'
+                        '</div>'
+                    )
+                    c1, c2, c3 = st.columns([1, 2.5, 1])
+                    with c2:
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+                    # Route + Client summary
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    heading = "ALL Vehicles" if selected_vehicle == "ALL" else selected_vehicle
+                    st.markdown(f"## 📍 Route & Client Summary ({heading})")
+
+                    group_cols = ['Route', 'VendorName'] if selected_vehicle != "ALL" else [lorry_col, 'Route', 'VendorName']
+                    if view_df.empty:
+                        st.warning("Is selection ke liye koi closed trip nahi mila.")
+                        summary = pd.DataFrame()
+                    else:
+                        summary = (view_df.groupby(group_cols)
+                                   .agg(Trips=('Route', 'size'), Total_KM=('_KM', 'sum'))
+                                   .reset_index()
+                                   .rename(columns={lorry_col: 'Lorry No.', 'VendorName': 'Client'})
+                                   .sort_values('Trips', ascending=False))
+                        summary['Total_KM'] = summary['Total_KM'].round(0).astype(int)
+                        summary.insert(0, 'S.No', range(1, 1 + len(summary)))
+                        st.markdown(render_html_table(summary), unsafe_allow_html=True)
+
+                    # Detailed records
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("## 📄 Detailed Vehicle Utilisation Records")
+                    veh_type_col = next((c for c in view_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
+                    detail = pd.DataFrame({'Lorry No.': view_df[lorry_col]})
+                    if veh_type_col:
+                        detail['Veh.Type'] = view_df[veh_type_col]
+                    detail['Route'] = view_df['Route']
+                    detail['KM'] = view_df['_KM']
+                    detail['Client'] = view_df['VendorName']
+                    detail.insert(0, 'S.No', range(1, 1 + len(detail)))
+                    st.markdown(render_html_table(detail), unsafe_allow_html=True)
+
+                    st.download_button(
+                        label="📥 Download Utilisation Report (Excel)",
+                        data=to_excel_bytes({'Route_Client_Summary': summary, 'Detailed_Records': detail}),
+                        file_name="Vehicle_Utilisation_Report.xlsx",
+                        mime=EXCEL_MIME,
+                        type="primary"
+                    )
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
 
@@ -826,10 +884,14 @@ elif "Monthly Breakdown" in selected_nav:
     st.info("🔒 Showing monthly performance breakdown.")
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
         df = st.session_state.mis_data.copy()
-        if 'Parsed_Date' in df.columns:
+        if 'Parsed_Date' in df.columns and 'Status_Category' in df.columns:
             try:
-                df['Month'] = df['Parsed_Date'].dt.strftime('%B %Y')
-                monthly_summary = df.groupby(['Month', 'VendorName', 'Status_Category']).size().unstack(fill_value=0).reset_index()
+                df = df[df['Parsed_Date'].notna()].copy()
+                df['Month'] = df['Parsed_Date'].dt.to_period('M')
+                monthly_summary = (df.groupby(['Month', 'VendorName', 'Status_Category'])
+                                   .size().unstack(fill_value=0).reset_index()
+                                   .sort_values(['Month', 'VendorName']))
+                monthly_summary['Month'] = monthly_summary['Month'].dt.strftime('%B %Y')
                 st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
             except Exception as e:
                 st.warning(f"Could not parse monthly breakdown: {e}")
