@@ -697,9 +697,15 @@ elif "Vehicle Utilisation" in selected_nav:
         month_name = datetime.now().strftime("%B %Y").upper()
         
         if 'Parsed_Date' in mis_df.columns:
-            curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)]
+            curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)].copy()
             
             total_valid_trips = len(curr_month_df)
+            
+            # Calculate Total KM
+            km_col = next((c for c in curr_month_df.columns if c.strip().upper() == 'KM'), None)
+            total_km = 0
+            if km_col:
+                total_km = pd.to_numeric(curr_month_df[km_col], errors='coerce').fillna(0).sum()
             
             client_counts_html = ""
             if 'VendorName' in curr_month_df.columns and total_valid_trips > 0:
@@ -716,11 +722,55 @@ elif "Vehicle Utilisation" in selected_nav:
                 st.markdown(f"""
                     <div class="metric-card" style="text-align: center; padding: 40px;">
                         <div class="metric-title" style="font-size: 18px;">TOTAL TRIP COUNT ({month_name})</div>
-                        <div class="metric-value" style="font-size: 60px; color: #48cae4; margin-bottom: 10px;">{total_valid_trips}</div>
+                        <div class="metric-value" style="font-size: 60px; color: #48cae4; margin-bottom: 5px;">{total_valid_trips}</div>
                         <div class="metric-sub-green" style="font-size: 14px; margin-bottom: 10px;">Valid Trips Executed This Month</div>
+                        <div style="font-size: 16px; color: #90e0ef; margin-top: 15px; font-weight: bold; border-top: 1px solid #3a506b; padding-top: 15px;">
+                            TOTAL DISTANCE: <span style="color: #ffffff; font-size: 26px;">{total_km:,.0f} KM</span>
+                        </div>
                         {client_counts_html}
                     </div>
                 """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("## 📄 Detailed Vehicle Utilisation Records")
+
+            # Create Route column
+            from_col = next((c for c in curr_month_df.columns if 'from' in c.lower()), None)
+            dest_col = next((c for c in curr_month_df.columns if 'destination' in c.lower() or 'to' in c.lower()), None)
+            
+            show_df = curr_month_df.copy()
+            if from_col and dest_col:
+                show_df['Route'] = show_df[from_col].astype(str) + " ➔ " + show_df[dest_col].astype(str)
+
+            # Rearrange columns to show Lorry, Route, KM first
+            required_cols = [
+                'Lorry No.', 'Veh.Type', 'Route', 'KM', 'VendorName', 'Status_Category', 'Desp. Date & Time',
+                '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+                '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+                'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+                'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+                'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+            ]
+            
+            available_cols = [c for c in required_cols if c in show_df.columns]
+            for c in show_df.columns:
+                if c not in available_cols and c != 'Parsed_Date':
+                    available_cols.append(c)
+                    
+            st.markdown(render_html_table(show_df[available_cols]), unsafe_allow_html=True)
+            
+            buffer_excel = io.BytesIO()
+            with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
+                show_df[available_cols].to_excel(writer, index=False, sheet_name='Vehicle_Utilisation')
+            
+            st.download_button(
+                label="📥 Download Utilisation Report (Excel)",
+                data=buffer_excel.getvalue(),
+                file_name="Vehicle_Utilisation_Report.xlsx",
+                mime="application/vnd.ms-excel",
+                type="primary"
+            )
+
         else:
             st.warning("Data mein date column properly format nahi ho paya.")
     else:
