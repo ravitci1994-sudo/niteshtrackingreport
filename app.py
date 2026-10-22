@@ -506,6 +506,26 @@ if "Dashboard" in selected_nav:
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
+        # Dashboard Data Table
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("## 📄 Live Detailed Performance Records")
+        required_columns = [
+            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
+            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
+            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+        ]
+        if not filtered_mis.empty:
+            available_cols = [c for c in required_columns if c in filtered_mis.columns]
+            if not available_cols:
+                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
+            show_df = filtered_mis[available_cols]
+            
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
+        else:
+            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
@@ -714,6 +734,18 @@ elif "Vehicle Utilisation" in selected_nav:
                     items.append(f'<span style="padding: 5px 10px;">{c_name}: <b style="color:{color}; font-size:18px;">{c_val}</b></span>')
                 client_counts_html = f'<div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; font-size: 14px; padding-top: 20px; border-top: 1px dashed #48cae4; color: #ffffff; font-weight: 800; margin-top: 20px;">{"".join(items)}</div>'
             
+            # Specific Route Info for selected vehicle
+            route_html = ""
+            if selected_vehicle != "ALL" and total_valid_trips > 0:
+                route_counts = curr_month_df['Route'].value_counts()
+                routes_str = "<br>".join([f"📍 {r} <span style='color:#2ec4b6;'>(Trips: {c})</span>" for r, c in route_counts.items()])
+                route_html = f'''
+                <div style="font-size: 13px; color: #ffb703; margin-top: 15px; font-weight: 800; border-top: 1px solid #3a506b; padding-top: 15px; text-align: left;">
+                    ROUTES COVERED BY {selected_vehicle}:<br>
+                    <div style="color: #ffffff; font-size: 13px; font-weight: normal; margin-top: 5px; line-height: 1.6;">{routes_str}</div>
+                </div>
+                '''
+
             col1, col2, col3 = st.columns([1, 2.5, 1])
             with col2:
                 st.markdown(f"""
@@ -724,6 +756,7 @@ elif "Vehicle Utilisation" in selected_nav:
                         <div style="font-size: 16px; color: #90e0ef; margin-top: 15px; font-weight: bold; border-top: 1px solid #3a506b; padding-top: 15px;">
                             TOTAL DISTANCE: <span style="color: #ffffff; font-size: 26px;">{total_km:,.0f} KM</span>
                         </div>
+                        {route_html}
                         {client_counts_html}
                     </div>
                 """, unsafe_allow_html=True)
@@ -733,6 +766,7 @@ elif "Vehicle Utilisation" in selected_nav:
 
             show_df = curr_month_df.copy()
             
+            # Exact columns filtering
             veh_type_col = next((c for c in show_df.columns if 'veh' in c.lower() and 'type' in c.lower()), 'Veh.Type')
             vendor_col = 'VendorName'
             
@@ -743,6 +777,7 @@ elif "Vehicle Utilisation" in selected_nav:
             
             show_df = show_df[cols_to_keep].copy()
             
+            # Rename ensuring exact requested names
             rename_dict = {}
             if lorry_col != 'Lorry No.': rename_dict[lorry_col] = 'Lorry No.'
             if veh_type_col != 'Veh.Type': rename_dict[veh_type_col] = 'Veh.Type'
@@ -750,6 +785,7 @@ elif "Vehicle Utilisation" in selected_nav:
             
             show_df.rename(columns=rename_dict, inplace=True)
             
+            # Add S.No as first column
             show_df.insert(0, 'S.No', range(1, 1 + len(show_df)))
             
             st.markdown(render_html_table(show_df), unsafe_allow_html=True)
