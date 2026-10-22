@@ -506,26 +506,6 @@ if "Dashboard" in selected_nav:
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
-        # Dashboard Data Table
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("## 📄 Live Detailed Performance Records")
-        required_columns = [
-            'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-            '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-            '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-            'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-            'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-            'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-        ]
-        if not filtered_mis.empty:
-            available_cols = [c for c in required_columns if c in filtered_mis.columns]
-            if not available_cols:
-                available_cols = [c for c in filtered_mis.columns if c not in ['Parsed_Date', 'VendorName']]
-            show_df = filtered_mis[available_cols]
-            
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-        else:
-            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
@@ -699,6 +679,23 @@ elif "Vehicle Utilisation" in selected_nav:
         if 'Parsed_Date' in mis_df.columns:
             curr_month_df = mis_df[(mis_df['Parsed_Date'].dt.month == current_month) & (mis_df['Parsed_Date'].dt.year == current_year)].copy()
             
+            # Create Route column
+            from_col = next((c for c in curr_month_df.columns if 'from' in c.lower()), None)
+            dest_col = next((c for c in curr_month_df.columns if 'destination' in c.lower() or 'to' in c.lower()), None)
+            if from_col and dest_col:
+                curr_month_df['Route'] = curr_month_df[from_col].astype(str) + " ➔ " + curr_month_df[dest_col].astype(str)
+            else:
+                curr_month_df['Route'] = "N/A"
+
+            # Filter by Vehicle No
+            lorry_col = next((c for c in curr_month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), 'Lorry No.')
+            if lorry_col in curr_month_df.columns:
+                vehicle_list = ["ALL"] + sorted([str(x).strip() for x in curr_month_df[lorry_col].dropna().unique() if str(x).strip() != ""])
+                selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
+                
+                if selected_vehicle != "ALL":
+                    curr_month_df = curr_month_df[curr_month_df[lorry_col].astype(str).str.strip() == selected_vehicle]
+            
             total_valid_trips = len(curr_month_df)
             
             # Calculate Total KM
@@ -734,34 +731,32 @@ elif "Vehicle Utilisation" in selected_nav:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("## 📄 Detailed Vehicle Utilisation Records")
 
-            # Create Route column
-            from_col = next((c for c in curr_month_df.columns if 'from' in c.lower()), None)
-            dest_col = next((c for c in curr_month_df.columns if 'destination' in c.lower() or 'to' in c.lower()), None)
-            
             show_df = curr_month_df.copy()
-            if from_col and dest_col:
-                show_df['Route'] = show_df[from_col].astype(str) + " ➔ " + show_df[dest_col].astype(str)
-
-            # Rearrange columns to show Lorry, Route, KM first
-            required_cols = [
-                'Lorry No.', 'Veh.Type', 'Route', 'KM', 'VendorName', 'Status_Category', 'Desp. Date & Time',
-                '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-                '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
-                'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
-                'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
-                'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-            ]
             
-            available_cols = [c for c in required_cols if c in show_df.columns]
-            for c in show_df.columns:
-                if c not in available_cols and c != 'Parsed_Date':
-                    available_cols.append(c)
-                    
-            st.markdown(render_html_table(show_df[available_cols]), unsafe_allow_html=True)
+            veh_type_col = next((c for c in show_df.columns if 'veh' in c.lower() and 'type' in c.lower()), 'Veh.Type')
+            vendor_col = 'VendorName'
+            
+            cols_to_keep = []
+            for c in [lorry_col, veh_type_col, 'Route', km_col, vendor_col]:
+                if c and c in show_df.columns:
+                    cols_to_keep.append(c)
+            
+            show_df = show_df[cols_to_keep].copy()
+            
+            rename_dict = {}
+            if lorry_col != 'Lorry No.': rename_dict[lorry_col] = 'Lorry No.'
+            if veh_type_col != 'Veh.Type': rename_dict[veh_type_col] = 'Veh.Type'
+            if km_col and km_col != 'KM': rename_dict[km_col] = 'KM'
+            
+            show_df.rename(columns=rename_dict, inplace=True)
+            
+            show_df.insert(0, 'S.No', range(1, 1 + len(show_df)))
+            
+            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
             
             buffer_excel = io.BytesIO()
             with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-                show_df[available_cols].to_excel(writer, index=False, sheet_name='Vehicle_Utilisation')
+                show_df.to_excel(writer, index=False, sheet_name='Vehicle_Utilisation')
             
             st.download_button(
                 label="📥 Download Utilisation Report (Excel)",
