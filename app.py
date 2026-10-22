@@ -300,18 +300,6 @@ st.sidebar.markdown(f"<div style='color: #90e0ef; font-size: 13px; font-weight: 
 st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
-# Persistent Data Check Indicator
-data_exists = (st.session_state.callout_data is not None and not st.session_state.callout_data.empty) or \
-              (st.session_state.mis_data is not None and not st.session_state.mis_data.empty)
-
-if data_exists:
-    st.sidebar.markdown("""
-        <div style="background-color: rgba(46, 196, 182, 0.15); border: 1px solid #2ec4b6; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px;">
-            <span style="color: #2ec4b6; font-size: 14px; font-weight: 800;">🟢 Data Active in System</span><br>
-            <span style="color: #90e0ef; font-size: 11px;">Aapko dobara file upload karne ki zaroorat nahi hai.</span>
-        </div>
-    """, unsafe_allow_html=True)
-
 st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
 uploaded_files = st.sidebar.file_uploader(
     "Choose Excel/CSV files", 
