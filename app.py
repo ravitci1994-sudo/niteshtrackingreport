@@ -283,7 +283,7 @@ def to_excel_bytes(sheets):
 
 
 # ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE =================
-def show_reported_vehicle_table(df, unique_key=""):
+def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
 
@@ -339,66 +339,71 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
 
-    f_col1, f_col2, f_col3 = st.columns(3)
-    with f_col1:
-        selected_date = st.selectbox(
-            "📅 Filter by Reporting Date:",
-            date_options,
-            index=0,
-            key=f"reported_date_filter_{unique_key}"
-        )
-    with f_col2:
-        delay_filter = st.selectbox(
-            "🚨 Filter by Delay Status:",
-            ["ALL Reported Vehicles", "Only Delay Vehicles", "Only On-Time Vehicles"],
-            index=0,
-            key=f"reported_delay_filter_{unique_key}"
-        )
-    with f_col3:
-        if staff_col:
-            staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
-        else:
-            staff_list = ["ALL"]
-        selected_staff = st.selectbox(
-            "👨‍💼 Filter by Controlling Staff:",
-            staff_list,
-            index=0,
-            key=f"reported_staff_filter_{unique_key}"
-        )
-
-    st.markdown("📅 **Filter by Week (Multiple Selection):**")
-    standard_weeks = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
-    available_weeks = [w for w in standard_weeks if w in reported_df['_Rel_Week'].unique()]
-    other_weeks = sorted([w for w in reported_df['_Rel_Week'].unique() if w not in standard_weeks and w is not None])
-    all_week_options = available_weeks + other_weeks
-
-    if all_week_options:
-        chk_cols = st.columns(min(len(all_week_options), 6))
-        selected_weeks = []
-        for i, wk in enumerate(all_week_options):
-            with chk_cols[i % len(chk_cols)]:
-                if st.checkbox(wk, value=False, key=f"chk_rel_week_{unique_key}_{wk}"):
-                    selected_weeks.append(wk)
+    if staff_filter:
+        selected_staff = staff_filter
+        st.info(f"🔒 Logged in as Staff View: **{selected_staff}**")
     else:
-        selected_weeks = []
+        f_col1, f_col2, f_col3 = st.columns(3)
+        with f_col1:
+            selected_date = st.selectbox(
+                "📅 Filter by Reporting Date:",
+                date_options,
+                index=0,
+                key=f"reported_date_filter_{unique_key}"
+            )
+        with f_col2:
+            delay_filter = st.selectbox(
+                "🚨 Filter by Delay Status:",
+                ["ALL Reported Vehicles", "Only Delay Vehicles", "Only On-Time Vehicles"],
+                index=0,
+                key=f"reported_delay_filter_{unique_key}"
+            )
+        with f_col3:
+            if staff_col:
+                staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+            else:
+                staff_list = ["ALL"]
+            selected_staff = st.selectbox(
+                "👨‍💼 Filter by Controlling Staff:",
+                staff_list,
+                index=0,
+                key=f"reported_staff_filter_{unique_key}"
+            )
+
+        st.markdown("📅 **Filter by Week (Multiple Selection):**")
+        standard_weeks = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
+        available_weeks = [w for w in standard_weeks if w in reported_df['_Rel_Week'].unique()]
+        other_weeks = sorted([w for w in reported_df['_Rel_Week'].unique() if w not in standard_weeks and w is not None])
+        all_week_options = available_weeks + other_weeks
+
+        if all_week_options:
+            chk_cols = st.columns(min(len(all_week_options), 6))
+            selected_weeks = []
+            for i, wk in enumerate(all_week_options):
+                with chk_cols[i % len(chk_cols)]:
+                    if st.checkbox(wk, value=False, key=f"chk_rel_week_{unique_key}_{wk}"):
+                        selected_weeks.append(wk)
+        else:
+            selected_weeks = []
 
     filtered_report_df = reported_df.copy()
 
-    if selected_date != "ALL":
-        filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date].copy()
-
-    if selected_weeks:
-        filtered_report_df = filtered_report_df[filtered_report_df['_Rel_Week'].isin(selected_weeks)].copy()
-
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
-    if late_col:
-        if delay_filter == "Only Delay Vehicles":
-            filtered_report_df = filtered_report_df[~filtered_report_df[late_col].apply(is_zero_late)].copy()
-        elif delay_filter == "Only On-Time Vehicles":
-            filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
-
-    if selected_staff != "ALL" and staff_col:
-        filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff].copy()
+    if not staff_filter:
+        if selected_date != "ALL":
+            filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date].copy()
+        if selected_weeks:
+            filtered_report_df = filtered_report_df[filtered_report_df['_Rel_Week'].isin(selected_weeks)].copy()
+        late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
+        if late_col:
+            if delay_filter == "Only Delay Vehicles":
+                filtered_report_df = filtered_report_df[~filtered_report_df[late_col].apply(is_zero_late)].copy()
+            elif delay_filter == "Only On-Time Vehicles":
+                filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
+        if selected_staff != "ALL" and staff_col:
+            filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff].copy()
+    else:
+        if staff_col:
+            filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == staff_filter].copy()
 
     if filtered_report_df.empty:
         st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
@@ -435,9 +440,9 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     st.markdown(render_html_table(final_report_df), unsafe_allow_html=True)
 
-    file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.replace('-', '_')
-    status_tag = "Delay_Only" if delay_filter == "Only Delay Vehicles" else ("OnTime_Only" if delay_filter == "Only On-Time Vehicles" else "All")
-    staff_tag = f"_Staff_{selected_staff.replace(' ', '_')}" if selected_staff != "ALL" else ""
+    file_date_str = "All_Dates" if (staff_filter or selected_date == "ALL") else selected_date.replace('-', '_')
+    status_tag = "All" if staff_filter else ("Delay_Only" if delay_filter == "Only Delay Vehicles" else ("OnTime_Only" if delay_filter == "Only On-Time Vehicles" else "All"))
+    staff_tag = f"_Staff_{selected_staff.replace(' ', '_')}" if (not staff_filter and selected_staff != "ALL") else (f"_Staff_{staff_filter.replace(' ', '_')}" if staff_filter else "")
     
     excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
     filename_reported = f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx"
@@ -450,6 +455,9 @@ def show_reported_vehicle_table(df, unique_key=""):
         type="primary",
         key=f"download_reported_{unique_key}"
     )
+
+    if staff_filter:
+        return
 
     # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
@@ -783,73 +791,123 @@ def save_or_delete(df, path):
         os.remove(path)
 
 
+# ================= STAFF USERS DATABASE (Hard Persistence/Session Storage) =================
+if 'staff_users' not in st.session_state:
+    # Default initial staff user setup (Username: Password -> Staff Name)
+    st.session_state.staff_users = {
+        "sandeep": {"pass": "1234", "staff_name": "SANDEEP KUMAR"},
+        "dhananjay": {"pass": "1234", "staff_name": "DHANANJAY TIWARI"},
+        "anil": {"pass": "1234", "staff_name": "ANIL KUMAR"}
+    }
+
+
 # ================= SIDEBAR =================
 st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 
 current_time = datetime.now().strftime("%d %b %Y | %I:%M %p")
 st.sidebar.markdown(f"<div style='color: #90e0ef; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 5px;'>🕒 {current_time}</div>", unsafe_allow_html=True)
 
-st.sidebar.markdown("<small style='color:gray'><b>ID:</b> <span style='color:green'>TEJAS</span> | <b>Role:</b> <span style='color:green'>Vendor</span></small>", unsafe_allow_html=True)
-st.sidebar.markdown("---")
-
-st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
-uploaded_files = st.sidebar.file_uploader(
-    "Choose Excel/CSV files",
-    type=["xlsx", "csv"],
-    accept_multiple_files=True,
-    label_visibility="collapsed",
-    key=f"uploader_{st.session_state.uploader_key}"
-)
-
-if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=True):
-    if uploaded_files:
-        try:
-            c_df, m_df = process_uploaded_files(uploaded_files)
-            st.session_state.callout_data = c_df
-            st.session_state.mis_data = m_df
-
-            save_or_delete(c_df, DATA_FILE_CALLOUT)
-            save_or_delete(m_df, DATA_FILE_MIS)
-
-            st.sidebar.success("✅ Data successfully processed and saved!")
-            st.rerun()
-        except Exception as e:
-            st.sidebar.error(f"Error: {e}")
-    else:
-        st.sidebar.warning("⚠️ Pehle files upload karein!")
+# Login Role Switcher / Authentication
+if 'logged_in_staff' not in st.session_state:
+    st.session_state.logged_in_staff = None
 
 st.sidebar.markdown("---")
+if st.session_state.logged_in_staff is None:
+    st.sidebar.markdown("🔐 **Login Portal**")
+    login_mode = st.sidebar.radio("Login as:", ["Admin / Vendor", "Controlling Staff"], label_visibility="collapsed")
+    
+    if login_mode == "Controlling Staff":
+        s_user = st.sidebar.text_input("Staff Username")
+        s_pass = st.sidebar.text_input("Password", type="password")
+        if st.sidebar.button("Staff Login", use_container_width=True):
+            user_key = s_user.strip().lower()
+            if user_key in st.session_state.staff_users and st.session_state.staff_users[user_key]["pass"] == s_pass:
+                st.session_state.logged_in_staff = st.session_state.staff_users[user_key]["staff_name"]
+                st.sidebar.success(f"Welcome, {st.session_state.logged_in_staff}!")
+                st.rerun()
+            else:
+                st.sidebar.error("Invalid Username or Password!")
+        st.sidebar.markdown("---")
 
-if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
-    if os.path.exists(DATA_FILE_CALLOUT):
-        os.remove(DATA_FILE_CALLOUT)
-    if os.path.exists(DATA_FILE_MIS):
-        os.remove(DATA_FILE_MIS)
-    st.session_state.callout_data = None
-    st.session_state.mis_data = None
-    st.session_state.uploader_key += 1
-    st.rerun()
+else:
+    st.sidebar.success(f"Logged in as Staff: **{st.session_state.logged_in_staff}**")
+    if st.sidebar.button("Logout Staff", use_container_width=True):
+        st.session_state.logged_in_staff = None
+        st.rerun()
+    st.sidebar.markdown("---")
 
-st.sidebar.markdown("Navigation:")
-selected_nav = st.sidebar.radio("Navigation", [
-    "📊 Dashboard",
-    "📊 Client Performance",
-    "🏢 Branches",
-    "🚚 Vehicle Utilisation",
-    "🚚 In-Transit Vehicle Status",
-    "📈 Monthly Breakdown",
-    "🔐 User & Access Control"
-], label_visibility="collapsed")
+# Only show file upload & management options if logged in as Admin
+if st.session_state.logged_in_staff is None:
+    st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
+    uploaded_files = st.sidebar.file_uploader(
+        "Choose Excel/CSV files",
+        type=["xlsx", "csv"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        key=f"uploader_{st.session_state.uploader_key}"
+    )
 
-st.sidebar.markdown("---")
-if st.sidebar.button("Logout", use_container_width=True):
-    st.sidebar.warning("Logged out successfully!")
+    if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=True):
+        if uploaded_files:
+            try:
+                c_df, m_df = process_uploaded_files(uploaded_files)
+                st.session_state.callout_data = c_df
+                st.session_state.mis_data = m_df
+
+                save_or_delete(c_df, DATA_FILE_CALLOUT)
+                save_or_delete(m_df, DATA_FILE_MIS)
+
+                st.sidebar.success("✅ Data successfully processed and saved!")
+                st.rerun()
+            except Exception as e:
+                st.sidebar.error(f"Error: {e}")
+        else:
+            st.sidebar.warning("⚠️ Pehle files upload karein!")
+
+    st.sidebar.markdown("---")
+
+    if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
+        if os.path.exists(DATA_FILE_CALLOUT):
+            os.remove(DATA_FILE_CALLOUT)
+        if os.path.exists(DATA_FILE_MIS):
+            os.remove(DATA_FILE_MIS)
+        st.session_state.callout_data = None
+        st.session_state.mis_data = None
+        st.session_state.uploader_key += 1
+        st.rerun()
+
+    st.sidebar.markdown("Navigation:")
+    selected_nav = st.sidebar.radio("Navigation", [
+        "📊 Dashboard",
+        "📊 Client Performance",
+        "🏢 Branches",
+        "🚚 Vehicle Utilisation",
+        "🚚 In-Transit Vehicle Status",
+        "📈 Monthly Breakdown",
+        "🔐 User & Access Control"
+    ], label_visibility="collapsed")
+
+else:
+    # Staff view navigation restricted
+    selected_nav = "📊 Dashboard"
+    st.sidebar.info("Controlling staff mode: View-only access enabled for assigned vehicles.")
 
 
 # ================= MAIN PAGE LOGIC =================
 
+# If logged in as staff, directly show their restricted dashboard view
+if st.session_state.logged_in_staff is not None:
+    st.title(f"👨‍💼 Controlling Staff Portal: {st.session_state.logged_in_staff}")
+    st.info("🔒 **View-Only Mode:** Showing restricted vehicle data assigned to your name.")
+    
+    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
+    if has_mis:
+        show_reported_vehicle_table(st.session_state.mis_data, unique_key="staff_portal", staff_filter=st.session_state.logged_in_staff)
+    else:
+        st.warning("⚠️ Admin ne abhi tak MIS data upload nahi kiya hai.")
+
 # ----------------- 1. DASHBOARD -----------------
-if "Dashboard" in selected_nav:
+elif "Dashboard" in selected_nav:
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
     st.info("🔒 **Restricted Vendor View:** Callout Count & Overall Performance")
 
@@ -1329,6 +1387,51 @@ elif "Monthly Breakdown" in selected_nav:
             st.warning("Date column not found for monthly breakdown.")
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 7. USER & ACCESS CONTROL -----------------
+elif "User & Access Control" in selected_nav:
+    st.title("🔐 Controlling Staff ID & Access Control")
+    st.info("Yahan se aap controlling staff ke liye naye Login IDs aur Passwords create kar sakte hain.")
+
+    with st.form("create_staff_form"):
+        st.markdown("### ➕ Create New Staff Login")
+        new_user = st.text_input("Username (e.g. rahul, amit)")
+        new_pass = st.text_input("Password", type="password")
+        
+        # Get existing staff names from MIS data if available
+        available_staff_names = []
+        if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+            s_col = next((c for c in st.session_state.mis_data.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
+            if s_col:
+                available_staff_names = sorted([str(x).strip() for x in st.session_state.mis_data[s_col].dropna().unique() if str(x).strip() != ""])
+        
+        if not available_staff_names:
+            available_staff_names = ["SANDEEP KUMAR", "DHANANJAY TIWARI", "ANIL KUMAR"]
+
+        assigned_staff_name = st.selectbox("Map to Controlling Staff Name (From MIS Data):", available_staff_names)
+
+        submit_user = st.form_submit_button("Create Staff Login ID", type="primary")
+        if submit_user:
+            if new_user and new_pass:
+                u_key = new_user.strip().lower()
+                st.session_state.staff_users[u_key] = {
+                    "pass": new_pass,
+                    "staff_name": assigned_staff_name
+                }
+                st.success(f"✅ Staff login successfully created for '{new_user}' mapped to '{assigned_staff_name}'!")
+            else:
+                st.warning("⚠️ Kripya Username aur Password dono bharein.")
+
+    st.markdown("### 📋 Existing Staff Accounts List")
+    staff_list_data = []
+    for u, details in st.session_state.staff_users.items():
+        staff_list_data.append({
+            "Username": u,
+            "Mapped Controlling Staff Name": details["staff_name"],
+            "Access Type": "View-Only Data Access"
+        })
+    if staff_list_data:
+        st.markdown(render_html_table(pd.DataFrame(staff_list_data)), unsafe_allow_html=True)
 
 # ----------------- OTHER PAGES -----------------
 else:
