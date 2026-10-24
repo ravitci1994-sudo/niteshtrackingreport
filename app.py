@@ -4,6 +4,8 @@ from datetime import datetime
 import math
 import io
 import os
+import smtplib
+from email.message import EmailMessage
 import html as html_lib
 
 # 1. Page Configuration
@@ -282,7 +284,40 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE ==========
+# Email Sending Functionality Helper
+def send_email_with_attachment(excel_data, filename, subject):
+    sender_email = st.session_state.get('sender_email', '')
+    sender_pass = st.session_state.get('sender_pass', '')
+    receiver_email = st.session_state.get('receiver_email', '')
+
+    if not sender_email or not sender_pass or not receiver_email:
+        st.error("⚠️ Kripya sidebar mein Sender Email, App Password aur Receiver Email sahi se bharein.")
+        return False
+
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = receiver_email
+        msg.set_content("Hello,\n\nPlease find attached the requested report from Tejas Cargo India Pvt Ltd Dashboard.")
+
+        msg.add_attachment(
+            excel_data,
+            maintype='application',
+            subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename=filename
+        )
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, sender_pass)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Email send karne mein error aaya: {e}")
+        return False
+
+
+# ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE WITH SEND MAIL BUTTONS =================
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -439,14 +474,23 @@ def show_reported_vehicle_table(df, unique_key=""):
     status_tag = "Delay_Only" if delay_filter == "Only Delay Vehicles" else ("OnTime_Only" if delay_filter == "Only On-Time Vehicles" else "All")
     staff_tag = f"_Staff_{selected_staff.replace(' ', '_')}" if selected_staff != "ALL" else ""
     
-    st.download_button(
-        label=f"📥 Download Reported Vehicles Excel",
-        data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
-        file_name=f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx",
-        mime=EXCEL_MIME,
-        type="primary",
-        key=f"download_reported_{unique_key}"
-    )
+    excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
+    filename_reported = f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx"
+
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        st.download_button(
+            label=f"📥 Download Reported Vehicles Excel",
+            data=excel_bytes_reported,
+            file_name=filename_reported,
+            mime=EXCEL_MIME,
+            type="primary",
+            key=f"download_reported_{unique_key}"
+        )
+    with b_col2:
+        if st.button("📧 Send Reported Vehicles Mail", key=f"mail_reported_{unique_key}", type="secondary"):
+            if send_email_with_attachment(excel_bytes_reported, filename_reported, "Reported Vehicles Report"):
+                st.success("✅ Mail successfully sent!")
 
     # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
@@ -528,14 +572,23 @@ def show_reported_vehicle_table(df, unique_key=""):
 
         route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
         route_month_tag = f"_Month_{route_month_selected}" if route_month_selected != "ALL" else ""
-        st.download_button(
-            label="📥 Download Route-wise Performance Excel",
-            data=to_excel_bytes({'Route_Performance': route_df}),
-            file_name=f"Route_Performance{route_month_tag}{route_staff_tag}.xlsx",
-            mime=EXCEL_MIME,
-            type="secondary",
-            key=f"download_route_perf_{unique_key}"
-        )
+        excel_bytes_route = to_excel_bytes({'Route_Performance': route_df})
+        filename_route = f"Route_Performance{route_month_tag}{route_staff_tag}.xlsx"
+
+        r_b1, r_b2 = st.columns(2)
+        with r_b1:
+            st.download_button(
+                label="📥 Download Route-wise Performance Excel",
+                data=excel_bytes_route,
+                file_name=filename_route,
+                mime=EXCEL_MIME,
+                type="secondary",
+                key=f"download_route_perf_{unique_key}"
+            )
+        with r_b2:
+            if st.button("📧 Send Route-wise Performance Mail", key=f"mail_route_{unique_key}", type="secondary"):
+                if send_email_with_attachment(excel_bytes_route, filename_route, "Route-wise Performance Report"):
+                    st.success("✅ Mail successfully sent!")
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
@@ -650,14 +703,23 @@ def show_reported_vehicle_table(df, unique_key=""):
         staff_tag = f"_Staff_{selected_delay_staff.replace(' ', '_')}" if selected_delay_staff != "ALL" else ""
         client_tag = f"_Client_{selected_delay_client.replace(' ', '_')}" if selected_delay_client != "ALL" else ""
         freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
-        st.download_button(
-            label="📥 Download Delay-wise Vehicle Report Excel",
-            data=to_excel_bytes({'Delay_Vehicle_Report': delay_report_df}),
-            file_name=f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx",
-            mime=EXCEL_MIME,
-            type="secondary",
-            key=f"download_delay_veh_{unique_key}"
-        )
+        excel_bytes_delay = to_excel_bytes({'Delay_Vehicle_Report': delay_report_df})
+        filename_delay = f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx"
+
+        de_b1, de_b2 = st.columns(2)
+        with de_b1:
+            st.download_button(
+                label="📥 Download Delay-wise Vehicle Report Excel",
+                data=excel_bytes_delay,
+                file_name=filename_delay,
+                mime=EXCEL_MIME,
+                type="secondary",
+                key=f"download_delay_veh_{unique_key}"
+            )
+        with de_b2:
+            if st.button("📧 Send Delay-wise Vehicle Report Mail", key=f"mail_delay_{unique_key}", type="secondary"):
+                if send_email_with_attachment(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report"):
+                    st.success("✅ Mail successfully sent!")
     else:
         st.info("Delay-wise vehicle report ke liye koi data available nahi hai.")
 
@@ -809,6 +871,14 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             st.sidebar.error(f"Error: {e}")
     else:
         st.sidebar.warning("⚠️ Pehle files upload karein!")
+
+st.sidebar.markdown("---")
+
+# Email Config Inputs in Sidebar for Mail functionality
+st.sidebar.markdown("📧 **Email Configuration**")
+st.session_state['sender_email'] = st.sidebar.text_input("Sender Gmail", value=st.session_state.get('sender_email', ''))
+st.session_state['sender_pass'] = st.sidebar.text_input("Gmail App Password", type="password", value=st.session_state.get('sender_pass', ''))
+st.session_state['receiver_email'] = st.sidebar.text_input("Receiver Email", value=st.session_state.get('receiver_email', ''))
 
 st.sidebar.markdown("---")
 
@@ -1105,9 +1175,10 @@ elif "Branches" in selected_nav:
                 st.markdown(render_html_table(show_raw_df), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
+                excel_bytes_staff = to_excel_bytes({'Staff_Performance_Summary': staff_df, 'Detailed_Records': show_raw_df})
                 st.download_button(
                     label="📥 Download Summary & Detailed Data (Excel)",
-                    data=to_excel_bytes({'Staff_Performance_Summary': staff_df, 'Detailed_Records': show_raw_df}),
+                    data=excel_bytes_staff,
                     file_name="Controlling_Staff_Performance_Report.xlsx",
                     mime=EXCEL_MIME,
                     type="primary"
@@ -1156,178 +1227,4 @@ elif "Vehicle Utilisation" in selected_nav:
                     st.warning("'Lorry No.' column nahi mila.")
                 else:
                     month_df[lorry_col] = month_df[lorry_col].astype(str).str.strip()
-                    mask = (month_df[lorry_col] != "") & (month_df[lorry_col].str.upper() != "NAN")
-                    mask &= ~month_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-                    month_df = month_df[mask]
-
-                    from_col = find_col(month_df, exact=('from',))
-                    dest_col = find_col(month_df, exact=('destination', 'to'))
-                    if from_col and dest_col:
-                        month_df['Route'] = (
-                            month_df[from_col].astype(str).str.upper().str.strip() + " ➔ " +
-                            month_df[dest_col].astype(str).str.upper().str.strip()
-                        )
-                    else:
-                        month_df['Route'] = "N/A"
-
-                    km_col = next((c for c in month_df.columns if c.strip().upper() == 'KM'), None)
-                    month_df['_KM'] = pd.to_numeric(month_df[km_col], errors='coerce').fillna(0) if km_col else 0
-
-                    if 'VendorName' not in month_df.columns:
-                        month_df['VendorName'] = "N/A"
-
-                    vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
-                    selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
-
-                    view_df = month_df if selected_vehicle == "ALL" else month_df[month_df[lorry_col] == selected_vehicle]
-
-                    total_trips = len(view_df)
-                    total_km = view_df['_KM'].sum()
-
-                    colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
-                    chips = ""
-                    for i, (c_name, c_val) in enumerate(view_df['VendorName'].value_counts().items()):
-                        chips += (f'<span style="padding:5px 12px;">{html_lib.escape(str(c_name))}: '
-                                  f'<b style="color:{colors[i % len(colors)]}; font-size:20px;">{c_val}</b></span>')
-
-                    title = (f"TOTAL TRIP COUNT ({month_label})" if selected_vehicle == "ALL"
-                             else f"{html_lib.escape(selected_vehicle)} - TOTAL CLOSED TRIPS ({month_label})")
-
-                    card_html = (
-                        '<div class="metric-card" style="text-align:center; padding:35px;">'
-                        f'<div class="metric-title" style="font-size:18px;">{title}</div>'
-                        f'<div class="metric-value" style="font-size:60px; color:#48cae4;">{total_trips}</div>'
-                        '<div class="metric-sub-green" style="font-size:14px;">Closed Trips (Client-wise)</div>'
-                        '<div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; '
-                        f'margin-top:15px; padding-top:15px; border-top:1px dashed #48cae4; color:#ffffff; font-weight:800;">{chips}</div>'
-                        '<div style="font-size:16px; color:#90e0ef; margin-top:15px; font-weight:bold; '
-                        'border-top:1px solid #3a506b; padding-top:15px;">TOTAL DISTANCE: '
-                        f'<span style="color:#ffffff; font-size:26px;">{total_km:,.0f} KM</span></div>'
-                        '</div>'
-                    )
-                    c1, c2, c3 = st.columns([1, 2.5, 1])
-                    with c2:
-                        st.markdown(card_html, unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    heading = "ALL Vehicles" if selected_vehicle == "ALL" else selected_vehicle
-                    st.markdown(f"## 📍 Route & Client Summary ({heading})")
-
-                    group_cols = ['Route', 'VendorName'] if selected_vehicle != "ALL" else [lorry_col, 'Route', 'VendorName']
-                    if view_df.empty:
-                        st.warning("Is selection ke liye koi closed trip nahi mila.")
-                        summary = pd.DataFrame()
-                    else:
-                        summary = (view_df.groupby(group_cols)
-                                   .agg(Trips=('Route', 'size'), Total_KM=('_KM', 'sum'))
-                                   .reset_index()
-                                   .rename(columns={lorry_col: 'Lorry No.', 'VendorName': 'Client'})
-                                   .sort_values('Trips', ascending=False))
-                        summary['Total_KM'] = summary['Total_KM'].round(0).astype(int)
-                        summary.insert(0, 'S.No', range(1, 1 + len(summary)))
-                        st.markdown(render_html_table(summary), unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("## 📄 Detailed Vehicle Utilisation Records")
-                    veh_type_col = next((c for c in view_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
-                    detail = pd.DataFrame({'Lorry No.': view_df[lorry_col]})
-                    if veh_type_col:
-                        detail['Veh.Type'] = view_df[veh_type_col]
-                    detail['Route'] = view_df['Route']
-                    detail['KM'] = view_df['_KM']
-                    detail['Client'] = view_df['VendorName']
-                    detail.insert(0, 'S.No', range(1, 1 + len(detail)))
-                    st.markdown(render_html_table(detail), unsafe_allow_html=True)
-
-                    st.download_button(
-                        label="📥 Download Utilisation Report (Excel)",
-                        data=to_excel_bytes({'Route_Client_Summary': summary, 'Detailed_Records': detail}),
-                        file_name="Vehicle_Utilisation_Report.xlsx",
-                        mime=EXCEL_MIME,
-                        type="primary"
-                    )
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 5. IN-TRANSIT VEHICLE STATUS -----------------
-elif "In-Transit Vehicle Status" in selected_nav:
-    st.title("🚚 In-Transit Vehicle Status")
-    st.info("Showing vehicles where Status is 'In-transit' (Final Touching Reporting Date is blank).")
-
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data.copy()
-
-        # Find status column or check Final Touching Reporting Date & Time being blank
-        final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in mis_df.columns), None)
-        status_col = next((c for c in mis_df.columns if 'status' in c.lower()), None)
-
-        if final_rep_col:
-            # In-transit means Final Touching Reporting Date is blank/NaN
-            intransit_df = mis_df[mis_df[final_rep_col].apply(is_blank)].copy()
-        elif status_col:
-            intransit_df = mis_df[mis_df[status_col].astype(str).str.lower().str.contains('in-transit|transit', na=False)].copy()
-        else:
-            intransit_df = pd.DataFrame(columns=mis_df.columns)
-
-        if intransit_df.empty:
-            st.success("Koi bhi In-Transit vehicle nahi mili! 🎉")
-        else:
-            # Controlling Staff & Client filter for In-transit
-            staff_col = next((c for c in intransit_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-            client_col_name = vendor_column(intransit_df) or 'VendorName'
-
-            it_col1, it_col2 = st.columns(2)
-            with it_col1:
-                staff_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"]
-                selected_it_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="it_staff_filter")
-            with it_col2:
-                client_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in intransit_df.columns else ["ALL"]
-                selected_it_client = st.selectbox("🏢 Filter by Client:", client_list, key="it_client_filter")
-
-            if selected_it_staff != "ALL" and staff_col:
-                intransit_df = intransit_df[intransit_df[staff_col].astype(str).str.strip() == selected_it_staff].copy()
-            if selected_it_client != "ALL" and client_col_name in intransit_df.columns:
-                intransit_df = intransit_df[intransit_df[client_col_name].astype(str).str.strip() == selected_it_client].copy()
-
-            show_it_df = show_cols(intransit_df)
-            show_it_df.insert(0, 'S.No', range(1, 1 + len(show_it_df)))
-
-            st.markdown(render_html_table(show_it_df), unsafe_allow_html=True)
-
-            st.download_button(
-                label="📥 Download In-Transit Vehicles Excel",
-                data=to_excel_bytes({'In_Transit_Vehicles': show_it_df}),
-                file_name="In_Transit_Vehicle_Status.xlsx",
-                mime=EXCEL_MIME,
-                type="primary"
-            )
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 6. MONTHLY BREAKDOWN -----------------
-elif "Monthly Breakdown" in selected_nav:
-    st.title("📈 Monthly Breakdown")
-    st.info("🔒 Showing monthly performance breakdown.")
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        df = st.session_state.mis_data.copy()
-        if 'Parsed_Date' in df.columns and 'Status_Category' in df.columns:
-            try:
-                df = df[df['Parsed_Date'].notna()].copy()
-                df = df[df['Status_Category'].isin([ONTIME, DELAY])]
-                df['Month'] = df['Parsed_Date'].dt.to_period('M')
-                monthly_summary = (df.groupby(['Month', 'VendorName', 'Status_Category'])
-                                   .size().unstack(fill_value=0).reset_index()
-                                   .sort_values(['Month', 'VendorName']))
-                monthly_summary['Month'] = monthly_summary['Month'].dt.strftime('%B %Y')
-                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
-            except Exception as e:
-                st.warning(f"Could not parse monthly breakdown: {e}")
-        else:
-            st.warning("Date column not found for monthly breakdown.")
-    else:
-        st.info("👈 Kripya pehle MIS files upload karein.")
-
-# ----------------- OTHER PAGES -----------------
-else:
-    st.title(selected_nav)
-    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
+                    mask = (month_df[lorry_col] != "") &
