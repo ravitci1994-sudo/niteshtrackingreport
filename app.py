@@ -286,7 +286,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE (WITH DATE & DELAY FILTER BUTTONS) ==========
+# ========== REPORTED VEHICLE TABLE (WITH DATE, DELAY & CONTROLLING STAFF FILTERS) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -325,8 +325,11 @@ def show_reported_vehicle_table(df, unique_key=""):
     )
     date_options = ["ALL"] + valid_dates['_Rep_Date_Str'].tolist()
 
-    # Two Filter Buttons side-by-side: Reporting Date & Delay Filter
-    f_col1, f_col2 = st.columns(2)
+    # Staff column identifier
+    staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
+
+    # Three Filter Buttons side-by-side: Reporting Date, Delay Filter & Controlling Staff
+    f_col1, f_col2, f_col3 = st.columns(3)
     with f_col1:
         selected_date = st.selectbox(
             "📅 Filter by Reporting Date:",
@@ -340,6 +343,17 @@ def show_reported_vehicle_table(df, unique_key=""):
             ["ALL Reported Vehicles", "Only Delay Vehicles", "Only On-Time Vehicles"],
             index=0,
             key=f"reported_delay_filter_{unique_key}"
+        )
+    with f_col3:
+        if staff_col:
+            staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+        else:
+            staff_list = ["ALL"]
+        selected_staff = st.selectbox(
+            "👨‍💼 Filter by Controlling Staff:",
+            staff_list,
+            index=0,
+            key=f"reported_staff_filter_{unique_key}"
         )
 
     # 1. Apply Reporting Date Filter
@@ -356,18 +370,22 @@ def show_reported_vehicle_table(df, unique_key=""):
         elif delay_filter == "Only On-Time Vehicles":
             filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
 
+    # 3. Apply Controlling Staff Filter
+    if selected_staff != "ALL" and staff_col:
+        filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff].copy()
+
     if filtered_report_df.empty:
-        st.info(f"Selected filter ({selected_date} | {delay_filter}) ke liye koi Reported Vehicle data nahi mila.")
+        st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
         return
 
     # Select Requested Columns
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
-        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time',
-        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching',
-        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time',
-        '2nd Touching Hrs', '2nd Touching Hrs.', 'Final Touching Reporting Date & Time',
-        'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
+        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching', 
+        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', 
+        '2nd Touching Hrs', '2nd Touching Hrs.', 'Final Touching Reporting Date & Time', 
+        'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)', 
         'Late Hrs', 'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
     ]
 
@@ -394,10 +412,12 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.replace('-', '_')
     status_tag = "Delay_Only" if delay_filter == "Only Delay Vehicles" else ("OnTime_Only" if delay_filter == "Only On-Time Vehicles" else "All")
+    staff_tag = f"_Staff_{selected_staff.replace(' ', '_')}" if selected_staff != "ALL" else ""
+    
     st.download_button(
         label=f"📥 Download Reported Vehicles ({selected_date} - {delay_filter}) (Excel)",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
-        file_name=f"Reported_Vehicles_{file_date_str}_{status_tag}.xlsx",
+        file_name=f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx",
         mime=EXCEL_MIME,
         type="primary",
         key=f"download_reported_{unique_key}"
