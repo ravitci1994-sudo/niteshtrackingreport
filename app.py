@@ -284,21 +284,28 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-def send_email_with_attachment(excel_data, filename, subject):
+# Client-wise Email Helper Function
+def send_client_email(excel_data, filename, subject, client_name="DEFAULT"):
     sender_email = st.session_state.get('sender_email', '')
     sender_pass = st.session_state.get('sender_pass', '')
-    receiver_email = st.session_state.get('receiver_email', '')
+    
+    # Fetch client specific To and CC from session state
+    to_emails = st.session_state.get(f'to_{client_name}', st.session_state.get('default_to', ''))
+    cc_emails = st.session_state.get(f'cc_{client_name}', st.session_state.get('default_cc', ''))
 
-    if not sender_email or not sender_pass or not receiver_email:
-        st.error("⚠️ Kripya sidebar mein Sender Email, App Password aur Receiver Email sahi se bharein.")
+    if not sender_email or not sender_pass or not to_emails:
+        st.error(f"⚠️ Kripya sidebar mein Sender Email, App Password aur '{client_name}' ke liye To Email configure karein.")
         return False
 
     try:
         msg = EmailMessage()
-        msg['Subject'] = subject
+        msg['Subject'] = f"[{client_name}] {subject}"
         msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg.set_content("Hello,\n\nPlease find attached the requested report from Tejas Cargo India Pvt Ltd Dashboard.")
+        msg['To'] = to_emails
+        if cc_emails:
+            msg['CC'] = cc_emails
+
+        msg.set_content(f"Hello Team,\n\nPlease find attached the report for {client_name} from Tejas Cargo India Pvt Ltd Dashboard.")
 
         msg.add_attachment(
             excel_data,
@@ -307,13 +314,24 @@ def send_email_with_attachment(excel_data, filename, subject):
             filename=filename
         )
 
+        all_recipients = [e.strip() for e in to_emails.split(',')]
+        if cc_emails:
+            all_recipients.extend([e.strip() for e in cc_emails.split(',')])
+
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(sender_email, sender_pass)
-            server.send_message(msg)
+            server.send_messages(msg, from_addr=sender_email, to_addrs=all_recipients)
         return True
     except Exception as e:
-        st.error(f"Email send karne mein error aaya: {e}")
-        return False
+        # Fallback standard send
+        try:
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                server.login(sender_email, sender_pass)
+                server.send_message(msg)
+            return True
+        except Exception as e2:
+            st.error(f"Email send karne mein error aaya: {e2}")
+            return False
 
 
 # ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE =================
@@ -475,6 +493,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     
     excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
     filename_reported = f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx"
+    detected_client = selected_client if 'selected_client' in locals() and selected_client != "ALL" else "DEFAULT"
 
     b_col1, b_col2 = st.columns(2)
     with b_col1:
@@ -488,8 +507,8 @@ def show_reported_vehicle_table(df, unique_key=""):
         )
     with b_col2:
         if st.button("📧 Send Reported Vehicles Mail", key=f"mail_reported_{unique_key}", type="secondary"):
-            if send_email_with_attachment(excel_bytes_reported, filename_reported, "Reported Vehicles Report"):
-                st.success("✅ Mail successfully sent!")
+            if send_client_email(excel_bytes_reported, filename_reported, "Reported Vehicles Report", detected_client):
+                st.success("✅ Mail successfully sent to client!")
 
     # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
@@ -586,8 +605,8 @@ def show_reported_vehicle_table(df, unique_key=""):
             )
         with r_b2:
             if st.button("📧 Send Route-wise Performance Mail", key=f"mail_route_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_route, filename_route, "Route-wise Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+                if send_client_email(excel_bytes_route, filename_route, "Route-wise Performance Report", detected_client):
+                    st.success("✅ Mail successfully sent to client!")
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
@@ -703,6 +722,7 @@ def show_reported_vehicle_table(df, unique_key=""):
         freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
         excel_bytes_delay = to_excel_bytes({'Delay_Vehicle_Report': delay_report_df})
         filename_delay = f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx"
+        mail_client_target = selected_delay_client if selected_delay_client != "ALL" else detected_client
 
         de_b1, de_b2 = st.columns(2)
         with de_b1:
@@ -716,8 +736,8 @@ def show_reported_vehicle_table(df, unique_key=""):
             )
         with de_b2:
             if st.button("📧 Send Delay-wise Vehicle Report Mail", key=f"mail_delay_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+                if send_client_email(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report", mail_client_target):
+                    st.success("✅ Mail successfully sent to client!")
     else:
         st.info("Delay-wise vehicle report ke liye koi data available nahi hai.")
 
@@ -872,10 +892,19 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
 
 st.sidebar.markdown("---")
 
-st.sidebar.markdown("📧 **Email Configuration**")
+# Email & Client-wise Mapping Configuration in Sidebar
+st.sidebar.markdown("📧 **Email & Client Configuration**")
 st.session_state['sender_email'] = st.sidebar.text_input("Sender Gmail", value=st.session_state.get('sender_email', ''))
 st.session_state['sender_pass'] = st.sidebar.text_input("Gmail App Password", type="password", value=st.session_state.get('sender_pass', ''))
-st.session_state['receiver_email'] = st.sidebar.text_input("Receiver Email", value=st.session_state.get('receiver_email', ''))
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("🏢 **Client-wise Email Mapping (To / CC)**")
+
+clients_for_mapping = ['DHL', 'Busybees', 'Trackon', 'DEFAULT']
+for cl in clients_for_mapping:
+    with st.sidebar.expander(f"Client: {cl}"):
+        st.session_state[f'to_{cl}'] = st.text_input(f"To Emails ({cl})", value=st.session_state.get(f'to_{cl}', ''))
+        st.session_state[f'cc_{cl}'] = st.text_input(f"CC Emails ({cl})", value=st.session_state.get(f'cc_{cl}', ''))
 
 st.sidebar.markdown("---")
 
