@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE REPORT WITH STAFF FILTER ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE REPORT WITH STAFF & MONTH FILTER ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -410,29 +410,42 @@ def show_reported_vehicle_table(df, unique_key=""):
         key=f"download_reported_{unique_key}"
     )
 
-    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION WITH STAFF FILTER =================
+    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION WITH STAFF & MONTH FILTER =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📍 Route-wise Performance Report")
 
-    # Independent Controlling Staff filter specifically for Route-wise report
-    if staff_col:
-        route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
-    else:
-        route_staff_list = ["ALL"]
+    # Extract Month Key for Route-wise Month Filter
+    reported_df['_Month_Key'] = parsed_rep_dt.dt.to_period('M')
+    month_options_route = ["ALL"] + sorted(reported_df['_Month_Key'].dropna().unique().astype(str).tolist(), reverse=True)
 
-    route_staff_selected = st.selectbox(
-        "👨‍💼 Filter Route-wise by Controlling Staff:",
-        route_staff_list,
-        index=0,
-        key=f"route_staff_filter_{unique_key}"
-    )
+    # Filters for Route-wise Report: Controlling Staff & Month Filter side-by-side
+    r_col1, r_col2 = st.columns(2)
+    with r_col1:
+        if staff_col:
+            route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+        else:
+            route_staff_list = ["ALL"]
+        route_staff_selected = st.selectbox(
+            "👨‍💼 Filter Route-wise by Controlling Staff:",
+            route_staff_list,
+            index=0,
+            key=f"route_staff_filter_{unique_key}"
+        )
+    with r_col2:
+        route_month_selected = st.selectbox(
+            "📅 Filter Route-wise by Month:",
+            month_options_route,
+            index=0,
+            format_func=lambda k: pd.Period(k).strftime('%B %Y').upper() if k != "ALL" else "ALL MONTHS",
+            key=f"route_month_filter_{unique_key}"
+        )
 
-    # Base dataset for route-wise report respects Date filter & Route-specific staff filter
+    # Base dataset for route-wise report
     route_base_df = reported_df.copy()
-    if selected_date != "ALL":
-        route_base_df = route_base_df[route_base_df['_Rep_Date_Str'] == selected_date].copy()
     if route_staff_selected != "ALL" and staff_col:
         route_base_df = route_base_df[route_base_df[staff_col].astype(str).str.strip() == route_staff_selected].copy()
+    if route_month_selected != "ALL":
+        route_base_df = route_base_df[route_base_df['_Month_Key'].astype(str) == route_month_selected].copy()
 
     from_c = find_col(route_base_df, exact=('from',))
     dest_c = find_col(route_base_df, exact=('destination', 'to'))
@@ -479,10 +492,11 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.markdown(render_html_table(route_df), unsafe_allow_html=True)
 
         route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
+        route_month_tag = f"_Month_{route_month_selected}" if route_month_selected != "ALL" else ""
         st.download_button(
             label="📥 Download Route-wise Performance Excel",
             data=to_excel_bytes({'Route_Performance': route_df}),
-            file_name=f"Route_Performance_{file_date_str}{route_staff_tag}.xlsx",
+            file_name=f"Route_Performance{route_month_tag}{route_staff_tag}.xlsx",
             mime=EXCEL_MIME,
             type="secondary",
             key=f"download_route_perf_{unique_key}"
