@@ -4,8 +4,6 @@ from datetime import datetime
 import math
 import io
 import os
-import smtplib
-from email.message import EmailMessage
 import html as html_lib
 
 # 1. Page Configuration
@@ -284,84 +282,6 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-def send_email_with_attachment(excel_data, filename, subject):
-    sender_email = st.session_state.get('sender_email', '')
-    sender_pass = st.session_state.get('sender_pass', '')
-    receiver_email = st.session_state.get('receiver_email', '')
-
-    if not sender_email or not sender_pass or not receiver_email:
-        st.error("⚠️ Kripya sidebar mein Sender Email, App Password aur Receiver Email sahi se bharein.")
-        return False
-
-    try:
-        msg = EmailMessage()
-        msg['Subject'] = subject
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg.set_content("Hello,\n\nPlease find attached the requested report from Tejas Cargo India Pvt Ltd Dashboard.")
-
-        msg.add_attachment(
-            excel_data,
-            maintype='application',
-            subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            filename=filename
-        )
-
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender_email, sender_pass)
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        st.error(f"Email send karne mein error aaya: {e}")
-        return False
-
-
-def send_client_email(excel_data, filename, subject, client_name="DEFAULT"):
-    sender_email = st.session_state.get('sender_email', '')
-    sender_pass = st.session_state.get('sender_pass', '')
-    to_emails = st.session_state.get(f'to_{client_name}', st.session_state.get('default_to', ''))
-    cc_emails = st.session_state.get(f'cc_{client_name}', st.session_state.get('default_cc', ''))
-
-    if not sender_email or not sender_pass or not to_emails:
-        st.error(f"⚠️ Kripya sidebar mein Sender Email, App Password aur '{client_name}' ke liye To Email configure karein.")
-        return False
-
-    try:
-        msg = EmailMessage()
-        msg['Subject'] = f"[{client_name}] {subject}"
-        msg['From'] = sender_email
-        msg['To'] = to_emails
-        if cc_emails:
-            msg['CC'] = cc_emails
-
-        msg.set_content(f"Hello Team,\n\nPlease find attached the report for {client_name} from Tejas Cargo India Pvt Ltd Dashboard.")
-
-        msg.add_attachment(
-            excel_data,
-            maintype='application',
-            subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            filename=filename
-        )
-
-        all_recipients = [e.strip() for e in to_emails.split(',')]
-        if cc_emails:
-            all_recipients.extend([e.strip() for e in cc_emails.split(',')])
-
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender_email, sender_pass)
-            server.send_messages(msg, from_addr=sender_email, to_addrs=all_recipients)
-        return True
-    except Exception as e:
-        try:
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-                server.login(sender_email, sender_pass)
-                server.send_message(msg)
-            return True
-        except Exception as e2:
-            st.error(f"Email send karne mein error aaya: {e2}")
-            return False
-
-
 # ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE =================
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -521,22 +441,15 @@ def show_reported_vehicle_table(df, unique_key=""):
     
     excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
     filename_reported = f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx"
-    detected_client = selected_client if 'selected_client' in locals() and selected_client != "ALL" else "DEFAULT"
 
-    b_col1, b_col2 = st.columns(2)
-    with b_col1:
-        st.download_button(
-            label=f"📥 Download Reported Vehicles Excel",
-            data=excel_bytes_reported,
-            file_name=filename_reported,
-            mime=EXCEL_MIME,
-            type="primary",
-            key=f"download_reported_{unique_key}"
-        )
-    with b_col2:
-        if st.button("📧 Send Reported Vehicles Mail", key=f"mail_reported_{unique_key}", type="secondary"):
-            if send_email_with_attachment(excel_bytes_reported, filename_reported, "Reported Vehicles Report"):
-                st.success("✅ Mail successfully sent!")
+    st.download_button(
+        label=f"📥 Download Reported Vehicles Excel",
+        data=excel_bytes_reported,
+        file_name=filename_reported,
+        mime=EXCEL_MIME,
+        type="primary",
+        key=f"download_reported_{unique_key}"
+    )
 
     # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
@@ -621,20 +534,14 @@ def show_reported_vehicle_table(df, unique_key=""):
         excel_bytes_route = to_excel_bytes({'Route_Performance': route_df})
         filename_route = f"Route_Performance{route_month_tag}{route_staff_tag}.xlsx"
 
-        r_b1, r_b2 = st.columns(2)
-        with r_b1:
-            st.download_button(
-                label="📥 Download Route-wise Performance Excel",
-                data=excel_bytes_route,
-                file_name=filename_route,
-                mime=EXCEL_MIME,
-                type="secondary",
-                key=f"download_route_perf_{unique_key}"
-            )
-        with r_b2:
-            if st.button("📧 Send Route-wise Performance Mail", key=f"mail_route_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_route, filename_route, "Route-wise Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+        st.download_button(
+            label="📥 Download Route-wise Performance Excel",
+            data=excel_bytes_route,
+            file_name=filename_route,
+            mime=EXCEL_MIME,
+            type="secondary",
+            key=f"download_route_perf_{unique_key}"
+        )
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
@@ -751,20 +658,14 @@ def show_reported_vehicle_table(df, unique_key=""):
         excel_bytes_delay = to_excel_bytes({'Delay_Vehicle_Report': delay_report_df})
         filename_delay = f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx"
 
-        de_b1, de_b2 = st.columns(2)
-        with de_b1:
-            st.download_button(
-                label="📥 Download Delay-wise Vehicle Report Excel",
-                data=excel_bytes_delay,
-                file_name=filename_delay,
-                mime=EXCEL_MIME,
-                type="secondary",
-                key=f"download_delay_veh_{unique_key}"
-            )
-        with de_b2:
-            if st.button("📧 Send Delay-wise Vehicle Report Mail", key=f"mail_delay_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+        st.download_button(
+            label="📥 Download Delay-wise Vehicle Report Excel",
+            data=excel_bytes_delay,
+            file_name=filename_delay,
+            mime=EXCEL_MIME,
+            type="secondary",
+            key=f"download_delay_veh_{unique_key}"
+        )
     else:
         st.info("Delay-wise vehicle report ke liye koi data available nahi hai.")
 
@@ -916,13 +817,6 @@ if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=Tr
             st.sidebar.error(f"Error: {e}")
     else:
         st.sidebar.warning("⚠️ Pehle files upload karein!")
-
-st.sidebar.markdown("---")
-
-st.sidebar.markdown("📧 **Email Configuration**")
-st.session_state['sender_email'] = st.sidebar.text_input("Sender Gmail", value=st.session_state.get('sender_email', ''))
-st.session_state['sender_pass'] = st.sidebar.text_input("Gmail App Password", type="password", value=st.session_state.get('sender_pass', ''))
-st.session_state['receiver_email'] = st.sidebar.text_input("Receiver Email", value=st.session_state.get('receiver_email', ''))
 
 st.sidebar.markdown("---")
 
@@ -1434,7 +1328,7 @@ elif "Monthly Breakdown" in selected_nav:
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle MIS files upload karein.")
+        st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
