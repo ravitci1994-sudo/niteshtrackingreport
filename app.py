@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE REPORT ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE REPORT WITH STAFF FILTER ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -345,7 +345,7 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"reported_staff_filter_{unique_key}"
         )
 
-    # Filtering data
+    # Filtering data for Reported Vehicles table
     if selected_date != "ALL":
         filtered_report_df = reported_df[reported_df['_Rep_Date_Str'] == selected_date].copy()
     else:
@@ -410,29 +410,49 @@ def show_reported_vehicle_table(df, unique_key=""):
         key=f"download_reported_{unique_key}"
     )
 
-    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
+    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION WITH STAFF FILTER =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📍 Route-wise Performance Report")
 
-    from_c = find_col(filtered_report_df, exact=('from',))
-    dest_c = find_col(filtered_report_df, exact=('destination', 'to'))
-    client_c = 'Party' if 'Party' in final_report_df.columns else vendor_column(filtered_report_df)
+    # Independent Controlling Staff filter specifically for Route-wise report
+    if staff_col:
+        route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+    else:
+        route_staff_list = ["ALL"]
+
+    route_staff_selected = st.selectbox(
+        "👨‍💼 Filter Route-wise by Controlling Staff:",
+        route_staff_list,
+        index=0,
+        key=f"route_staff_filter_{unique_key}"
+    )
+
+    # Base dataset for route-wise report respects Date filter & Route-specific staff filter
+    route_base_df = reported_df.copy()
+    if selected_date != "ALL":
+        route_base_df = route_base_df[route_base_df['_Rep_Date_Str'] == selected_date].copy()
+    if route_staff_selected != "ALL" and staff_col:
+        route_base_df = route_base_df[route_base_df[staff_col].astype(str).str.strip() == route_staff_selected].copy()
+
+    from_c = find_col(route_base_df, exact=('from',))
+    dest_c = find_col(route_base_df, exact=('destination', 'to'))
+    client_c = 'Party' if 'Party' in final_report_df.columns else vendor_column(route_base_df)
 
     if from_c and dest_c:
-        filtered_report_df['Route'] = filtered_report_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + filtered_report_df[dest_c].astype(str).str.upper().str.strip()
+        route_base_df['Route'] = route_base_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + route_base_df[dest_c].astype(str).str.upper().str.strip()
     else:
-        filtered_report_df['Route'] = "N/A"
+        route_base_df['Route'] = "N/A"
 
-    if 'Status_Category' not in filtered_report_df.columns and late_col:
-        filtered_report_df['Status_Category'] = filtered_report_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
+    if 'Status_Category' not in route_base_df.columns and late_col:
+        route_base_df['Status_Category'] = route_base_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
 
     route_summary = []
-    if not filtered_report_df.empty:
+    if not route_base_df.empty:
         group_keys = ['Route']
-        if client_c and client_c in filtered_report_df.columns:
+        if client_c and client_c in route_base_df.columns:
             group_keys.append(client_c)
 
-        grouped = filtered_report_df.groupby(group_keys)
+        grouped = route_base_df.groupby(group_keys)
         for name, g_df in grouped:
             if isinstance(name, tuple):
                 route, client = name
@@ -458,10 +478,11 @@ def show_reported_vehicle_table(df, unique_key=""):
         route_df.insert(0, 'S.No', range(1, 1 + len(route_df)))
         st.markdown(render_html_table(route_df), unsafe_allow_html=True)
 
+        route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
         st.download_button(
             label="📥 Download Route-wise Performance Excel",
             data=to_excel_bytes({'Route_Performance': route_df}),
-            file_name=f"Route_Performance_{file_date_str}.xlsx",
+            file_name=f"Route_Performance_{file_date_str}{route_staff_tag}.xlsx",
             mime=EXCEL_MIME,
             type="secondary",
             key=f"download_route_perf_{unique_key}"
