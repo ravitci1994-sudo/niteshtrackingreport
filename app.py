@@ -125,6 +125,7 @@ def is_blank(v):
 
 
 def first_valid(row, names):
+    """Return first non-blank value from the given column names."""
     for n in names:
         if n in row.index and not is_blank(row[n]):
             return row[n]
@@ -132,6 +133,7 @@ def first_valid(row, names):
 
 
 def is_zero_late(v):
+    """True if Late Hrs is empty / zero / negative (i.e. trip is on time)."""
     if is_blank(v):
         return True
     s = str(v).strip().lower()
@@ -159,6 +161,7 @@ def clean_party(v, keep_other=False):
 
 
 def find_col(df, exact=None, contains=None):
+    """Find a column by exact (case-insensitive) names first, then by substring."""
     if exact:
         for c in df.columns:
             if c.lower().strip() in exact:
@@ -275,10 +278,10 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
-# ========== NEW STRICT HELPER FOR DAILY DELAY REPORT ==========
-def show_daily_delay_report(df):
+# ========== REVISED HELPER FOR DELAY REPORT (WITH DATE FILTER) ==========
+def show_delay_report(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("## 🚨 Daily Arrival Delay Vehicle Report (Yesterday)")
+    st.markdown("## 🚨 Arrival Delay Vehicle Report")
 
     final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
     late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in df.columns), None)
@@ -289,7 +292,6 @@ def show_daily_delay_report(df):
 
     temp_df = df.copy()
     temp_df['Temp_Arrival_Date'] = pd.to_datetime(temp_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
-    yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
 
     # Function strictly checks for valid delay values in Late Hrs column
     def has_actual_delay(v):
@@ -298,18 +300,18 @@ def show_daily_delay_report(df):
         if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00", "nan", "nat", "none"): 
             return False
         try:
-            if pd.to_timedelta(s) <= pd.Timedelta(0): return False
+            if pd.to_timedelta(s) > pd.Timedelta(0): return True
         except Exception: pass
         try:
-            if float(s) <= 0: return False
+            if float(s) > 0: return True
         except Exception: pass
         return True
 
-    # Filter: Arrival was yesterday AND Late Hrs indicates a delay
-    delay_df = temp_df[(temp_df['Temp_Arrival_Date'] == yesterday) & temp_df[late_col].apply(has_actual_delay)].copy()
+    # Filter: ONLY vehicles with actual delays
+    delay_df = temp_df[temp_df[late_col].apply(has_actual_delay)].copy()
 
     if delay_df.empty:
-        st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
+        st.success("Selected data mein koi bhi delay wali gaadi nahi hai! 🎉")
         return
         
     # Clean Dummy Lorry Numbers (Y - TBC, TBA)
@@ -321,7 +323,20 @@ def show_daily_delay_report(df):
         delay_df = delay_df[mask]
         
     if delay_df.empty:
-        st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
+        st.success("Selected data mein koi bhi delay wali gaadi nahi hai (Dummy/Blank vehicles excluded)! 🎉")
+        return
+
+    # Add Date Filter for flexibility
+    available_dates = sorted(delay_df['Temp_Arrival_Date'].dropna().unique(), reverse=True)
+    date_options = ["ALL"] + available_dates
+    
+    selected_date = st.selectbox("📅 Filter by Arrival Date:", date_options, key=f"delay_date_filter_{unique_key}")
+    
+    if selected_date != "ALL":
+        delay_df = delay_df[delay_df['Temp_Arrival_Date'] == selected_date]
+
+    if delay_df.empty:
+        st.success(f"Selected date ({selected_date.strftime('%d-%m-%Y')}) par koi delay report nahi hui hai! 🎉")
         return
 
     # User's Strictly Requested Columns
@@ -354,10 +369,11 @@ def show_daily_delay_report(df):
 
     st.markdown(render_html_table(report_df), unsafe_allow_html=True)
 
+    file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.strftime('%d_%m_%Y')
     st.download_button(
-        label="📥 Download Daily Delay Report (Excel)",
-        data=to_excel_bytes({'Daily_Delay_Report': report_df}),
-        file_name=f"Daily_Arrival_Delay_{yesterday.strftime('%d_%m_%Y')}.xlsx",
+        label="📥 Download Delay Report (Excel)",
+        data=to_excel_bytes({'Delay_Report': report_df}),
+        file_name=f"Arrival_Delay_Report_{file_date_str}.xlsx",
         mime=EXCEL_MIME,
         type="primary"
     )
@@ -410,6 +426,7 @@ def process_uploaded_files(uploaded_files):
                 else:
                     temp_df['VendorName'] = "TEJAS CARGO"
 
+                # Despatch date column preferred; otherwise any date column
                 date_col = (
                     next((c for c in temp_df.columns if 'desp' in c.lower() and 'date' in c.lower()), None)
                     or next((c for c in temp_df.columns if 'date' in c.lower()), None)
@@ -704,8 +721,8 @@ if "Dashboard" in selected_nav:
         st.markdown("## 📄 Live Detailed Performance Records")
         if not perf_mis.empty:
             st.markdown(render_html_table(show_cols(perf_mis)), unsafe_allow_html=True)
-            # Pass all filtered_mis data to check for ALL delays (even if not 'order done')
-            show_daily_delay_report(filtered_mis)
+            # Pass all filtered_mis data to check for ALL delays
+            show_delay_report(filtered_mis, unique_key="dash")
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
@@ -763,7 +780,7 @@ elif "Client Performance" in selected_nav:
                 type="primary"
             )
             
-            show_daily_delay_report(filtered_mis)
+            show_delay_report(filtered_mis, unique_key="client_perf")
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
