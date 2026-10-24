@@ -299,28 +299,34 @@ def show_daily_delay_report(df):
     if delay_df.empty:
         st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
         return
-
-    # Prepare specific columns
+        
+    # Clean Dummy Lorry Numbers (Y - TBC, TBA)
     lorry_col = find_col(delay_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in delay_df.columns), 'Late Hrs')
-    remark_col = find_col(delay_df, contains=['remark']) or 'Tracking Remark'
-    from_col = find_col(delay_df, exact=['from'])
-    dest_col = find_col(delay_df, exact=['destination', 'to'])
+    if lorry_col in delay_df.columns:
+        delay_df[lorry_col] = delay_df[lorry_col].astype(str).str.strip()
+        mask = (delay_df[lorry_col] != "") & (delay_df[lorry_col].str.upper() != "NAN")
+        mask &= ~delay_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+        delay_df = delay_df[mask]
+        
+    if delay_df.empty:
+        st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
+        return
 
-    if 'Route' not in delay_df.columns:
-        if from_col and dest_col:
-            delay_df['Route'] = delay_df[from_col].astype(str).str.upper() + " ➔ " + delay_df[dest_col].astype(str).str.upper()
-        else:
-            delay_df['Route'] = "N/A"
+    # Requested Exact Columns
+    requested_delay_cols = [
+        'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
+        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
+        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching', 
+        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', 
+        '2nd Touching Hrs.', 'Final Touching Reporting Date & Time', 'Total Touching Hrs.', 
+        'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)', 'Late Hrs', 
+        'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
+    ]
 
-    cols_to_extract = {}
-    if lorry_col in delay_df.columns: cols_to_extract[lorry_col] = 'Gadi No'
-    cols_to_extract['Route'] = 'Route'
-    if 'VendorName' in delay_df.columns: cols_to_extract['VendorName'] = 'Client'
-    if late_col in delay_df.columns: cols_to_extract[late_col] = 'Delay Hours'
-    if remark_col in delay_df.columns: cols_to_extract[remark_col] = 'Remarks'
-
-    report_df = delay_df[list(cols_to_extract.keys())].rename(columns=cols_to_extract)
+    # Keep only those columns that exist in the DataFrame
+    available_cols = [c for c in requested_delay_cols if c in delay_df.columns]
+    
+    report_df = delay_df[available_cols].copy()
     report_df.insert(0, 'S.No', range(1, 1 + len(report_df)))
 
     st.markdown(render_html_table(report_df), unsafe_allow_html=True)
@@ -725,7 +731,7 @@ elif "Client Performance" in selected_nav:
                 type="primary"
             )
             
-            # --- NEW ADDITION: Daily Arrival Delay Report ---
+            # --- Daily Arrival Delay Report ---
             show_daily_delay_report(filtered_mis)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
