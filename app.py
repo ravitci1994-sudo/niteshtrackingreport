@@ -101,8 +101,8 @@ st.markdown("""
 # ================= CONSTANTS =================
 REQUIRED_COLUMNS = [
     'Lorry No.', 'Veh.Type', 'From', 'Destination', 'KM', 'Party', 'Desp. Date & Time',
-    '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
-    '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs',
+    'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', '1st Touching Delivery Date & Time', '1st Touching Hrs.',
+    '2nd Touching', '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', '2nd Touching Hrs', '2nd Touching Hrs.',
     'Final Touching Reporting Date & Time', 'Final Touching Delivery Date & Time',
     'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
     'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
@@ -171,6 +171,13 @@ def find_col(df, exact=None, contains=None):
             if any(k in c.lower() for k in contains):
                 return c
     return None
+
+
+def get_lorry_col(df):
+    """Always prioritize the exact 'Lorry No.' column."""
+    if 'Lorry No.' in df.columns:
+        return 'Lorry No.'
+    return find_col(df, exact=('lorry no.', 'lorry no', 'vehicle no.', 'vehicle no'), contains=('lorry no', 'vehicle no'))
 
 
 def vendor_column(df):
@@ -278,90 +285,88 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
-# ========== REVISED HELPER FOR REPORTED VEHICLE (EXACT MATCH & DATE FILTER) ==========
+
+# ========== REPORTED VEHICLE TABLE (STRICTLY BASED ON FINAL TOUCHING REPORTING DATE & TIME) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
 
-    # Strictly check for Final Touching Reporting Date & Time
-    final_rep_col = 'Final Touching Reporting Date & Time'
+    # Find Final Touching Reporting Date & Time column
+    final_rep_col = next(
+        (c for c in ['Final Touching Reporting Date & Time', 'Reporting Date & Time', 'Reporting Date'] if c in df.columns),
+        None
+    )
+    if not final_rep_col:
+        final_rep_col = next((c for c in df.columns if 'final touching' in c.lower() and 'report' in c.lower()), None)
 
-    if final_rep_col not in df.columns:
-        st.warning(f"Data mein '{final_rep_col}' column nahi mila.")
+    if not final_rep_col:
+        st.warning("Data mein 'Final Touching Reporting Date & Time' column nahi mila.")
         return
 
     temp_df = df.copy()
-    
-    # 1. Check if the cell has text (Meaning it is Reported)
-    def is_reported(val):
-        if pd.isna(val): return False
-        s = str(val).strip().lower()
-        if s in ("", "nan", "nat", "none"): return False
-        return True
-        
-    reported_df = temp_df[temp_df[final_rep_col].apply(is_reported)].copy()
+
+    # Sirf wahi data pick karna hai jisme Final Touching Reporting Date & Time mention ho
+    reported_df = temp_df[~temp_df[final_rep_col].apply(is_blank)].copy()
 
     if reported_df.empty:
-        st.success("Selected data mein koi bhi gaadi report nahi hui hai (Reporting Time blank hai)! 🎉")
-        return
-        
-    # 2. Clean Dummy Lorry Numbers (Y - TBC, TBA)
-    lorry_col = find_col(reported_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
-    if lorry_col in reported_df.columns:
-        reported_df[lorry_col] = reported_df[lorry_col].astype(str).str.strip()
-        mask = (reported_df[lorry_col] != "") & (reported_df[lorry_col].str.upper() != "NAN")
-        mask &= ~reported_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-        reported_df = reported_df[mask]
-        
-    if reported_df.empty:
-        st.success("Selected data mein koi bhi valid gaadi report nahi hui hai (Dummy/Blank vehicles excluded)! 🎉")
+        st.warning("Selected data mein kisi bhi gaadi ke aage 'Final Touching Reporting Date & Time' mention nahi hai.")
         return
 
-    # 3. Add Date Filter dropdown
-    reported_df['Filter_Date'] = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
-    available_dates = sorted([d for d in reported_df['Filter_Date'].unique() if pd.notna(d)], reverse=True)
-    date_options = ["ALL"] + available_dates
-    
-    # Set default index to yesterday if it exists
-    yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
-    default_index = 0
-    if yesterday in available_dates:
-        default_index = date_options.index(yesterday)
-    
-    selected_date = st.selectbox("📅 Filter by Reporting Date:", date_options, index=default_index, key=f"reported_date_filter_{unique_key}")
-    
+    # Parse Reporting Date for the Date Filter Button
+    parsed_rep_dt = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True)
+    reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
+    reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
+
+    # Unique sorted dates for dropdown
+    valid_dates = (
+        reported_df[reported_df['_Rep_Date_Obj'].notna()]
+        .drop_duplicates(subset=['_Rep_Date_Str'])
+        .sort_values('_Rep_Date_Obj', ascending=False)
+    )
+    date_options = ["ALL"] + valid_dates['_Rep_Date_Str'].tolist()
+
+    # Date Filter Button (Dropdown)
+    selected_date = st.selectbox(
+        "📅 Filter by Reporting Date:",
+        date_options,
+        index=0,
+        key=f"reported_date_filter_{unique_key}"
+    )
+
     if selected_date != "ALL":
-        filtered_report_df = reported_df[reported_df['Filter_Date'] == selected_date].copy()
+        filtered_report_df = reported_df[reported_df['_Rep_Date_Str'] == selected_date].copy()
     else:
         filtered_report_df = reported_df.copy()
 
     if filtered_report_df.empty:
-        st.success(f"Selected date ({selected_date.strftime('%d-%m-%Y')}) par koi gaadi report nahi hui hai! 🎉")
+        st.info(f"Selected date ({selected_date}) par koi Reported Vehicle data nahi mila.")
         return
 
-    # User's Strictly Requested Columns
+    # Select Requested Columns
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
-        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
-        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching', 
-        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', 
-        '2nd Touching Hrs.', 'Final Touching Reporting Date & Time', 'Total Touching Hrs.', 
-        'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)', 'Late Hrs', 
-        'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
+        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time',
+        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching',
+        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time',
+        '2nd Touching Hrs', '2nd Touching Hrs.', 'Final Touching Reporting Date & Time',
+        'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)',
+        'Late Hrs', 'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
     ]
 
     actual_cols = []
     rename_dict = {}
 
     for req_col in requested_cols:
-        if req_col in filtered_report_df.columns:
+        if req_col in filtered_report_df.columns and req_col not in actual_cols:
             actual_cols.append(req_col)
-        elif req_col == 'Party':
-            # Map VendorName to Party if Party doesn't exist
+        elif req_col == 'Party' and 'Party' not in filtered_report_df.columns:
             vendor_c = vendor_column(filtered_report_df) or 'VendorName'
-            if vendor_c in filtered_report_df.columns:
+            if vendor_c in filtered_report_df.columns and vendor_c not in actual_cols:
                 actual_cols.append(vendor_c)
                 rename_dict[vendor_c] = 'Party'
+
+    if not actual_cols:
+        actual_cols = [c for c in filtered_report_df.columns if not c.startswith('_') and c not in ['Parsed_Date', 'VendorName', 'Status_Category', 'MonthKey']]
 
     final_report_df = filtered_report_df[actual_cols].copy()
     final_report_df.rename(columns=rename_dict, inplace=True)
@@ -369,14 +374,16 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     st.markdown(render_html_table(final_report_df), unsafe_allow_html=True)
 
-    file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.strftime('%d_%m_%Y')
+    file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.replace('-', '_')
     st.download_button(
-        label=f"📥 Download Reported Vehicles (Excel)",
+        label=f"📥 Download Reported Vehicles ({selected_date}) (Excel)",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
         file_name=f"Reported_Vehicles_{file_date_str}.xlsx",
         mime=EXCEL_MIME,
-        type="primary"
+        type="primary",
+        key=f"download_reported_{unique_key}"
     )
+
 
 # ================= FILE PROCESSING =================
 def process_uploaded_files(uploaded_files):
@@ -426,7 +433,6 @@ def process_uploaded_files(uploaded_files):
                 else:
                     temp_df['VendorName'] = "TEJAS CARGO"
 
-                # Despatch date column preferred; otherwise any date column
                 date_col = (
                     next((c for c in temp_df.columns if 'desp' in c.lower() and 'date' in c.lower()), None)
                     or next((c for c in temp_df.columns if 'date' in c.lower()), None)
@@ -450,7 +456,6 @@ def process_uploaded_files(uploaded_files):
                     return ONTIME if is_zero_late(late_val) else DELAY
 
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                # Appending the full temp_df ensures background scans find all records
                 mis_dfs.append(temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
@@ -612,7 +617,7 @@ if "Dashboard" in selected_nav:
             perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
         else:
             perf_mis = pd.DataFrame(columns=filtered_mis.columns)
-            
+
         total_trips = len(perf_mis)
         ontime_trips = int((perf_mis['Status_Category'] == ONTIME).sum()) if not perf_mis.empty else 0
         delay_trips = int((perf_mis['Status_Category'] == DELAY).sum()) if not perf_mis.empty else 0
@@ -871,7 +876,7 @@ elif "Vehicle Utilisation" in selected_nav:
                 month_label = pd.Period(selected_month).strftime('%B %Y').upper()
                 month_df = mis_df[mis_df['MonthKey'] == selected_month].copy()
 
-                lorry_col = next((c for c in month_df.columns if 'lorry' in c.lower() or 'vehicle no' in c.lower()), None)
+                lorry_col = get_lorry_col(month_df)
                 if lorry_col is None:
                     st.warning("'Lorry No.' column nahi mila.")
                 else:
@@ -896,7 +901,6 @@ elif "Vehicle Utilisation" in selected_nav:
                     if 'VendorName' not in month_df.columns:
                         month_df['VendorName'] = "N/A"
 
-                    selected_vehicle = "ALL"
                     vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
                     selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
 
