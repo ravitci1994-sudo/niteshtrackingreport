@@ -278,69 +278,64 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
-# ========== REVISED HELPER FOR DELAY REPORT (WITH DATE FILTER) ==========
-def show_delay_report(df, unique_key=""):
+# ========== REVISED HELPER FOR REPORTED VEHICLE (ALL REPORTED, NOT JUST DELAY) ==========
+def show_reported_vehicle_report(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("## 🚨 Arrival Delay Vehicle Report")
+    st.markdown("## 🚨 Daily Reported Vehicle Report")
 
     final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in df.columns), None)
 
-    if not final_rep_col or not late_col:
-        st.warning("Data mein Reporting Date ya Late Hrs column nahi mila.")
+    if not final_rep_col:
+        st.warning("Data mein Reporting Date column nahi mila.")
         return
 
     temp_df = df.copy()
+    
+    # Extract Arrival Date
     temp_df['Temp_Arrival_Date'] = pd.to_datetime(temp_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
+    
+    # Filter: ONLY keep rows where Temp_Arrival_Date is valid (meaning it is reported)
+    reported_df = temp_df[temp_df['Temp_Arrival_Date'].notna()].copy()
 
-    # Function strictly checks for valid delay values in Late Hrs column
-    def has_actual_delay(v):
-        if is_blank(v): return False
-        s = str(v).strip().lower()
-        if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00", "nan", "nat", "none"): 
-            return False
-        try:
-            if pd.to_timedelta(s) > pd.Timedelta(0): return True
-        except Exception: pass
-        try:
-            if float(s) > 0: return True
-        except Exception: pass
-        return True
-
-    # Filter: ONLY vehicles with actual delays
-    delay_df = temp_df[temp_df[late_col].apply(has_actual_delay)].copy()
-
-    if delay_df.empty:
-        st.success("Selected data mein koi bhi delay wali gaadi nahi hai! 🎉")
+    if reported_df.empty:
+        st.success("Selected data mein koi bhi gaadi report nahi hui hai (Final Touching Date blank hai)! 🎉")
         return
         
     # Clean Dummy Lorry Numbers (Y - TBC, TBA)
-    lorry_col = find_col(delay_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
-    if lorry_col in delay_df.columns:
-        delay_df[lorry_col] = delay_df[lorry_col].astype(str).str.strip()
-        mask = (delay_df[lorry_col] != "") & (delay_df[lorry_col].str.upper() != "NAN")
-        mask &= ~delay_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-        delay_df = delay_df[mask]
+    lorry_col = find_col(reported_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
+    if lorry_col in reported_df.columns:
+        reported_df[lorry_col] = reported_df[lorry_col].astype(str).str.strip()
+        mask = (reported_df[lorry_col] != "") & (reported_df[lorry_col].str.upper() != "NAN")
+        mask &= ~reported_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+        reported_df = reported_df[mask]
         
-    if delay_df.empty:
-        st.success("Selected data mein koi bhi delay wali gaadi nahi hai (Dummy/Blank vehicles excluded)! 🎉")
+    if reported_df.empty:
+        st.success("Selected data mein koi bhi valid gaadi report nahi hui hai (Dummy/Blank vehicles excluded)! 🎉")
         return
 
-    # Add Date Filter for flexibility
-    available_dates = sorted(delay_df['Temp_Arrival_Date'].dropna().unique(), reverse=True)
+    # Add Date Filter dropdown
+    available_dates = sorted(reported_df['Temp_Arrival_Date'].unique(), reverse=True)
     date_options = ["ALL"] + available_dates
     
-    selected_date = st.selectbox("📅 Filter by Arrival Date:", date_options, key=f"delay_date_filter_{unique_key}")
+    # Set default index to yesterday if it exists
+    yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
+    default_index = 0
+    if yesterday in available_dates:
+        default_index = date_options.index(yesterday)
+    
+    selected_date = st.selectbox("📅 Filter by Arrival Date:", date_options, index=default_index, key=f"reported_date_filter_{unique_key}")
     
     if selected_date != "ALL":
-        delay_df = delay_df[delay_df['Temp_Arrival_Date'] == selected_date]
+        filtered_report_df = reported_df[reported_df['Temp_Arrival_Date'] == selected_date]
+    else:
+        filtered_report_df = reported_df.copy()
 
-    if delay_df.empty:
-        st.success(f"Selected date ({selected_date.strftime('%d-%m-%Y')}) par koi delay report nahi hui hai! 🎉")
+    if filtered_report_df.empty:
+        st.success(f"Selected date ({selected_date.strftime('%d-%m-%Y')}) par koi gaadi report nahi hui hai! 🎉")
         return
 
     # User's Strictly Requested Columns
-    requested_delay_cols = [
+    requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
         '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching', 
@@ -353,27 +348,27 @@ def show_delay_report(df, unique_key=""):
     actual_cols = []
     rename_dict = {}
 
-    for req_col in requested_delay_cols:
-        if req_col in delay_df.columns:
+    for req_col in requested_cols:
+        if req_col in filtered_report_df.columns:
             actual_cols.append(req_col)
         elif req_col == 'Party':
             # Map VendorName to Party if Party doesn't exist
-            vendor_c = vendor_column(delay_df) or 'VendorName'
-            if vendor_c in delay_df.columns:
+            vendor_c = vendor_column(filtered_report_df) or 'VendorName'
+            if vendor_c in filtered_report_df.columns:
                 actual_cols.append(vendor_c)
                 rename_dict[vendor_c] = 'Party'
 
-    report_df = delay_df[actual_cols].copy()
-    report_df.rename(columns=rename_dict, inplace=True)
-    report_df.insert(0, 'S.No', range(1, 1 + len(report_df)))
+    final_report_df = filtered_report_df[actual_cols].copy()
+    final_report_df.rename(columns=rename_dict, inplace=True)
+    final_report_df.insert(0, 'S.No', range(1, 1 + len(final_report_df)))
 
-    st.markdown(render_html_table(report_df), unsafe_allow_html=True)
+    st.markdown(render_html_table(final_report_df), unsafe_allow_html=True)
 
     file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.strftime('%d_%m_%Y')
     st.download_button(
-        label="📥 Download Delay Report (Excel)",
-        data=to_excel_bytes({'Delay_Report': report_df}),
-        file_name=f"Arrival_Delay_Report_{file_date_str}.xlsx",
+        label="📥 Download Reported Vehicles (Excel)",
+        data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
+        file_name=f"Daily_Reported_Vehicles_{file_date_str}.xlsx",
         mime=EXCEL_MIME,
         type="primary"
     )
@@ -450,7 +445,7 @@ def process_uploaded_files(uploaded_files):
                     return ONTIME if is_zero_late(late_val) else DELAY
 
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                # Appending the full temp_df ensures background scans like Daily Delay find all records
+                # Appending the full temp_df ensures background scans like Daily Reported Vehicles find all records
                 mis_dfs.append(temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
@@ -721,8 +716,8 @@ if "Dashboard" in selected_nav:
         st.markdown("## 📄 Live Detailed Performance Records")
         if not perf_mis.empty:
             st.markdown(render_html_table(show_cols(perf_mis)), unsafe_allow_html=True)
-            # Pass all filtered_mis data to check for ALL delays
-            show_delay_report(filtered_mis, unique_key="dash")
+            # Pass all filtered_mis data to check for ALL reported vehicles
+            show_reported_vehicle_report(filtered_mis, unique_key="dash")
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
@@ -780,7 +775,7 @@ elif "Client Performance" in selected_nav:
                 type="primary"
             )
             
-            show_delay_report(filtered_mis, unique_key="client_perf")
+            show_reported_vehicle_report(filtered_mis, unique_key="client_perf")
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
