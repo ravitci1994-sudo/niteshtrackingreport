@@ -505,7 +505,6 @@ def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
-    # Filter only delay vehicles for this section
     if late_col:
         delay_veh_df = reported_df[~reported_df[late_col].apply(is_zero_late)].copy()
     else:
@@ -1171,4 +1170,16 @@ elif "Monthly Breakdown" in selected_nav:
                 monthly_summary = (df.groupby(['Month', 'VendorName', 'Status_Category'])
                                    .size().unstack(fill_value=0).reset_index()
                                    .sort_values(['Month', 'VendorName']))
-                monthly_summary['Month'] = monthly_summary['Month'].dt.strftime
+                monthly_summary['Month'] = monthly_summary['Month'].dt.strftime('%B %Y')
+                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
+            except Exception as e:
+                st.warning(f"Could not parse monthly breakdown: {e}")
+        else:
+            st.warning("Date column not found for monthly breakdown.")
+    else:
+        st.info("👈 Kripya pehle MIS files upload karein.")
+
+# ----------------- OTHER PAGES -----------------
+else:
+    st.title(selected_nav)
+    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
