@@ -286,7 +286,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE (STRICTLY BASED ON FINAL TOUCHING REPORTING DATE & TIME) ==========
+# ========== REPORTED VEHICLE TABLE (WITH DATE & DELAY FILTER BUTTONS) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -325,21 +325,39 @@ def show_reported_vehicle_table(df, unique_key=""):
     )
     date_options = ["ALL"] + valid_dates['_Rep_Date_Str'].tolist()
 
-    # Date Filter Button (Dropdown)
-    selected_date = st.selectbox(
-        "📅 Filter by Reporting Date:",
-        date_options,
-        index=0,
-        key=f"reported_date_filter_{unique_key}"
-    )
+    # Two Filter Buttons side-by-side: Reporting Date & Delay Filter
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        selected_date = st.selectbox(
+            "📅 Filter by Reporting Date:",
+            date_options,
+            index=0,
+            key=f"reported_date_filter_{unique_key}"
+        )
+    with f_col2:
+        delay_filter = st.selectbox(
+            "🚨 Filter by Delay Status:",
+            ["ALL Reported Vehicles", "Only Delay Vehicles", "Only On-Time Vehicles"],
+            index=0,
+            key=f"reported_delay_filter_{unique_key}"
+        )
 
+    # 1. Apply Reporting Date Filter
     if selected_date != "ALL":
         filtered_report_df = reported_df[reported_df['_Rep_Date_Str'] == selected_date].copy()
     else:
         filtered_report_df = reported_df.copy()
 
+    # 2. Apply Delay Filter (based on Late Hrs column)
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
+    if late_col:
+        if delay_filter == "Only Delay Vehicles":
+            filtered_report_df = filtered_report_df[~filtered_report_df[late_col].apply(is_zero_late)].copy()
+        elif delay_filter == "Only On-Time Vehicles":
+            filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
+
     if filtered_report_df.empty:
-        st.info(f"Selected date ({selected_date}) par koi Reported Vehicle data nahi mila.")
+        st.info(f"Selected filter ({selected_date} | {delay_filter}) ke liye koi Reported Vehicle data nahi mila.")
         return
 
     # Select Requested Columns
@@ -375,10 +393,11 @@ def show_reported_vehicle_table(df, unique_key=""):
     st.markdown(render_html_table(final_report_df), unsafe_allow_html=True)
 
     file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.replace('-', '_')
+    status_tag = "Delay_Only" if delay_filter == "Only Delay Vehicles" else ("OnTime_Only" if delay_filter == "Only On-Time Vehicles" else "All")
     st.download_button(
-        label=f"📥 Download Reported Vehicles ({selected_date}) (Excel)",
+        label=f"📥 Download Reported Vehicles ({selected_date} - {delay_filter}) (Excel)",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
-        file_name=f"Reported_Vehicles_{file_date_str}.xlsx",
+        file_name=f"Reported_Vehicles_{file_date_str}_{status_tag}.xlsx",
         mime=EXCEL_MIME,
         type="primary",
         key=f"download_reported_{unique_key}"
