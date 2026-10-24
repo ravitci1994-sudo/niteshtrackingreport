@@ -125,7 +125,6 @@ def is_blank(v):
 
 
 def first_valid(row, names):
-    """Return first non-blank value from the given column names."""
     for n in names:
         if n in row.index and not is_blank(row[n]):
             return row[n]
@@ -133,7 +132,6 @@ def first_valid(row, names):
 
 
 def is_zero_late(v):
-    """True if Late Hrs is empty / zero / negative (i.e. trip is on time)."""
     if is_blank(v):
         return True
     s = str(v).strip().lower()
@@ -161,7 +159,6 @@ def clean_party(v, keep_other=False):
 
 
 def find_col(df, exact=None, contains=None):
-    """Find a column by exact (case-insensitive) names first, then by substring."""
     if exact:
         for c in df.columns:
             if c.lower().strip() in exact:
@@ -278,23 +275,38 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
-# ========== NEW HELPER FOR DAILY DELAY REPORT ==========
+# ========== NEW STRICT HELPER FOR DAILY DELAY REPORT ==========
 def show_daily_delay_report(df):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Daily Arrival Delay Vehicle Report (Yesterday)")
 
     final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in df.columns), None)
 
-    if not final_rep_col:
-        st.warning("Reporting Date ka column nahi mila data mein.")
+    if not final_rep_col or not late_col:
+        st.warning("Data mein Reporting Date ya Late Hrs column nahi mila.")
         return
 
     temp_df = df.copy()
     temp_df['Temp_Arrival_Date'] = pd.to_datetime(temp_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
     yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
 
-    # Filter for yesterday and DELAY status
-    delay_df = temp_df[(temp_df['Temp_Arrival_Date'] == yesterday) & (temp_df['Status_Category'] == DELAY)].copy()
+    # Function strictly checks for valid delay values in Late Hrs column
+    def has_actual_delay(v):
+        if is_blank(v): return False
+        s = str(v).strip().lower()
+        if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00", "nan", "nat", "none"): 
+            return False
+        try:
+            if pd.to_timedelta(s) <= pd.Timedelta(0): return False
+        except Exception: pass
+        try:
+            if float(s) <= 0: return False
+        except Exception: pass
+        return True
+
+    # Filter: Arrival was yesterday AND Late Hrs indicates a delay
+    delay_df = temp_df[(temp_df['Temp_Arrival_Date'] == yesterday) & temp_df[late_col].apply(has_actual_delay)].copy()
 
     if delay_df.empty:
         st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
@@ -312,7 +324,7 @@ def show_daily_delay_report(df):
         st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
         return
 
-    # Requested Exact Columns
+    # User's Strictly Requested Columns
     requested_delay_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
@@ -323,10 +335,21 @@ def show_daily_delay_report(df):
         'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
     ]
 
-    # Keep only those columns that exist in the DataFrame
-    available_cols = [c for c in requested_delay_cols if c in delay_df.columns]
-    
-    report_df = delay_df[available_cols].copy()
+    actual_cols = []
+    rename_dict = {}
+
+    for req_col in requested_delay_cols:
+        if req_col in delay_df.columns:
+            actual_cols.append(req_col)
+        elif req_col == 'Party':
+            # Map VendorName to Party if Party doesn't exist
+            vendor_c = vendor_column(delay_df) or 'VendorName'
+            if vendor_c in delay_df.columns:
+                actual_cols.append(vendor_c)
+                rename_dict[vendor_c] = 'Party'
+
+    report_df = delay_df[actual_cols].copy()
+    report_df.rename(columns=rename_dict, inplace=True)
     report_df.insert(0, 'S.No', range(1, 1 + len(report_df)))
 
     st.markdown(render_html_table(report_df), unsafe_allow_html=True)
@@ -387,7 +410,6 @@ def process_uploaded_files(uploaded_files):
                 else:
                     temp_df['VendorName'] = "TEJAS CARGO"
 
-                # Despatch date column preferred; otherwise any date column
                 date_col = (
                     next((c for c in temp_df.columns if 'desp' in c.lower() and 'date' in c.lower()), None)
                     or next((c for c in temp_df.columns if 'date' in c.lower()), None)
@@ -411,8 +433,8 @@ def process_uploaded_files(uploaded_files):
                     return ONTIME if is_zero_late(late_val) else DELAY
 
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                valid_mis = temp_df[temp_df['Status_Category'].isin([ONTIME, DELAY])].copy()
-                mis_dfs.append(valid_mis if not valid_mis.empty else temp_df)
+                # Appending the full temp_df ensures background scans like Daily Delay find all records
+                mis_dfs.append(temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
 
@@ -568,11 +590,15 @@ if "Dashboard" in selected_nav:
         else:
             aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0] * 9
 
-        # Performance Metrics
-        total_trips = len(filtered_mis)
-        has_status = not filtered_mis.empty and 'Status_Category' in filtered_mis.columns
-        ontime_trips = int((filtered_mis['Status_Category'] == ONTIME).sum()) if has_status else 0
-        delay_trips = int((filtered_mis['Status_Category'] == DELAY).sum()) if has_status else 0
+        # Performance Metrics (Only closed trips)
+        if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
+            perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
+        else:
+            perf_mis = pd.DataFrame(columns=filtered_mis.columns)
+            
+        total_trips = len(perf_mis)
+        ontime_trips = int((perf_mis['Status_Category'] == ONTIME).sum()) if not perf_mis.empty else 0
+        delay_trips = int((perf_mis['Status_Category'] == DELAY).sum()) if not perf_mis.empty else 0
 
         ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
         delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
@@ -641,10 +667,10 @@ if "Dashboard" in selected_nav:
             st.markdown(col2_html, unsafe_allow_html=True)
 
         with col3:
-            lb_clients = filtered_mis['VendorName'].value_counts().index.tolist() if not filtered_mis.empty and 'VendorName' in filtered_mis.columns else []
+            lb_clients = perf_mis['VendorName'].value_counts().index.tolist() if not perf_mis.empty and 'VendorName' in perf_mis.columns else []
             lb_rows_html = ""
             for c_name in lb_clients[:4]:
-                c_df = filtered_mis[filtered_mis['VendorName'] == c_name]
+                c_df = perf_mis[perf_mis['VendorName'] == c_name]
                 c_tot = len(c_df)
                 c_ontime = int((c_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in c_df.columns else 0
                 c_delay = int((c_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in c_df.columns else 0
@@ -676,8 +702,9 @@ if "Dashboard" in selected_nav:
         # Dashboard Data Table
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("## 📄 Live Detailed Performance Records")
-        if not filtered_mis.empty:
-            st.markdown(render_html_table(show_cols(filtered_mis)), unsafe_allow_html=True)
+        if not perf_mis.empty:
+            st.markdown(render_html_table(show_cols(perf_mis)), unsafe_allow_html=True)
+            # Pass all filtered_mis data to check for ALL delays (even if not 'order done')
             show_daily_delay_report(filtered_mis)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
@@ -697,12 +724,17 @@ elif "Client Performance" in selected_nav:
         if selected_client != "ALL":
             filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
-        unique_clients = filtered_mis['VendorName'].dropna().unique() if 'VendorName' in filtered_mis.columns else []
+        if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
+            perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
+        else:
+            perf_mis = pd.DataFrame(columns=filtered_mis.columns)
+
+        unique_clients = perf_mis['VendorName'].dropna().unique() if 'VendorName' in perf_mis.columns else []
 
         if len(unique_clients) > 0:
             p_cols = st.columns(min(len(unique_clients), 3))
             for i, client_name in enumerate(unique_clients):
-                client_df = filtered_mis[filtered_mis['VendorName'] == client_name]
+                client_df = perf_mis[perf_mis['VendorName'] == client_name]
                 c_total = len(client_df)
                 c_ontime = int((client_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in client_df.columns else 0
                 c_delay = int((client_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in client_df.columns else 0
@@ -719,8 +751,8 @@ elif "Client Performance" in selected_nav:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("## 📄 Live Detailed Performance Records")
 
-        if not filtered_mis.empty:
-            show_df = show_cols(filtered_mis)
+        if not perf_mis.empty:
+            show_df = show_cols(perf_mis)
             st.markdown(render_html_table(show_df), unsafe_allow_html=True)
 
             st.download_button(
@@ -731,7 +763,6 @@ elif "Client Performance" in selected_nav:
                 type="primary"
             )
             
-            # --- Daily Arrival Delay Report ---
             show_daily_delay_report(filtered_mis)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
@@ -762,9 +793,14 @@ elif "Branches" in selected_nav:
             if selected_staff != "ALL":
                 filtered_df = filtered_df[filtered_df[staff_col].astype(str).str.strip() == selected_staff]
 
+            if not filtered_df.empty and 'Status_Category' in filtered_df.columns:
+                perf_df = filtered_df[filtered_df['Status_Category'].isin([ONTIME, DELAY])].copy()
+            else:
+                perf_df = pd.DataFrame(columns=filtered_df.columns)
+
             staff_summary = []
-            if not filtered_df.empty:
-                grouped = filtered_df.groupby([staff_col, 'VendorName'])
+            if not perf_df.empty:
+                grouped = perf_df.groupby([staff_col, 'VendorName'])
                 for (staff, client), s_df in grouped:
                     if pd.isna(staff) or str(staff).strip() == "":
                         continue
@@ -787,7 +823,7 @@ elif "Branches" in selected_nav:
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown("## 📄 Detailed Filtered Records")
-                show_raw_df = show_cols(filtered_df)
+                show_raw_df = show_cols(perf_df)
                 st.markdown(render_html_table(show_raw_df), unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -818,11 +854,9 @@ elif "Vehicle Utilisation" in selected_nav:
         else:
             mis_df = mis_df[mis_df['Parsed_Date'].notna()].copy()
 
-            # Sirf closed trips
             if 'Status_Category' in mis_df.columns:
                 mis_df = mis_df[mis_df['Status_Category'].isin([ONTIME, DELAY])]
 
-            # Month selector (default = current month, warna latest available month)
             mis_df['MonthKey'] = mis_df['Parsed_Date'].dt.strftime('%Y-%m')
             month_options = sorted(mis_df['MonthKey'].unique(), reverse=True)
 
@@ -864,7 +898,6 @@ elif "Vehicle Utilisation" in selected_nav:
                     if 'VendorName' not in month_df.columns:
                         month_df['VendorName'] = "N/A"
 
-                    # Vehicle dropdown: saari gadiyan
                     selected_vehicle = "ALL"
                     vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
                     selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
@@ -874,7 +907,6 @@ elif "Vehicle Utilisation" in selected_nav:
                     total_trips = len(view_df)
                     total_km = view_df['_KM'].sum()
 
-                    # Client-wise chips
                     colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
                     chips = ""
                     for i, (c_name, c_val) in enumerate(view_df['VendorName'].value_counts().items()):
@@ -900,7 +932,6 @@ elif "Vehicle Utilisation" in selected_nav:
                     with c2:
                         st.markdown(card_html, unsafe_allow_html=True)
 
-                    # Route + Client summary
                     st.markdown("<br>", unsafe_allow_html=True)
                     heading = "ALL Vehicles" if selected_vehicle == "ALL" else selected_vehicle
                     st.markdown(f"## 📍 Route & Client Summary ({heading})")
@@ -919,7 +950,6 @@ elif "Vehicle Utilisation" in selected_nav:
                         summary.insert(0, 'S.No', range(1, 1 + len(summary)))
                         st.markdown(render_html_table(summary), unsafe_allow_html=True)
 
-                    # Detailed records
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.markdown("## 📄 Detailed Vehicle Utilisation Records")
                     veh_type_col = next((c for c in view_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
@@ -951,6 +981,7 @@ elif "Monthly Breakdown" in selected_nav:
         if 'Parsed_Date' in df.columns and 'Status_Category' in df.columns:
             try:
                 df = df[df['Parsed_Date'].notna()].copy()
+                df = df[df['Status_Category'].isin([ONTIME, DELAY])]
                 df['Month'] = df['Parsed_Date'].dt.to_period('M')
                 monthly_summary = (df.groupby(['Month', 'VendorName', 'Status_Category'])
                                    .size().unstack(fill_value=0).reset_index()
