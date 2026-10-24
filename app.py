@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH FREQUENCY FILTER) ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH CLIENT & STAFF FILTER) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -540,7 +540,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH FREQUENCY DROPDOWN) =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH STAFF & CLIENT FILTER) =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
@@ -549,8 +549,14 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         delay_staff_list = ["ALL"]
 
-    # Side-by-side filters: Controlling Staff & Delay Frequency Filter
-    d_col1, d_col2 = st.columns(2)
+    client_col_name = vendor_column(reported_df) or 'VendorName'
+    if client_col_name in reported_df.columns:
+        delay_client_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""])
+    else:
+        delay_client_list = ["ALL"]
+
+    # Side-by-side filters: Controlling Staff, Client Filter & Delay Frequency Filter
+    d_col1, d_col2, d_col3 = st.columns(3)
     with d_col1:
         selected_delay_staff = st.selectbox(
             "👨‍💼 Filter by Controlling Staff (Delay Report):",
@@ -559,6 +565,13 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"delay_staff_filter_{unique_key}"
         )
     with d_col2:
+        selected_delay_client = st.selectbox(
+            "🏢 Filter by Client (Delay Report):",
+            delay_client_list,
+            index=0,
+            key=f"delay_client_filter_{unique_key}"
+        )
+    with d_col3:
         freq_filter_option = st.selectbox(
             "🚨 Filter by Delay Frequency:",
             ["ALL", "Delay > 2 times", "Delay > 3 times", "Delay > 4 times", "Delay > 5 times"],
@@ -569,6 +582,8 @@ def show_reported_vehicle_table(df, unique_key=""):
     base_veh_df = reported_df.copy()
     if selected_delay_staff != "ALL" and staff_col:
         base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
+    if selected_delay_client != "ALL" and client_col_name in base_veh_df.columns:
+        base_veh_df = base_veh_df[base_veh_df[client_col_name].astype(str).str.strip() == selected_delay_client].copy()
 
     if not base_veh_df.empty and late_col:
         lorry_c = get_lorry_col(base_veh_df) or 'Lorry No.'
@@ -586,14 +601,12 @@ def show_reported_vehicle_table(df, unique_key=""):
         base_veh_df['Is_Delay'] = ~base_veh_df[late_col].apply(is_zero_late)
         base_veh_df['Is_OnTime'] = base_veh_df[late_col].apply(is_zero_late)
 
-        # Aggregate counts per vehicle
         agg_df = base_veh_df.groupby(lorry_c).agg(
             Total_Trips=(lorry_c, 'count'),
             Delay_Trips=('Is_Delay', 'sum'),
             OnTime_Trips=('Is_OnTime', 'sum')
         ).reset_index()
 
-        # Apply Frequency Filter based on dropdown selection
         if freq_filter_option == "Delay > 2 times":
             agg_df = agg_df[agg_df['Delay_Trips'] > 2]
         elif freq_filter_option == "Delay > 3 times":
@@ -620,7 +633,7 @@ def show_reported_vehicle_table(df, unique_key=""):
             if veh_type_c:
                 d_item['Veh.Type'] = r_row.get(veh_type_c, '')
             d_item['Route'] = r_row.get('Route', 'N/A')
-            d_item['Client'] = r_row.get('VendorName', 'N/A')
+            d_item['Client'] = r_row.get(client_col_name, 'N/A')
             d_item['On-Time Trips'] = int(r_row.get('OnTime_Trips', 0))
             d_item['Delay Trips'] = int(r_row.get('Delay_Trips', 0))
             d_item['Total Trips'] = int(r_row.get('Total_Trips', 0))
@@ -637,11 +650,12 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.markdown(render_html_table(delay_report_df), unsafe_allow_html=True)
 
         staff_tag = f"_Staff_{selected_delay_staff.replace(' ', '_')}" if selected_delay_staff != "ALL" else ""
+        client_tag = f"_Client_{selected_delay_client.replace(' ', '_')}" if selected_delay_client != "ALL" else ""
         freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
         st.download_button(
             label="📥 Download Delay-wise Vehicle Report Excel",
             data=to_excel_bytes({'Delay_Vehicle_Report': delay_report_df}),
-            file_name=f"Delay_Vehicle_Report{staff_tag}{freq_tag}.xlsx",
+            file_name=f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx",
             mime=EXCEL_MIME,
             type="secondary",
             key=f"download_delay_veh_{unique_key}"
