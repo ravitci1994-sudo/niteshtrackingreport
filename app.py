@@ -278,6 +278,60 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
+# ========== NEW HELPER FOR DAILY DELAY REPORT ==========
+def show_daily_delay_report(df):
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("## 🚨 Daily Arrival Delay Vehicle Report (Yesterday)")
+
+    final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
+
+    if not final_rep_col:
+        st.warning("Reporting Date ka column nahi mila data mein.")
+        return
+
+    temp_df = df.copy()
+    temp_df['Temp_Arrival_Date'] = pd.to_datetime(temp_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
+    yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
+
+    # Filter for yesterday and DELAY status
+    delay_df = temp_df[(temp_df['Temp_Arrival_Date'] == yesterday) & (temp_df['Status_Category'] == DELAY)].copy()
+
+    if delay_df.empty:
+        st.success(f"Kal ({yesterday.strftime('%d-%m-%Y')}) koi bhi delay wali gaadi report nahi hui hai! 🎉")
+        return
+
+    # Prepare specific columns
+    lorry_col = find_col(delay_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in delay_df.columns), 'Late Hrs')
+    remark_col = find_col(delay_df, contains=['remark']) or 'Tracking Remark'
+    from_col = find_col(delay_df, exact=['from'])
+    dest_col = find_col(delay_df, exact=['destination', 'to'])
+
+    if 'Route' not in delay_df.columns:
+        if from_col and dest_col:
+            delay_df['Route'] = delay_df[from_col].astype(str).str.upper() + " ➔ " + delay_df[dest_col].astype(str).str.upper()
+        else:
+            delay_df['Route'] = "N/A"
+
+    cols_to_extract = {}
+    if lorry_col in delay_df.columns: cols_to_extract[lorry_col] = 'Gadi No'
+    cols_to_extract['Route'] = 'Route'
+    if 'VendorName' in delay_df.columns: cols_to_extract['VendorName'] = 'Client'
+    if late_col in delay_df.columns: cols_to_extract[late_col] = 'Delay Hours'
+    if remark_col in delay_df.columns: cols_to_extract[remark_col] = 'Remarks'
+
+    report_df = delay_df[list(cols_to_extract.keys())].rename(columns=cols_to_extract)
+    report_df.insert(0, 'S.No', range(1, 1 + len(report_df)))
+
+    st.markdown(render_html_table(report_df), unsafe_allow_html=True)
+
+    st.download_button(
+        label="📥 Download Daily Delay Report (Excel)",
+        data=to_excel_bytes({'Daily_Delay_Report': report_df}),
+        file_name=f"Daily_Arrival_Delay_{yesterday.strftime('%d_%m_%Y')}.xlsx",
+        mime=EXCEL_MIME,
+        type="primary"
+    )
 
 # ================= FILE PROCESSING =================
 def process_uploaded_files(uploaded_files):
@@ -618,6 +672,7 @@ if "Dashboard" in selected_nav:
         st.markdown("## 📄 Live Detailed Performance Records")
         if not filtered_mis.empty:
             st.markdown(render_html_table(show_cols(filtered_mis)), unsafe_allow_html=True)
+            show_daily_delay_report(filtered_mis)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
@@ -669,6 +724,9 @@ elif "Client Performance" in selected_nav:
                 mime=EXCEL_MIME,
                 type="primary"
             )
+            
+            # --- NEW ADDITION: Daily Arrival Delay Report ---
+            show_daily_delay_report(filtered_mis)
         else:
             st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
     else:
