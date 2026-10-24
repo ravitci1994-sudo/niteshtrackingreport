@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH ON-TIME/DELAY COUNTS) ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH FREQUENCY FILTER) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -540,52 +540,74 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH ON-TIME & DELAY COUNTS) =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH FREQUENCY DROPDOWN) =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
-    lorry_c = get_lorry_col(reported_df) or 'Lorry No.'
-    if lorry_c in reported_df.columns:
-        reported_df[lorry_c] = reported_df[lorry_c].astype(str).str.strip()
-        mask = (reported_df[lorry_c] != "") & (reported_df[lorry_c].str.upper() != "NAN")
-        mask &= ~reported_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-        base_veh_df = reported_df[mask].copy()
-    else:
-        base_veh_df = reported_df.copy()
-
-    if from_c and dest_c:
-        base_veh_df['Route'] = base_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + base_veh_df[dest_c].astype(str).str.upper().str.strip()
-    else:
-        base_veh_df['Route'] = "N/A"
-
     if staff_col:
-        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in base_veh_df[staff_col].dropna().unique() if str(x).strip() != ""])
+        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
     else:
         delay_staff_list = ["ALL"]
 
-    selected_delay_staff = st.selectbox(
-        "👨‍💼 Filter by Controlling Staff (Delay Report):",
-        delay_staff_list,
-        index=0,
-        key=f"delay_staff_filter_{unique_key}"
-    )
+    # Side-by-side filters: Controlling Staff & Delay Frequency Filter
+    d_col1, d_col2 = st.columns(2)
+    with d_col1:
+        selected_delay_staff = st.selectbox(
+            "👨‍💼 Filter by Controlling Staff (Delay Report):",
+            delay_staff_list,
+            index=0,
+            key=f"delay_staff_filter_{unique_key}"
+        )
+    with d_col2:
+        freq_filter_option = st.selectbox(
+            "🚨 Filter by Delay Frequency:",
+            ["ALL", "Delay > 2 times", "Delay > 3 times", "Delay > 4 times", "Delay > 5 times"],
+            index=0,
+            key=f"delay_freq_filter_{unique_key}"
+        )
 
+    base_veh_df = reported_df.copy()
     if selected_delay_staff != "ALL" and staff_col:
         base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
 
     if not base_veh_df.empty and late_col:
+        lorry_c = get_lorry_col(base_veh_df) or 'Lorry No.'
+        if lorry_c in base_veh_df.columns:
+            base_veh_df[lorry_c] = base_veh_df[lorry_c].astype(str).str.strip()
+            mask = (base_veh_df[lorry_c] != "") & (base_veh_df[lorry_c].str.upper() != "NAN")
+            mask &= ~base_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+            base_veh_df = base_veh_df[mask].copy()
+
+        if from_c and dest_c:
+            base_veh_df['Route'] = base_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + base_veh_df[dest_c].astype(str).str.upper().str.strip()
+        else:
+            base_veh_df['Route'] = "N/A"
+
         base_veh_df['Is_Delay'] = ~base_veh_df[late_col].apply(is_zero_late)
         base_veh_df['Is_OnTime'] = base_veh_df[late_col].apply(is_zero_late)
 
-        # Aggregate per vehicle
+        # Aggregate counts per vehicle
         agg_df = base_veh_df.groupby(lorry_c).agg(
             Total_Trips=(lorry_c, 'count'),
             Delay_Trips=('Is_Delay', 'sum'),
             OnTime_Trips=('Is_OnTime', 'sum')
         ).reset_index()
 
-        # Merge back to get latest details per vehicle
-        merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='left')
+        # Apply Frequency Filter based on dropdown selection
+        if freq_filter_option == "Delay > 2 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 2]
+        elif freq_filter_option == "Delay > 3 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 3]
+        elif freq_filter_option == "Delay > 4 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 4]
+        elif freq_filter_option == "Delay > 5 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 5]
+
+        if agg_df.empty:
+            st.info(f"Selected frequency filter ({freq_filter_option}) ke liye koi vehicle data nahi mila.")
+            return
+
+        merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='inner')
 
         veh_type_c = next((c for c in merged_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
         rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in merged_veh_df.columns), None)
@@ -615,10 +637,11 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.markdown(render_html_table(delay_report_df), unsafe_allow_html=True)
 
         staff_tag = f"_Staff_{selected_delay_staff.replace(' ', '_')}" if selected_delay_staff != "ALL" else ""
+        freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
         st.download_button(
             label="📥 Download Delay-wise Vehicle Report Excel",
             data=to_excel_bytes({'Delay_Vehicle_Report': delay_report_df}),
-            file_name=f"Delay_Vehicle_Report{staff_tag}.xlsx",
+            file_name=f"Delay_Vehicle_Report{staff_tag}{freq_tag}.xlsx",
             mime=EXCEL_MIME,
             type="secondary",
             key=f"download_delay_veh_{unique_key}"
@@ -1237,7 +1260,7 @@ elif "Monthly Breakdown" in selected_nav:
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle MIS files upload karein.")
+        st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
