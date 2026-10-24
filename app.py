@@ -125,7 +125,6 @@ def is_blank(v):
 
 
 def first_valid(row, names):
-    """Return first non-blank value from the given column names."""
     for n in names:
         if n in row.index and not is_blank(row[n]):
             return row[n]
@@ -133,7 +132,6 @@ def first_valid(row, names):
 
 
 def is_zero_late(v):
-    """True if Late Hrs is empty / zero / negative (i.e. trip is on time)."""
     if is_blank(v):
         return True
     s = str(v).strip().lower()
@@ -161,7 +159,6 @@ def clean_party(v, keep_other=False):
 
 
 def find_col(df, exact=None, contains=None):
-    """Find a column by exact (case-insensitive) names first, then by substring."""
     if exact:
         for c in df.columns:
             if c.lower().strip() in exact:
@@ -174,7 +171,6 @@ def find_col(df, exact=None, contains=None):
 
 
 def get_lorry_col(df):
-    """Always prioritize the exact 'Lorry No.' column."""
     if 'Lorry No.' in df.columns:
         return 'Lorry No.'
     return find_col(df, exact=('lorry no.', 'lorry no', 'vehicle no.', 'vehicle no'), contains=('lorry no', 'vehicle no'))
@@ -286,12 +282,11 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE (WITH DATE, DELAY & CONTROLLING STAFF FILTERS) ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE REPORT ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
 
-    # Find Final Touching Reporting Date & Time column
     final_rep_col = next(
         (c for c in ['Final Touching Reporting Date & Time', 'Reporting Date & Time', 'Reporting Date'] if c in df.columns),
         None
@@ -304,20 +299,16 @@ def show_reported_vehicle_table(df, unique_key=""):
         return
 
     temp_df = df.copy()
-
-    # Sirf wahi data pick karna hai jisme Final Touching Reporting Date & Time mention ho
     reported_df = temp_df[~temp_df[final_rep_col].apply(is_blank)].copy()
 
     if reported_df.empty:
         st.warning("Selected data mein kisi bhi gaadi ke aage 'Final Touching Reporting Date & Time' mention nahi hai.")
         return
 
-    # Parse Reporting Date for the Date Filter Button
     parsed_rep_dt = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True)
     reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
     reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
 
-    # Unique sorted dates for dropdown
     valid_dates = (
         reported_df[reported_df['_Rep_Date_Obj'].notna()]
         .drop_duplicates(subset=['_Rep_Date_Str'])
@@ -325,10 +316,8 @@ def show_reported_vehicle_table(df, unique_key=""):
     )
     date_options = ["ALL"] + valid_dates['_Rep_Date_Str'].tolist()
 
-    # Staff column identifier
     staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
 
-    # Three Filter Buttons side-by-side: Reporting Date, Delay Filter & Controlling Staff
     f_col1, f_col2, f_col3 = st.columns(3)
     with f_col1:
         selected_date = st.selectbox(
@@ -356,13 +345,12 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"reported_staff_filter_{unique_key}"
         )
 
-    # 1. Apply Reporting Date Filter
+    # Filtering data
     if selected_date != "ALL":
         filtered_report_df = reported_df[reported_df['_Rep_Date_Str'] == selected_date].copy()
     else:
         filtered_report_df = reported_df.copy()
 
-    # 2. Apply Delay Filter (based on Late Hrs column)
     late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
     if late_col:
         if delay_filter == "Only Delay Vehicles":
@@ -370,7 +358,6 @@ def show_reported_vehicle_table(df, unique_key=""):
         elif delay_filter == "Only On-Time Vehicles":
             filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
 
-    # 3. Apply Controlling Staff Filter
     if selected_staff != "ALL" and staff_col:
         filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff].copy()
 
@@ -378,7 +365,7 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
         return
 
-    # Select Requested Columns
+    # Table 1: Reported Vehicles
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
@@ -415,13 +402,72 @@ def show_reported_vehicle_table(df, unique_key=""):
     staff_tag = f"_Staff_{selected_staff.replace(' ', '_')}" if selected_staff != "ALL" else ""
     
     st.download_button(
-        label=f"📥 Download Reported Vehicles ({selected_date} - {delay_filter}) (Excel)",
+        label=f"📥 Download Reported Vehicles Excel",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
         file_name=f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx",
         mime=EXCEL_MIME,
         type="primary",
         key=f"download_reported_{unique_key}"
     )
+
+    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("## 📍 Route-wise Performance Report")
+
+    from_c = find_col(filtered_report_df, exact=('from',))
+    dest_c = find_col(filtered_report_df, exact=('destination', 'to'))
+    client_c = 'Party' if 'Party' in final_report_df.columns else vendor_column(filtered_report_df)
+
+    if from_c and dest_c:
+        filtered_report_df['Route'] = filtered_report_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + filtered_report_df[dest_c].astype(str).str.upper().str.strip()
+    else:
+        filtered_report_df['Route'] = "N/A"
+
+    if 'Status_Category' not in filtered_report_df.columns and late_col:
+        filtered_report_df['Status_Category'] = filtered_report_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
+
+    route_summary = []
+    if not filtered_report_df.empty:
+        group_keys = ['Route']
+        if client_c and client_c in filtered_report_df.columns:
+            group_keys.append(client_c)
+
+        grouped = filtered_report_df.groupby(group_keys)
+        for name, g_df in grouped:
+            if isinstance(name, tuple):
+                route, client = name
+            else:
+                route, client = name, "ALL"
+
+            total = len(g_df)
+            ontime = int((g_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in g_df.columns else total
+            delay = int((g_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in g_df.columns else 0
+            perf_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
+
+            route_summary.append({
+                "Route": route,
+                "Client": client,
+                "Total Trips": total,
+                "On-Time Trips": ontime,
+                "Delay Trips": delay,
+                "Performance (%)": perf_pct
+            })
+
+    if route_summary:
+        route_df = pd.DataFrame(route_summary).sort_values(by="Total Trips", ascending=False)
+        route_df.insert(0, 'S.No', range(1, 1 + len(route_df)))
+        st.markdown(render_html_table(route_df), unsafe_allow_html=True)
+
+        st.download_button(
+            label="📥 Download Route-wise Performance Excel",
+            data=to_excel_bytes({'Route_Performance': route_df}),
+            file_name=f"Route_Performance_{file_date_str}.xlsx",
+            mime=EXCEL_MIME,
+            type="secondary",
+            key=f"download_route_perf_{unique_key}"
+        )
+    else:
+        st.info("Route-wise performance ke liye koi data available nahi hai.")
 
 
 # ================= FILE PROCESSING =================
