@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH CLIENT & STAFF FILTER) ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -540,7 +540,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH STAFF & CLIENT FILTER) =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
@@ -555,7 +555,6 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         delay_client_list = ["ALL"]
 
-    # Side-by-side filters: Controlling Staff, Client Filter & Delay Frequency Filter
     d_col1, d_col2, d_col3 = st.columns(3)
     with d_col1:
         selected_delay_staff = st.selectbox(
@@ -1275,6 +1274,48 @@ elif "Monthly Breakdown" in selected_nav:
             st.warning("Date column not found for monthly breakdown.")
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 6. TODAY CALL ACTION (IN-TRANSIT VEHICLE STATUS) -----------------
+elif "Today call Action" in selected_nav:
+    st.title("🚚 In-Transit Vehicle Status (Today call Action)")
+    st.info("Showing vehicles where Status = 'In-transit' from the uploaded MIS file.")
+
+    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
+    if has_mis:
+        mis_df = st.session_state.mis_data.copy()
+        status_col = next((c for c in mis_df.columns if 'status' in c.lower()), None)
+
+        if status_col:
+            # Filter for rows where status contains 'in-transit' or 'intransit'
+            intransit_df = mis_df[mis_df[status_col].astype(str).str.lower().str.contains('in-transit|intransit', na=False)].copy()
+
+            if not intransit_df.empty:
+                # Clean Lorry No
+                lorry_c = get_lorry_col(intransit_df) or 'Lorry No.'
+                if lorry_c in intransit_df.columns:
+                    intransit_df[lorry_c] = intransit_df[lorry_c].astype(str).str.strip()
+                    mask = (intransit_df[lorry_c] != "") & (intransit_df[lorry_c].str.upper() != "NAN")
+                    mask &= ~intransit_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+                    intransit_df = intransit_df[mask]
+
+                show_trans_df = show_cols(intransit_df)
+                show_trans_df.insert(0, 'S.No', range(1, 1 + len(show_trans_df)))
+
+                st.markdown(render_html_table(show_trans_df), unsafe_allow_html=True)
+
+                st.download_button(
+                    label="📥 Download In-Transit Vehicles (Excel)",
+                    data=to_excel_bytes({'In_Transit_Vehicles': show_trans_df}),
+                    file_name="In_Transit_Vehicle_Status.xlsx",
+                    mime=EXCEL_MIME,
+                    type="primary"
+                )
+            else:
+                st.success("MIS file mein koi bhi 'In-transit' status wali gaadi nahi mili! 🎉")
+        else:
+            st.warning("MIS file mein 'Status' column nahi mila.")
+    else:
+        st.info("👈 Kripya pehle Sidebar se MIS file upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
