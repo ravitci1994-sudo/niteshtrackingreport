@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + RELATIVE WEEKS CHECKBOX FILTER (Last 1 Week, Last 2 Weeks...) ==========
+# ========== REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE VEHICLE PERFORMANCE (WITH ON-TIME/DELAY COUNTS) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -309,13 +309,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
     reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
 
-    # Calculate difference in weeks from current date (2026-10-24 based or system current date)
-    current_dt = pd.to_datetime("2026-10-24").date() # Fallback or current datetime
-    try:
-        current_dt = datetime.now().date()
-    except Exception:
-        pass
-
+    current_dt = datetime.now().date()
     def get_relative_week_label(row_date):
         if pd.isna(row_date):
             return None
@@ -345,7 +339,6 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
 
-    # Filters layout: Date, Delay Status, Controlling Staff
     f_col1, f_col2, f_col3 = st.columns(3)
     with f_col1:
         selected_date = st.selectbox(
@@ -373,12 +366,9 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"reported_staff_filter_{unique_key}"
         )
 
-    # --- Relative Week Checkbox Filter Section ---
     st.markdown("📅 **Filter by Week (Multiple Selection):**")
-    # Standard ordered relative weeks
     standard_weeks = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
     available_weeks = [w for w in standard_weeks if w in reported_df['_Rel_Week'].unique()]
-    # Add any older weeks if present
     other_weeks = sorted([w for w in reported_df['_Rel_Week'].unique() if w not in standard_weeks and w is not None])
     all_week_options = available_weeks + other_weeks
 
@@ -392,7 +382,6 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         selected_weeks = []
 
-    # Filtering data for Reported Vehicles table
     filtered_report_df = reported_df.copy()
 
     if selected_date != "ALL":
@@ -551,29 +540,26 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH ON-TIME & DELAY COUNTS) =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
-    if late_col:
-        delay_veh_df = reported_df[~reported_df[late_col].apply(is_zero_late)].copy()
+    lorry_c = get_lorry_col(reported_df) or 'Lorry No.'
+    if lorry_c in reported_df.columns:
+        reported_df[lorry_c] = reported_df[lorry_c].astype(str).str.strip()
+        mask = (reported_df[lorry_c] != "") & (reported_df[lorry_c].str.upper() != "NAN")
+        mask &= ~reported_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+        base_veh_df = reported_df[mask].copy()
     else:
-        delay_veh_df = pd.DataFrame(columns=reported_df.columns)
-
-    lorry_c = get_lorry_col(delay_veh_df) or 'Lorry No.'
-    if lorry_c in delay_veh_df.columns:
-        delay_veh_df[lorry_c] = delay_veh_df[lorry_c].astype(str).str.strip()
-        mask = (delay_veh_df[lorry_c] != "") & (delay_veh_df[lorry_c].str.upper() != "NAN")
-        mask &= ~delay_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-        delay_veh_df = delay_veh_df[mask]
+        base_veh_df = reported_df.copy()
 
     if from_c and dest_c:
-        delay_veh_df['Route'] = delay_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + delay_veh_df[dest_c].astype(str).str.upper().str.strip()
+        base_veh_df['Route'] = base_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + base_veh_df[dest_c].astype(str).str.upper().str.strip()
     else:
-        delay_veh_df['Route'] = "N/A"
+        base_veh_df['Route'] = "N/A"
 
     if staff_col:
-        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in delay_veh_df[staff_col].dropna().unique() if str(x).strip() != ""])
+        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in base_veh_df[staff_col].dropna().unique() if str(x).strip() != ""])
     else:
         delay_staff_list = ["ALL"]
 
@@ -585,25 +571,37 @@ def show_reported_vehicle_table(df, unique_key=""):
     )
 
     if selected_delay_staff != "ALL" and staff_col:
-        delay_veh_df = delay_veh_df[delay_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
+        base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
 
-    if not delay_veh_df.empty:
-        veh_type_c = next((c for c in delay_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
-        rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in delay_veh_df.columns), None)
+    if not base_veh_df.empty and late_col:
+        base_veh_df['Is_Delay'] = ~base_veh_df[late_col].apply(is_zero_late)
+        base_veh_df['Is_OnTime'] = base_veh_df[late_col].apply(is_zero_late)
+
+        # Aggregate per vehicle
+        agg_df = base_veh_df.groupby(lorry_c).agg(
+            Total_Trips=(lorry_c, 'count'),
+            Delay_Trips=('Is_Delay', 'sum'),
+            OnTime_Trips=('Is_OnTime', 'sum')
+        ).reset_index()
+
+        # Merge back to get latest details per vehicle
+        merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='left')
+
+        veh_type_c = next((c for c in merged_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
+        rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in merged_veh_df.columns), None)
         staff_name_c = staff_col if staff_col else None
 
-        delay_counts = delay_veh_df.groupby(lorry_c).size().reset_index(name='Total Delay Count')
-        delay_veh_df = delay_veh_df.merge(delay_counts, on=lorry_c, how='left')
-
         delay_table_data = []
-        for _, r_row in delay_veh_df.iterrows():
+        for _, r_row in merged_veh_df.iterrows():
             d_item = {}
             d_item['Lorry No.'] = r_row.get(lorry_c, '')
             if veh_type_c:
                 d_item['Veh.Type'] = r_row.get(veh_type_c, '')
             d_item['Route'] = r_row.get('Route', 'N/A')
             d_item['Client'] = r_row.get('VendorName', 'N/A')
-            d_item['Total Delay Count'] = r_row.get('Total Delay Count', 1)
+            d_item['On-Time Trips'] = int(r_row.get('OnTime_Trips', 0))
+            d_item['Delay Trips'] = int(r_row.get('Delay_Trips', 0))
+            d_item['Total Trips'] = int(r_row.get('Total_Trips', 0))
             d_item['Delay Hours'] = r_row.get(late_col, '')
             if staff_name_c:
                 d_item['Controlling Staff'] = r_row.get(staff_name_c, '')
@@ -611,7 +609,7 @@ def show_reported_vehicle_table(df, unique_key=""):
                 d_item['Remarks'] = r_row.get(rem_c, '')
             delay_table_data.append(d_item)
 
-        delay_report_df = pd.DataFrame(delay_table_data).sort_values(by='Total Delay Count', ascending=False)
+        delay_report_df = pd.DataFrame(delay_table_data).sort_values(by='Delay Trips', ascending=False)
         delay_report_df.insert(0, 'S.No', range(1, 1 + len(delay_report_df)))
 
         st.markdown(render_html_table(delay_report_df), unsafe_allow_html=True)
