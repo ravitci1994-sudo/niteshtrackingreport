@@ -404,7 +404,6 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
         return
 
-    # Table 1: Reported Vehicles
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
@@ -829,7 +828,7 @@ selected_nav = st.sidebar.radio("Navigation", [
     "📊 Client Performance",
     "🏢 Branches",
     "🚚 Vehicle Utilisation",
-    "📝 Today call Action",
+    "🚚 In-Transit Vehicle Status",
     "📈 Monthly Breakdown",
     "🔐 User & Access Control"
 ], label_visibility="collapsed")
@@ -872,7 +871,6 @@ if "Dashboard" in selected_nav:
             if not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
                 filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
 
-        # Callout Metrics
         total_callouts = len(filtered_callout)
         co_has_vendor = not filtered_callout.empty and 'VendorName' in filtered_callout.columns
         dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if co_has_vendor else 0
@@ -890,7 +888,6 @@ if "Dashboard" in selected_nav:
         else:
             aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0] * 9
 
-        # Performance Metrics (Only closed trips)
         if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
             perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
         else:
@@ -1252,7 +1249,62 @@ elif "Vehicle Utilisation" in selected_nav:
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
 
-# ----------------- 5. MONTHLY BREAKDOWN -----------------
+# ----------------- 5. IN-TRANSIT VEHICLE STATUS -----------------
+elif "In-Transit Vehicle Status" in selected_nav:
+    st.title("🚚 In-Transit Vehicle Status")
+    st.info("Showing vehicles where Status is 'In-transit' (Final Touching Reporting Date is blank).")
+
+    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
+        mis_df = st.session_state.mis_data.copy()
+
+        # Find status column or check Final Touching Reporting Date & Time being blank
+        final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in mis_df.columns), None)
+        status_col = next((c for c in mis_df.columns if 'status' in c.lower()), None)
+
+        if final_rep_col:
+            # In-transit means Final Touching Reporting Date is blank/NaN
+            intransit_df = mis_df[mis_df[final_rep_col].apply(is_blank)].copy()
+        elif status_col:
+            intransit_df = mis_df[mis_df[status_col].astype(str).str.lower().str.contains('in-transit|transit', na=False)].copy()
+        else:
+            intransit_df = pd.DataFrame(columns=mis_df.columns)
+
+        if intransit_df.empty:
+            st.success("Koi bhi In-Transit vehicle nahi mili! 🎉")
+        else:
+            # Controlling Staff & Client filter for In-transit
+            staff_col = next((c for c in intransit_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
+            client_col_name = vendor_column(intransit_df) or 'VendorName'
+
+            it_col1, it_col2 = st.columns(2)
+            with it_col1:
+                staff_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"]
+                selected_it_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="it_staff_filter")
+            with it_col2:
+                client_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in intransit_df.columns else ["ALL"]
+                selected_it_client = st.selectbox("🏢 Filter by Client:", client_list, key="it_client_filter")
+
+            if selected_it_staff != "ALL" and staff_col:
+                intransit_df = intransit_df[intransit_df[staff_col].astype(str).str.strip() == selected_it_staff].copy()
+            if selected_it_client != "ALL" and client_col_name in intransit_df.columns:
+                intransit_df = intransit_df[intransit_df[client_col_name].astype(str).str.strip() == selected_it_client].copy()
+
+            show_it_df = show_cols(intransit_df)
+            show_it_df.insert(0, 'S.No', range(1, 1 + len(show_it_df)))
+
+            st.markdown(render_html_table(show_it_df), unsafe_allow_html=True)
+
+            st.download_button(
+                label="📥 Download In-Transit Vehicles Excel",
+                data=to_excel_bytes({'In_Transit_Vehicles': show_it_df}),
+                file_name="In_Transit_Vehicle_Status.xlsx",
+                mime=EXCEL_MIME,
+                type="primary"
+            )
+    else:
+        st.info("👈 Kripya pehle MIS file upload karein.")
+
+# ----------------- 6. MONTHLY BREAKDOWN -----------------
 elif "Monthly Breakdown" in selected_nav:
     st.title("📈 Monthly Breakdown")
     st.info("🔒 Showing monthly performance breakdown.")
@@ -1273,49 +1325,7 @@ elif "Monthly Breakdown" in selected_nav:
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 6. TODAY CALL ACTION (IN-TRANSIT VEHICLE STATUS) -----------------
-elif "Today call Action" in selected_nav:
-    st.title("🚚 In-Transit Vehicle Status (Today call Action)")
-    st.info("Showing vehicles where Status = 'In-transit' from the uploaded MIS file.")
-
-    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
-    if has_mis:
-        mis_df = st.session_state.mis_data.copy()
-        status_col = next((c for c in mis_df.columns if 'status' in c.lower()), None)
-
-        if status_col:
-            # Filter for rows where status contains 'in-transit' or 'intransit'
-            intransit_df = mis_df[mis_df[status_col].astype(str).str.lower().str.contains('in-transit|intransit', na=False)].copy()
-
-            if not intransit_df.empty:
-                # Clean Lorry No
-                lorry_c = get_lorry_col(intransit_df) or 'Lorry No.'
-                if lorry_c in intransit_df.columns:
-                    intransit_df[lorry_c] = intransit_df[lorry_c].astype(str).str.strip()
-                    mask = (intransit_df[lorry_c] != "") & (intransit_df[lorry_c].str.upper() != "NAN")
-                    mask &= ~intransit_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-                    intransit_df = intransit_df[mask]
-
-                show_trans_df = show_cols(intransit_df)
-                show_trans_df.insert(0, 'S.No', range(1, 1 + len(show_trans_df)))
-
-                st.markdown(render_html_table(show_trans_df), unsafe_allow_html=True)
-
-                st.download_button(
-                    label="📥 Download In-Transit Vehicles (Excel)",
-                    data=to_excel_bytes({'In_Transit_Vehicles': show_trans_df}),
-                    file_name="In_Transit_Vehicle_Status.xlsx",
-                    mime=EXCEL_MIME,
-                    type="primary"
-                )
-            else:
-                st.success("MIS file mein koi bhi 'In-transit' status wali gaadi nahi mili! 🎉")
-        else:
-            st.warning("MIS file mein 'Status' column nahi mila.")
-    else:
-        st.info("👈 Kripya pehle Sidebar se MIS file upload karein.")
+        st.info("👈 Kripya pehle MIS files upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
