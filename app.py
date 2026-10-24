@@ -284,7 +284,6 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# Standard Email Sending Functionality Helper
 def send_email_with_attachment(excel_data, filename, subject):
     sender_email = st.session_state.get('sender_email', '')
     sender_pass = st.session_state.get('sender_pass', '')
@@ -315,6 +314,52 @@ def send_email_with_attachment(excel_data, filename, subject):
     except Exception as e:
         st.error(f"Email send karne mein error aaya: {e}")
         return False
+
+
+def send_client_email(excel_data, filename, subject, client_name="DEFAULT"):
+    sender_email = st.session_state.get('sender_email', '')
+    sender_pass = st.session_state.get('sender_pass', '')
+    to_emails = st.session_state.get(f'to_{client_name}', st.session_state.get('default_to', ''))
+    cc_emails = st.session_state.get(f'cc_{client_name}', st.session_state.get('default_cc', ''))
+
+    if not sender_email or not sender_pass or not to_emails:
+        st.error(f"⚠️ Kripya sidebar mein Sender Email, App Password aur '{client_name}' ke liye To Email configure karein.")
+        return False
+
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = f"[{client_name}] {subject}"
+        msg['From'] = sender_email
+        msg['To'] = to_emails
+        if cc_emails:
+            msg['CC'] = cc_emails
+
+        msg.set_content(f"Hello Team,\n\nPlease find attached the report for {client_name} from Tejas Cargo India Pvt Ltd Dashboard.")
+
+        msg.add_attachment(
+            excel_data,
+            maintype='application',
+            subtype='vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename=filename
+        )
+
+        all_recipients = [e.strip() for e in to_emails.split(',')]
+        if cc_emails:
+            all_recipients.extend([e.strip() for e in cc_emails.split(',')])
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, sender_pass)
+            server.send_messages(msg, from_addr=sender_email, to_addrs=all_recipients)
+        return True
+    except Exception as e:
+        try:
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                server.login(sender_email, sender_pass)
+                server.send_message(msg)
+            return True
+        except Exception as e2:
+            st.error(f"Email send karne mein error aaya: {e2}")
+            return False
 
 
 # ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE =================
@@ -476,6 +521,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     
     excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
     filename_reported = f"Reported_Vehicles_{file_date_str}_{status_tag}{staff_tag}.xlsx"
+    detected_client = selected_client if 'selected_client' in locals() and selected_client != "ALL" else "DEFAULT"
 
     b_col1, b_col2 = st.columns(2)
     with b_col1:
@@ -489,8 +535,8 @@ def show_reported_vehicle_table(df, unique_key=""):
         )
     with b_col2:
         if st.button("📧 Send Reported Vehicles Mail", key=f"mail_reported_{unique_key}", type="secondary"):
-            if send_email_with_attachment(excel_bytes_reported, filename_reported, "Reported Vehicles Report"):
-                st.success("✅ Mail successfully sent!")
+            if send_client_email(excel_bytes_reported, filename_reported, "Reported Vehicles Report", detected_client):
+                st.success("✅ Mail successfully sent to client!")
 
     # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
@@ -587,8 +633,8 @@ def show_reported_vehicle_table(df, unique_key=""):
             )
         with r_b2:
             if st.button("📧 Send Route-wise Performance Mail", key=f"mail_route_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_route, filename_route, "Route-wise Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+                if send_client_email(excel_bytes_route, filename_route, "Route-wise Performance Report", detected_client):
+                    st.success("✅ Mail successfully sent to client!")
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
@@ -704,6 +750,7 @@ def show_reported_vehicle_table(df, unique_key=""):
         freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
         excel_bytes_delay = to_excel_bytes({'Delay_Vehicle_Report': delay_report_df})
         filename_delay = f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx"
+        mail_client_target = selected_delay_client if selected_delay_client != "ALL" else detected_client
 
         de_b1, de_b2 = st.columns(2)
         with de_b1:
@@ -717,8 +764,8 @@ def show_reported_vehicle_table(df, unique_key=""):
             )
         with de_b2:
             if st.button("📧 Send Delay-wise Vehicle Report Mail", key=f"mail_delay_{unique_key}", type="secondary"):
-                if send_email_with_attachment(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report"):
-                    st.success("✅ Mail successfully sent!")
+                if send_client_email(excel_bytes_delay, filename_delay, "Delay-wise Vehicle Performance Report", mail_client_target):
+                    st.success("✅ Mail successfully sent to client!")
     else:
         st.info("Delay-wise vehicle report ke liye koi data available nahi hai.")
 
@@ -1191,100 +1238,4 @@ elif "Branches" in selected_nav:
 # ----------------- 4. VEHICLE UTILISATION -----------------
 elif "Vehicle Utilisation" in selected_nav:
     st.title("🚚 Vehicle Utilisation")
-    st.info("Closed trips (Status = 'Order Done' & Final Touching Time mentioned) vehicle-wise, route-wise aur client-wise.")
-
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data.copy()
-
-        if 'Parsed_Date' not in mis_df.columns or mis_df['Parsed_Date'].notna().sum() == 0:
-            st.warning("Date column sahi se read nahi hua. Despatch Date column check karein.")
-        else:
-            mis_df = mis_df[mis_df['Parsed_Date'].notna()].copy()
-
-            if 'Status_Category' in mis_df.columns:
-                mis_df = mis_df[mis_df['Status_Category'].isin([ONTIME, DELAY])]
-
-            mis_df['MonthKey'] = mis_df['Parsed_Date'].dt.strftime('%Y-%m')
-            month_options = sorted(mis_df['MonthKey'].unique(), reverse=True)
-
-            if not month_options:
-                st.warning("Koi closed trip data nahi mila.")
-            else:
-                current_key = datetime.now().strftime('%Y-%m')
-                default_idx = month_options.index(current_key) if current_key in month_options else 0
-
-                selected_month = st.selectbox(
-                    "📅 Select Month:", month_options, index=default_idx,
-                    format_func=lambda k: pd.Period(k).strftime('%B %Y').upper()
-                )
-                month_label = pd.Period(selected_month).strftime('%B %Y').upper()
-                month_df = mis_df[mis_df['MonthKey'] == selected_month].copy()
-
-                lorry_col = get_lorry_col(month_df)
-                if lorry_col is None:
-                    st.warning("'Lorry No.' column nahi mila.")
-                else:
-                    month_df[lorry_col] = month_df[lorry_col].astype(str).str.strip()
-                    mask = (month_df[lorry_col] != "") & (month_df[lorry_col].str.upper() != "NAN") & ~month_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-                    month_df = month_df[mask]
-
-                    from_col = find_col(month_df, exact=('from',))
-                    dest_col = find_col(month_df, exact=('destination', 'to'))
-                    if from_col and dest_col:
-                        month_df['Route'] = (
-                            month_df[from_col].astype(str).str.upper().str.strip() + " ➔ " +
-                            month_df[dest_col].astype(str).str.upper().str.strip()
-                        )
-                    else:
-                        month_df['Route'] = "N/A"
-
-                    km_col = next((c for c in month_df.columns if c.strip().upper() == 'KM'), None)
-                    month_df['_KM'] = pd.to_numeric(month_df[km_col], errors='coerce').fillna(0) if km_col else 0
-
-                    if 'VendorName' not in month_df.columns:
-                        month_df['VendorName'] = "N/A"
-
-                    vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
-                    selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
-
-                    view_df = month_df if selected_vehicle == "ALL" else month_df[month_df[lorry_col] == selected_vehicle]
-
-                    total_trips = len(view_df)
-                    total_km = view_df['_KM'].sum()
-
-                    colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
-                    chips = ""
-                    for i, (c_name, c_val) in enumerate(view_df['VendorName'].value_counts().items()):
-                        chips += (f'<span style="padding:5px 12px;">{html_lib.escape(str(c_name))}: '
-                                  f'<b style="color:{colors[i % len(colors)]}; font-size:20px;">{c_val}</b></span>')
-
-                    title = (f"TOTAL TRIP COUNT ({month_label})" if selected_vehicle == "ALL"
-                             else f"{html_lib.escape(selected_vehicle)} - TOTAL CLOSED TRIPS ({month_label})")
-
-                    card_html = (
-                        '<div class="metric-card" style="text-align:center; padding:35px;">'
-                        f'<div class="metric-title" style="font-size:18px;">{title}</div>'
-                        f'<div class="metric-value" style="font-size:60px; color:#48cae4;">{total_trips}</div>'
-                        '<div class="metric-sub-green" style="font-size:14px;">Closed Trips (Client-wise)</div>'
-                        '<div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; '
-                        f'margin-top:15px; padding-top:15px; border-top:1px dashed #48cae4; color:#ffffff; font-weight:800;">{chips}</div>'
-                        '<div style="font-size:16px; color:#90e0ef; margin-top:15px; font-weight:bold; '
-                        'border-top:1px solid #3a506b; padding-top:15px;">TOTAL DISTANCE: '
-                        f'<span style="color:#ffffff; font-size:26px;">{total_km:,.0f} KM</span></div>'
-                        '</div>'
-                    )
-                    c1, c2, c3 = st.columns([1, 2.5, 1])
-                    with c2:
-                        st.markdown(card_html, unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    heading = "ALL Vehicles" if selected_vehicle == "ALL" else selected_vehicle
-                    st.markdown(f"## 📍 Route & Client Summary ({heading})")
-
-                    group_cols = ['Route', 'VendorName'] if selected_vehicle != "ALL" else [lorry_col, 'Route', 'VendorName']
-                    if view_df.empty:
-                        st.warning("Is selection ke liye koi closed trip nahi mila.")
-                        summary = pd.DataFrame()
-                    else:
-                        summary = (view_df.groupby(group_cols)
-                                   .agg(Trips=('Route', 'size'), Total_KM=('_KM', '
+    st.
