@@ -279,9 +279,9 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 # ========== REVISED HELPER FOR REPORTED VEHICLE (ALL REPORTED, NOT JUST DELAY) ==========
-def show_reported_vehicle_report(df, unique_key=""):
+def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("## 🚨 Daily Reported Vehicle Report")
+    st.markdown("## 📄 Reported Vehicle")
 
     final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
 
@@ -323,7 +323,7 @@ def show_reported_vehicle_report(df, unique_key=""):
     if yesterday in available_dates:
         default_index = date_options.index(yesterday)
     
-    selected_date = st.selectbox("📅 Filter by Arrival Date:", date_options, index=default_index, key=f"reported_date_filter_{unique_key}")
+    selected_date = st.selectbox("📅 Filter by Reporting Date:", date_options, index=default_index, key=f"reported_date_filter_{unique_key}")
     
     if selected_date != "ALL":
         filtered_report_df = reported_df[reported_df['Temp_Arrival_Date'] == selected_date]
@@ -368,7 +368,7 @@ def show_reported_vehicle_report(df, unique_key=""):
     st.download_button(
         label="📥 Download Reported Vehicles (Excel)",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
-        file_name=f"Daily_Reported_Vehicles_{file_date_str}.xlsx",
+        file_name=f"Reported_Vehicles_{file_date_str}.xlsx",
         mime=EXCEL_MIME,
         type="primary"
     )
@@ -445,7 +445,7 @@ def process_uploaded_files(uploaded_files):
                     return ONTIME if is_zero_late(late_val) else DELAY
 
                 temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
-                # Appending the full temp_df ensures background scans like Daily Reported Vehicles find all records
+                # Appending the full temp_df ensures background scans find all records
                 mis_dfs.append(temp_df)
         except Exception as e:
             st.error(f"Error reading file {uploaded_file.name}: {e}")
@@ -711,15 +711,11 @@ if "Dashboard" in selected_nav:
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
-        # Dashboard Data Table
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("## 📄 Live Detailed Performance Records")
-        if not perf_mis.empty:
-            st.markdown(render_html_table(show_cols(perf_mis)), unsafe_allow_html=True)
-            # Pass all filtered_mis data to check for ALL reported vehicles
-            show_reported_vehicle_report(filtered_mis, unique_key="dash")
+        # Dashboard Data Table - Now calling Reported Vehicle with filter
+        if not filtered_mis.empty:
+            show_reported_vehicle_table(filtered_mis, unique_key="dash")
         else:
-            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+            st.warning("Is selection ke liye koi data available nahi hai.")
     else:
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
@@ -760,24 +756,10 @@ elif "Client Performance" in selected_nav:
         else:
             st.warning("Koi Client data available nahi hai.")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("## 📄 Live Detailed Performance Records")
-
-        if not perf_mis.empty:
-            show_df = show_cols(perf_mis)
-            st.markdown(render_html_table(show_df), unsafe_allow_html=True)
-
-            st.download_button(
-                label="📥 Download Performance Report (Excel)",
-                data=to_excel_bytes({'Performance_Report': show_df}),
-                file_name="Client_Performance_Report.xlsx",
-                mime=EXCEL_MIME,
-                type="primary"
-            )
-            
-            show_reported_vehicle_report(filtered_mis, unique_key="client_perf")
+        if not filtered_mis.empty:
+            show_reported_vehicle_table(filtered_mis, unique_key="client_perf")
         else:
-            st.warning("Is selection ke liye koi Performance (MIS) data available nahi hai.")
+            st.warning("Is selection ke liye koi data available nahi hai.")
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
 
