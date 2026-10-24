@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + ROUTE-WISE PERFORMANCE + DELAY-WISE VEHICLE PERFORMANCE ==========
+# ========== REPORTED VEHICLE TABLE + MULTIPLE WEEK CHECKBOX FILTER ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -308,6 +308,9 @@ def show_reported_vehicle_table(df, unique_key=""):
     parsed_rep_dt = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True)
     reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
     reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
+    
+    # Calculate Year and ISO Week for Week filter
+    reported_df['_Year_Week'] = parsed_rep_dt.dt.strftime('%Y-W%V')
 
     valid_dates = (
         reported_df[reported_df['_Rep_Date_Obj'].notna()]
@@ -318,6 +321,7 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
 
+    # Filters layout: Date, Delay Status, Controlling Staff
     f_col1, f_col2, f_col3 = st.columns(3)
     with f_col1:
         selected_date = st.selectbox(
@@ -345,11 +349,29 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"reported_staff_filter_{unique_key}"
         )
 
-    # Filtering data for Reported Vehicles table
-    if selected_date != "ALL":
-        filtered_report_df = reported_df[reported_df['_Rep_Date_Str'] == selected_date].copy()
+    # --- Multiple Week Checkbox Filter Section ---
+    st.markdown("📅 **Filter by Week (Multiple Selection):**")
+    all_weeks = sorted(reported_df['_Year_Week'].dropna().unique(), reverse=True)
+    
+    if all_weeks:
+        # Create a container with columns for checkboxes
+        chk_cols = st.columns(min(len(all_weeks), 6))
+        selected_weeks = []
+        for i, wk in enumerate(all_weeks):
+            with chk_cols[i % len(chk_cols)]:
+                if st.checkbox(f"Week {wk}", value=False, key=f"chk_week_{unique_key}_{wk}"):
+                    selected_weeks.append(wk)
     else:
-        filtered_report_df = reported_df.copy()
+        selected_weeks = []
+
+    # Filtering data for Reported Vehicles table
+    filtered_report_df = reported_df.copy()
+
+    if selected_date != "ALL":
+        filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date].copy()
+
+    if selected_weeks:
+        filtered_report_df = filtered_report_df[filtered_report_df['_Year_Week'].isin(selected_weeks)].copy()
 
     late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
     if late_col:
@@ -501,7 +523,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH STAFF FILTER & FREQUENCY COUNT) =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
@@ -517,13 +539,11 @@ def show_reported_vehicle_table(df, unique_key=""):
         mask &= ~delay_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
         delay_veh_df = delay_veh_df[mask]
 
-    # Assign Route to delay_veh_df properly
     if from_c and dest_c:
         delay_veh_df['Route'] = delay_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + delay_veh_df[dest_c].astype(str).str.upper().str.strip()
     else:
         delay_veh_df['Route'] = "N/A"
 
-    # Controlling Staff filter for Delay-wise report
     if staff_col:
         delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in delay_veh_df[staff_col].dropna().unique() if str(x).strip() != ""])
     else:
@@ -544,7 +564,6 @@ def show_reported_vehicle_table(df, unique_key=""):
         rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in delay_veh_df.columns), None)
         staff_name_c = staff_col if staff_col else None
 
-        # Calculate frequency count of how many times each vehicle got delayed
         delay_counts = delay_veh_df.groupby(lorry_c).size().reset_index(name='Total Delay Count')
         delay_veh_df = delay_veh_df.merge(delay_counts, on=lorry_c, how='left')
 
