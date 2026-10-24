@@ -278,30 +278,34 @@ def to_excel_bytes(sheets):
             frame.to_excel(writer, index=False, sheet_name=name)
     return buffer_excel.getvalue()
 
-# ========== REVISED HELPER FOR REPORTED VEHICLE (ALL REPORTED, NOT JUST DELAY) ==========
+# ========== REVISED HELPER FOR REPORTED VEHICLE (EXACT MATCH & DATE FILTER) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
 
-    final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in df.columns), None)
+    # Strictly check for Final Touching Reporting Date & Time
+    final_rep_col = 'Final Touching Reporting Date & Time'
 
-    if not final_rep_col:
-        st.warning("Data mein Reporting Date column nahi mila.")
+    if final_rep_col not in df.columns:
+        st.warning(f"Data mein '{final_rep_col}' column nahi mila.")
         return
 
     temp_df = df.copy()
     
-    # Extract Arrival Date
-    temp_df['Temp_Arrival_Date'] = pd.to_datetime(temp_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
-    
-    # Filter: ONLY keep rows where Temp_Arrival_Date is valid (meaning it is reported)
-    reported_df = temp_df[temp_df['Temp_Arrival_Date'].notna()].copy()
+    # 1. Check if the cell has text (Meaning it is Reported)
+    def is_reported(val):
+        if pd.isna(val): return False
+        s = str(val).strip().lower()
+        if s in ("", "nan", "nat", "none"): return False
+        return True
+        
+    reported_df = temp_df[temp_df[final_rep_col].apply(is_reported)].copy()
 
     if reported_df.empty:
-        st.success("Selected data mein koi bhi gaadi report nahi hui hai (Final Touching Date blank hai)! 🎉")
+        st.success("Selected data mein koi bhi gaadi report nahi hui hai (Reporting Time blank hai)! 🎉")
         return
         
-    # Clean Dummy Lorry Numbers (Y - TBC, TBA)
+    # 2. Clean Dummy Lorry Numbers (Y - TBC, TBA)
     lorry_col = find_col(reported_df, contains=['lorry', 'vehicle']) or 'Lorry No.'
     if lorry_col in reported_df.columns:
         reported_df[lorry_col] = reported_df[lorry_col].astype(str).str.strip()
@@ -313,8 +317,9 @@ def show_reported_vehicle_table(df, unique_key=""):
         st.success("Selected data mein koi bhi valid gaadi report nahi hui hai (Dummy/Blank vehicles excluded)! 🎉")
         return
 
-    # Add Date Filter dropdown
-    available_dates = sorted(reported_df['Temp_Arrival_Date'].unique(), reverse=True)
+    # 3. Add Date Filter dropdown
+    reported_df['Filter_Date'] = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True).dt.date
+    available_dates = sorted([d for d in reported_df['Filter_Date'].unique() if pd.notna(d)], reverse=True)
     date_options = ["ALL"] + available_dates
     
     # Set default index to yesterday if it exists
@@ -326,7 +331,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     selected_date = st.selectbox("📅 Filter by Reporting Date:", date_options, index=default_index, key=f"reported_date_filter_{unique_key}")
     
     if selected_date != "ALL":
-        filtered_report_df = reported_df[reported_df['Temp_Arrival_Date'] == selected_date]
+        filtered_report_df = reported_df[reported_df['Filter_Date'] == selected_date].copy()
     else:
         filtered_report_df = reported_df.copy()
 
@@ -366,7 +371,7 @@ def show_reported_vehicle_table(df, unique_key=""):
 
     file_date_str = "All_Dates" if selected_date == "ALL" else selected_date.strftime('%d_%m_%Y')
     st.download_button(
-        label="📥 Download Reported Vehicles (Excel)",
+        label=f"📥 Download Reported Vehicles (Excel)",
         data=to_excel_bytes({'Reported_Vehicles': final_report_df}),
         file_name=f"Reported_Vehicles_{file_date_str}.xlsx",
         mime=EXCEL_MIME,
@@ -711,7 +716,6 @@ if "Dashboard" in selected_nav:
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
-        # Dashboard Data Table - Now calling Reported Vehicle with filter
         if not filtered_mis.empty:
             show_reported_vehicle_table(filtered_mis, unique_key="dash")
         else:
