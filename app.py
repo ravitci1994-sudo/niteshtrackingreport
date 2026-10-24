@@ -501,7 +501,7 @@ def show_reported_vehicle_table(df, unique_key=""):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION =================
+    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION (WITH STAFF FILTER & FREQUENCY COUNT) =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
 
@@ -517,22 +517,36 @@ def show_reported_vehicle_table(df, unique_key=""):
         mask &= ~delay_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
         delay_veh_df = delay_veh_df[mask]
 
-    delay_veh_list = ["ALL"] + sorted(delay_veh_df[lorry_c].unique().tolist()) if lorry_c in delay_veh_df.columns else ["ALL"]
+    # Assign Route to delay_veh_df properly
+    if from_c and dest_c:
+        delay_veh_df['Route'] = delay_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + delay_veh_df[dest_c].astype(str).str.upper().str.strip()
+    else:
+        delay_veh_df['Route'] = "N/A"
 
-    selected_delay_veh = st.selectbox(
-        "🚛 Filter by Vehicle No. (Delay Report):",
-        delay_veh_list,
+    # Controlling Staff filter for Delay-wise report
+    if staff_col:
+        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in delay_veh_df[staff_col].dropna().unique() if str(x).strip() != ""])
+    else:
+        delay_staff_list = ["ALL"]
+
+    selected_delay_staff = st.selectbox(
+        "👨‍💼 Filter by Controlling Staff (Delay Report):",
+        delay_staff_list,
         index=0,
-        key=f"delay_veh_filter_{unique_key}"
+        key=f"delay_staff_filter_{unique_key}"
     )
 
-    if selected_delay_veh != "ALL" and lorry_c in delay_veh_df.columns:
-        delay_veh_df = delay_veh_df[delay_veh_df[lorry_c] == selected_delay_veh].copy()
+    if selected_delay_staff != "ALL" and staff_col:
+        delay_veh_df = delay_veh_df[delay_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
 
     if not delay_veh_df.empty:
         veh_type_c = next((c for c in delay_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
         rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in delay_veh_df.columns), None)
         staff_name_c = staff_col if staff_col else None
+
+        # Calculate frequency count of how many times each vehicle got delayed
+        delay_counts = delay_veh_df.groupby(lorry_c).size().reset_index(name='Total Delay Count')
+        delay_veh_df = delay_veh_df.merge(delay_counts, on=lorry_c, how='left')
 
         delay_table_data = []
         for _, r_row in delay_veh_df.iterrows():
@@ -542,6 +556,7 @@ def show_reported_vehicle_table(df, unique_key=""):
                 d_item['Veh.Type'] = r_row.get(veh_type_c, '')
             d_item['Route'] = r_row.get('Route', 'N/A')
             d_item['Client'] = r_row.get('VendorName', 'N/A')
+            d_item['Total Delay Count'] = r_row.get('Total Delay Count', 1)
             d_item['Delay Hours'] = r_row.get(late_col, '')
             if staff_name_c:
                 d_item['Controlling Staff'] = r_row.get(staff_name_c, '')
@@ -549,16 +564,16 @@ def show_reported_vehicle_table(df, unique_key=""):
                 d_item['Remarks'] = r_row.get(rem_c, '')
             delay_table_data.append(d_item)
 
-        delay_report_df = pd.DataFrame(delay_table_data)
+        delay_report_df = pd.DataFrame(delay_table_data).sort_values(by='Total Delay Count', ascending=False)
         delay_report_df.insert(0, 'S.No', range(1, 1 + len(delay_report_df)))
 
         st.markdown(render_html_table(delay_report_df), unsafe_allow_html=True)
 
-        veh_tag = f"_Vehicle_{selected_delay_veh.replace(' ', '_')}" if selected_delay_veh != "ALL" else ""
+        staff_tag = f"_Staff_{selected_delay_staff.replace(' ', '_')}" if selected_delay_staff != "ALL" else ""
         st.download_button(
             label="📥 Download Delay-wise Vehicle Report Excel",
             data=to_excel_bytes({'Delay_Vehicle_Report': delay_report_df}),
-            file_name=f"Delay_Vehicle_Report{veh_tag}.xlsx",
+            file_name=f"Delay_Vehicle_Report{staff_tag}.xlsx",
             mime=EXCEL_MIME,
             type="secondary",
             key=f"download_delay_veh_{unique_key}"
@@ -1177,7 +1192,7 @@ elif "Monthly Breakdown" in selected_nav:
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle MIS files upload karein.")
+        st.info("👈 Kripya pehle MIS file upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
