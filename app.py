@@ -282,7 +282,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ========== REPORTED VEHICLE TABLE + MULTIPLE WEEK CHECKBOX FILTER ==========
+# ========== REPORTED VEHICLE TABLE + RELATIVE WEEKS CHECKBOX FILTER (Last 1 Week, Last 2 Weeks...) ==========
 def show_reported_vehicle_table(df, unique_key=""):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -308,9 +308,33 @@ def show_reported_vehicle_table(df, unique_key=""):
     parsed_rep_dt = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True)
     reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
     reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
-    
-    # Calculate Year and ISO Week for Week filter
-    reported_df['_Year_Week'] = parsed_rep_dt.dt.strftime('%Y-W%V')
+
+    # Calculate difference in weeks from current date (2026-10-24 based or system current date)
+    current_dt = pd.to_datetime("2026-10-24").date() # Fallback or current datetime
+    try:
+        current_dt = datetime.now().date()
+    except Exception:
+        pass
+
+    def get_relative_week_label(row_date):
+        if pd.isna(row_date):
+            return None
+        diff_days = (current_dt - row_date).days
+        if diff_days < 0:
+            return "Current / Future"
+        elif diff_days <= 7:
+            return "Last 1 Week"
+        elif diff_days <= 14:
+            return "Last 2 Weeks"
+        elif diff_days <= 21:
+            return "Last 3 Weeks"
+        elif diff_days <= 28:
+            return "Last 4 Weeks"
+        else:
+            w_num = (diff_days // 7) + 1
+            return f"Last {w_num} Weeks"
+
+    reported_df['_Rel_Week'] = reported_df['_Rep_Date_Obj'].apply(get_relative_week_label)
 
     valid_dates = (
         reported_df[reported_df['_Rep_Date_Obj'].notna()]
@@ -349,17 +373,21 @@ def show_reported_vehicle_table(df, unique_key=""):
             key=f"reported_staff_filter_{unique_key}"
         )
 
-    # --- Multiple Week Checkbox Filter Section ---
+    # --- Relative Week Checkbox Filter Section ---
     st.markdown("📅 **Filter by Week (Multiple Selection):**")
-    all_weeks = sorted(reported_df['_Year_Week'].dropna().unique(), reverse=True)
-    
-    if all_weeks:
-        # Create a container with columns for checkboxes
-        chk_cols = st.columns(min(len(all_weeks), 6))
+    # Standard ordered relative weeks
+    standard_weeks = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
+    available_weeks = [w for w in standard_weeks if w in reported_df['_Rel_Week'].unique()]
+    # Add any older weeks if present
+    other_weeks = sorted([w for w in reported_df['_Rel_Week'].unique() if w not in standard_weeks and w is not None])
+    all_week_options = available_weeks + other_weeks
+
+    if all_week_options:
+        chk_cols = st.columns(min(len(all_week_options), 6))
         selected_weeks = []
-        for i, wk in enumerate(all_weeks):
+        for i, wk in enumerate(all_week_options):
             with chk_cols[i % len(chk_cols)]:
-                if st.checkbox(f"Week {wk}", value=False, key=f"chk_week_{unique_key}_{wk}"):
+                if st.checkbox(wk, value=False, key=f"chk_rel_week_{unique_key}_{wk}"):
                     selected_weeks.append(wk)
     else:
         selected_weeks = []
@@ -371,7 +399,7 @@ def show_reported_vehicle_table(df, unique_key=""):
         filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date].copy()
 
     if selected_weeks:
-        filtered_report_df = filtered_report_df[filtered_report_df['_Year_Week'].isin(selected_weeks)].copy()
+        filtered_report_df = filtered_report_df[filtered_report_df['_Rel_Week'].isin(selected_weeks)].copy()
 
     late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
     if late_col:
@@ -1211,7 +1239,7 @@ elif "Monthly Breakdown" in selected_nav:
         else:
             st.warning("Date column not found for monthly breakdown.")
     else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
+        st.info("👈 Kripya pehle MIS files upload karein.")
 
 # ----------------- OTHER PAGES -----------------
 else:
