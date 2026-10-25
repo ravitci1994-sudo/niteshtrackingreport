@@ -569,6 +569,145 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     else:
         st.info("Route-wise performance ke liye koi data available nahi hai.")
 
+    # ================= VEHICLE-WISE PERFORMANCE REPORT SECTION =================
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("## 🚛 Vehicle-wise Performance Report")
+
+    if staff_col:
+        veh_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+    else:
+        veh_staff_list = ["ALL"]
+
+    if client_col_name in reported_df.columns:
+        veh_client_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""])
+    else:
+        veh_client_list = ["ALL"]
+
+    v_col1, v_col2, v_col3, v_col4 = st.columns(4)
+    with v_col1:
+        selected_veh_client = st.selectbox(
+            "🏢 Filter by Client:",
+            veh_client_list,
+            index=0,
+            key=f"veh_client_filter_{unique_key}"
+        )
+    with v_col2:
+        selected_veh_staff = st.selectbox(
+            "👨‍💼 Filter by Controlling Staff:",
+            veh_staff_list,
+            index=0,
+            key=f"veh_staff_filter_{unique_key}"
+        )
+    with v_col3:
+        freq_filter_option = st.selectbox(
+            "🚨 Filter by Delay Frequency:",
+            ["ALL", "Delay > 2 times", "Delay > 3 times", "Delay > 4 times", "Delay > 5 times"],
+            index=0,
+            key=f"veh_freq_filter_{unique_key}"
+        )
+    with v_col4:
+        status_filter_option = st.selectbox(
+            "🚦 Filter by Status:",
+            ["ALL", "Only On-Time Vehicles", "Only Delay Vehicles"],
+            index=0,
+            key=f"veh_status_filter_{unique_key}"
+        )
+
+    base_veh_df = reported_df.copy()
+    if selected_veh_staff != "ALL" and staff_col:
+        base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_veh_staff].copy()
+    if selected_veh_client != "ALL" and client_col_name in base_veh_df.columns:
+        base_veh_df = base_veh_df[base_veh_df[client_col_name].astype(str).str.upper().str.contains(selected_veh_client.upper(), na=False)].copy()
+
+    if not base_veh_df.empty and late_col:
+        lorry_c = get_lorry_col(base_veh_df) or 'Lorry No.'
+        if lorry_c in base_veh_df.columns:
+            base_veh_df[lorry_c] = base_veh_df[lorry_c].astype(str).str.strip()
+            mask = (base_veh_df[lorry_c] != "") & (base_veh_df[lorry_c].str.upper() != "NAN") & ~base_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
+            base_veh_df = base_veh_df[mask].copy()
+
+        if from_c and dest_c:
+            base_veh_df['Route'] = base_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + base_veh_df[dest_c].astype(str).str.upper().str.strip()
+        else:
+            base_veh_df['Route'] = "N/A"
+
+        base_veh_df['Is_Delay'] = ~base_veh_df[late_col].apply(is_zero_late)
+        base_veh_df['Is_OnTime'] = base_veh_df[late_col].apply(is_zero_late)
+
+        agg_df = base_veh_df.groupby(lorry_c).agg(
+            Total_Trips=(lorry_c, 'count'),
+            Delay_Trips=('Is_Delay', 'sum'),
+            OnTime_Trips=('Is_OnTime', 'sum')
+        ).reset_index()
+
+        # Apply Status Filter First
+        if status_filter_option == "Only Delay Vehicles":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 0]
+        elif status_filter_option == "Only On-Time Vehicles":
+            agg_df = agg_df[(agg_df['Delay_Trips'] == 0) & (agg_df['OnTime_Trips'] > 0)]
+
+        # Apply Delay Frequency Filter
+        if freq_filter_option == "Delay > 2 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 2]
+        elif freq_filter_option == "Delay > 3 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 3]
+        elif freq_filter_option == "Delay > 4 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 4]
+        elif freq_filter_option == "Delay > 5 times":
+            agg_df = agg_df[agg_df['Delay_Trips'] > 5]
+
+        if agg_df.empty:
+            st.info(f"Selected filter ke liye koi vehicle data nahi mila.")
+            return
+
+        merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='inner')
+
+        veh_type_c = next((c for c in merged_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
+        rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in merged_veh_df.columns), None)
+        staff_name_c = staff_col if staff_col else None
+
+        veh_table_data = []
+        for _, r_row in merged_veh_df.iterrows():
+            d_item = {}
+            d_item['Lorry No.'] = r_row.get(lorry_c, '')
+            if veh_type_c:
+                d_item['Veh.Type'] = r_row.get(veh_type_c, '')
+            d_item['Route'] = r_row.get('Route', 'N/A')
+            d_item['Client'] = r_row.get(client_col_name, 'N/A')
+            d_item['On-Time Trips'] = int(r_row.get('OnTime_Trips', 0))
+            d_item['Delay Trips'] = int(r_row.get('Delay_Trips', 0))
+            d_item['Total Trips'] = int(r_row.get('Total_Trips', 0))
+            perf_pct_veh = f"{round((d_item['On-Time Trips'] / d_item['Total Trips']) * 100, 1)}%" if d_item['Total Trips'] > 0 else "0%"
+            d_item['Performance (%)'] = perf_pct_veh
+            if staff_name_c:
+                d_item['Controlling Staff'] = r_row.get(staff_name_c, '')
+            if rem_c:
+                d_item['Remarks'] = r_row.get(rem_c, '')
+            veh_table_data.append(d_item)
+
+        veh_report_df = pd.DataFrame(veh_table_data).sort_values(by='Delay Trips', ascending=False)
+        veh_report_df.insert(0, 'S.No', range(1, 1 + len(veh_report_df)))
+
+        st.markdown(render_html_table(veh_report_df), unsafe_allow_html=True)
+
+        staff_tag = f"_Staff_{selected_veh_staff.replace(' ', '_')}" if selected_veh_staff != "ALL" else ""
+        client_tag = f"_Client_{selected_veh_client.replace(' ', '_')}" if selected_veh_client != "ALL" else ""
+        freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
+        status_tag = f"_{status_filter_option.replace(' ', '_')}"
+        excel_bytes_veh = to_excel_bytes({'Vehicle_Performance_Report': veh_report_df})
+        filename_veh = f"Vehicle_Performance_Report{staff_tag}{client_tag}{freq_tag}{status_tag}.xlsx"
+
+        st.download_button(
+            label="📥 Download Vehicle-wise Report Excel",
+            data=excel_bytes_veh,
+            file_name=filename_veh,
+            mime=EXCEL_MIME,
+            type="secondary",
+            key=f"download_veh_perf_{unique_key}"
+        )
+    else:
+        st.info("Vehicle-wise performance ke liye koi data available nahi hai.")
+
 
 # ================= FILE PROCESSING =================
 def process_uploaded_files(uploaded_files):
