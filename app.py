@@ -465,8 +465,10 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
 
     reported_df['_Month_Key'] = parsed_rep_dt.dt.to_period('M')
     month_options_route = ["ALL"] + sorted(reported_df['_Month_Key'].dropna().unique().astype(str).tolist(), reverse=True)
+    client_col_name = vendor_column(reported_df) or 'VendorName'
+    client_options_route = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in reported_df.columns else ["ALL"]
 
-    r_col1, r_col2 = st.columns(2)
+    r_col1, r_col2, r_col3 = st.columns(3)
     with r_col1:
         if staff_col:
             route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
@@ -486,22 +488,32 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
             format_func=lambda k: pd.Period(k).strftime('%B %Y').upper() if k != "ALL" else "ALL MONTHS",
             key=f"route_month_filter_{unique_key}"
         )
+    with r_col3:
+        route_client_selected = st.selectbox(
+            "🏢 Filter Route-wise by Client:",
+            client_options_route,
+            index=0,
+            key=f"route_client_filter_{unique_key}"
+        )
 
     route_base_df = reported_df.copy()
     if route_staff_selected != "ALL" and staff_col:
         route_base_df = route_base_df[route_base_df[staff_col].astype(str).str.strip() == route_staff_selected].copy()
     if route_month_selected != "ALL":
         route_base_df = route_base_df[route_base_df['_Month_Key'].astype(str) == route_month_selected].copy()
+    if route_client_selected != "ALL" and client_col_name in route_base_df.columns:
+        route_base_df = route_base_df[route_base_df[client_col_name].astype(str).str.strip() == route_client_selected].copy()
 
     from_c = find_col(route_base_df, exact=('from',))
     dest_c = find_col(route_base_df, exact=('destination', 'to'))
-    client_c = 'Party' if 'Party' in final_report_df.columns else vendor_column(route_base_df)
+    client_c = 'Party' if 'Party' in final_report_df.columns else client_col_name
 
     if from_c and dest_c:
         route_base_df['Route'] = route_base_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + route_base_df[dest_c].astype(str).str.upper().str.strip()
     else:
         route_base_df['Route'] = "N/A"
 
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in route_base_df.columns), None)
     if 'Status_Category' not in route_base_df.columns and late_col:
         route_base_df['Status_Category'] = route_base_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
 
@@ -539,8 +551,9 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
 
         route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
         route_month_tag = f"_Month_{route_month_selected}" if route_month_selected != "ALL" else ""
+        route_client_tag = f"_Client_{route_client_selected.replace(' ', '_')}" if route_client_selected != "ALL" else ""
         excel_bytes_route = to_excel_bytes({'Route_Performance': route_df})
-        filename_route = f"Route_Performance{route_month_tag}{route_staff_tag}.xlsx"
+        filename_route = f"Route_Performance{route_month_tag}{route_client_tag}{route_staff_tag}.xlsx"
 
         st.download_button(
             label="📥 Download Route-wise Performance Excel",
@@ -562,7 +575,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     else:
         delay_staff_list = ["ALL"]
 
-    client_col_name = vendor_column(reported_df) or 'VendorName'
     if client_col_name in reported_df.columns:
         delay_client_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""])
     else:
@@ -793,7 +805,6 @@ def save_or_delete(df, path):
 
 # ================= STAFF USERS DATABASE (Hard Persistence/Session Storage) =================
 if 'staff_users' not in st.session_state:
-    # Default initial staff user setup (Username: Password -> Staff Name)
     st.session_state.staff_users = {
         "sandeep": {"pass": "1234", "staff_name": "SANDEEP KUMAR"},
         "dhananjay": {"pass": "1234", "staff_name": "DHANANJAY TIWARI"},
@@ -807,7 +818,6 @@ st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
 current_time = datetime.now().strftime("%d %b %Y | %I:%M %p")
 st.sidebar.markdown(f"<div style='color: #90e0ef; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 5px;'>🕒 {current_time}</div>", unsafe_allow_html=True)
 
-# Login Role Switcher / Authentication
 if 'logged_in_staff' not in st.session_state:
     st.session_state.logged_in_staff = None
 
@@ -836,7 +846,6 @@ else:
         st.rerun()
     st.sidebar.markdown("---")
 
-# Only show file upload & management options if logged in as Admin
 if st.session_state.logged_in_staff is None:
     st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
     uploaded_files = st.sidebar.file_uploader(
@@ -888,14 +897,12 @@ if st.session_state.logged_in_staff is None:
     ], label_visibility="collapsed")
 
 else:
-    # Staff view navigation restricted
     selected_nav = "📊 Dashboard"
     st.sidebar.info("Controlling staff mode: View-only access enabled for assigned vehicles.")
 
 
 # ================= MAIN PAGE LOGIC =================
 
-# If logged in as staff, directly show their restricted dashboard view
 if st.session_state.logged_in_staff is not None:
     st.title(f"👨‍💼 Controlling Staff Portal: {st.session_state.logged_in_staff}")
     st.info("🔒 **View-Only Mode:** Showing restricted vehicle data assigned to your name.")
@@ -1398,7 +1405,6 @@ elif "User & Access Control" in selected_nav:
         new_user = st.text_input("Username (e.g. rahul, amit)")
         new_pass = st.text_input("Password", type="password")
         
-        # Get existing staff names from MIS data if available
         available_staff_names = []
         if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
             s_col = next((c for c in st.session_state.mis_data.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
