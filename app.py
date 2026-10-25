@@ -9,7 +9,7 @@ import html as html_lib
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for Dynamic & Attractive Modern Dark Theme Styling (Clear Numbers & UI)
+# Custom CSS for Dynamic & Attractive Modern Dark Theme Styling
 st.markdown("""
     <style>
     .main, [data-testid="stAppViewContainer"] {
@@ -455,236 +455,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         key=f"download_reported_{unique_key}"
     )
 
-    if staff_filter:
-        return
-
-    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("## 📍 Route-wise Performance Report")
-
-    reported_df['_Month_Key'] = parsed_rep_dt.dt.to_period('M')
-    month_options_route = ["ALL"] + sorted(reported_df['_Month_Key'].dropna().unique().astype(str).tolist(), reverse=True)
-    client_col_name = vendor_column(reported_df) or 'VendorName'
-    client_options_route = ["ALL", "DHL", "Busybees", "Trackon"]
-
-    r_col1, r_col2, r_col3 = st.columns(3)
-    with r_col1:
-        if staff_col:
-            route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
-        else:
-            route_staff_list = ["ALL"]
-        route_staff_selected = st.selectbox(
-            "👨‍💼 Filter Route-wise by Controlling Staff:",
-            route_staff_list,
-            index=0,
-            key=f"route_staff_filter_{unique_key}"
-        )
-    with r_col2:
-        route_month_selected = st.selectbox(
-            "📅 Filter Route-wise by Month:",
-            month_options_route,
-            index=0,
-            format_func=lambda k: pd.Period(k).strftime('%B %Y').upper() if k != "ALL" else "ALL MONTHS",
-            key=f"route_month_filter_{unique_key}"
-        )
-    with r_col3:
-        route_client_selected = st.selectbox(
-            "🏢 Filter Route-wise by Client:",
-            client_options_route,
-            index=0,
-            key=f"route_client_filter_{unique_key}"
-        )
-
-    route_base_df = reported_df.copy()
-    if route_staff_selected != "ALL" and staff_col:
-        route_base_df = route_base_df[route_base_df[staff_col].astype(str).str.strip() == route_staff_selected].copy()
-    if route_month_selected != "ALL":
-        route_base_df = route_base_df[route_base_df['_Month_Key'].astype(str) == route_month_selected].copy()
-    if route_client_selected != "ALL" and client_col_name in route_base_df.columns:
-        route_base_df = route_base_df[route_base_df[client_col_name].astype(str).str.upper().str.contains(route_client_selected.upper(), na=False)].copy()
-
-    from_c = find_col(route_base_df, exact=('from',))
-    dest_c = find_col(route_base_df, exact=('destination', 'to'))
-    client_c = 'Party' if 'Party' in final_report_df.columns else client_col_name
-
-    if from_c and dest_c:
-        route_base_df['Route'] = route_base_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + route_base_df[dest_c].astype(str).str.upper().str.strip()
-    else:
-        route_base_df['Route'] = "N/A"
-
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in route_base_df.columns), None)
-    if 'Status_Category' not in route_base_df.columns and late_col:
-        route_base_df['Status_Category'] = route_base_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
-
-    route_summary = []
-    if not route_base_df.empty:
-        group_keys = ['Route']
-        if client_c and client_c in route_base_df.columns:
-            group_keys.append(client_c)
-
-        grouped = route_base_df.groupby(group_keys)
-        for name, g_df in grouped:
-            if isinstance(name, tuple):
-                route, client = name
-            else:
-                route, client = name, "ALL"
-
-            total = len(g_df)
-            ontime = int((g_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in g_df.columns else total
-            delay = int((g_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in g_df.columns else 0
-            perf_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
-
-            route_summary.append({
-                "Route": route,
-                "Client": client,
-                "Total Trips": total,
-                "On-Time Trips": ontime,
-                "Delay Trips": delay,
-                "Performance (%)": perf_pct
-            })
-
-    if route_summary:
-        route_df = pd.DataFrame(route_summary).sort_values(by="Total Trips", ascending=False)
-        route_df.insert(0, 'S.No', range(1, 1 + len(route_df)))
-        st.markdown(render_html_table(route_df), unsafe_allow_html=True)
-
-        route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
-        route_month_tag = f"_Month_{route_month_selected}" if route_month_selected != "ALL" else ""
-        route_client_tag = f"_Client_{route_client_selected.replace(' ', '_')}" if route_client_selected != "ALL" else ""
-        excel_bytes_route = to_excel_bytes({'Route_Performance': route_df})
-        filename_route = f"Route_Performance{route_month_tag}{route_client_tag}{route_staff_tag}.xlsx"
-
-        st.download_button(
-            label="📥 Download Route-wise Performance Excel",
-            data=excel_bytes_route,
-            file_name=filename_route,
-            mime=EXCEL_MIME,
-            type="secondary",
-            key=f"download_route_perf_{unique_key}"
-        )
-    else:
-        st.info("Route-wise performance ke liye koi data available nahi hai.")
-
-    # ================= DELAY-WISE VEHICLE PERFORMANCE REPORT SECTION =================
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("## 🚨 Delay-wise Vehicle Performance Report")
-
-    if staff_col:
-        delay_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
-    else:
-        delay_staff_list = ["ALL"]
-
-    delay_client_list = ["ALL", "DHL", "Busybees", "Trackon"]
-
-    d_col1, d_col2, d_col3 = st.columns(3)
-    with d_col1:
-        selected_delay_staff = st.selectbox(
-            "👨‍💼 Filter by Controlling Staff (Delay Report):",
-            delay_staff_list,
-            index=0,
-            key=f"delay_staff_filter_{unique_key}"
-        )
-    with d_col2:
-        selected_delay_client = st.selectbox(
-            "🏢 Filter by Client (Delay Report):",
-            delay_client_list,
-            index=0,
-            key=f"delay_client_filter_{unique_key}"
-        )
-    with d_col3:
-        freq_filter_option = st.selectbox(
-            "🚨 Filter by Delay Frequency:",
-            ["ALL", "Delay > 2 times", "Delay > 3 times", "Delay > 4 times", "Delay > 5 times"],
-            index=0,
-            key=f"delay_freq_filter_{unique_key}"
-        )
-
-    base_veh_df = reported_df.copy()
-    if selected_delay_staff != "ALL" and staff_col:
-        base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
-    if selected_delay_client != "ALL" and client_col_name in base_veh_df.columns:
-        base_veh_df = base_veh_df[base_veh_df[client_col_name].astype(str).str.upper().str.contains(selected_delay_client.upper(), na=False)].copy()
-
-    if not base_veh_df.empty and late_col:
-        lorry_c = get_lorry_col(base_veh_df) or 'Lorry No.'
-        if lorry_c in base_veh_df.columns:
-            base_veh_df[lorry_c] = base_veh_df[lorry_c].astype(str).str.strip()
-            mask = (base_veh_df[lorry_c] != "") & (base_veh_df[lorry_c].str.upper() != "NAN") & ~base_veh_df[lorry_c].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-            base_veh_df = base_veh_df[mask].copy()
-
-        if from_c and dest_c:
-            base_veh_df['Route'] = base_veh_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + base_veh_df[dest_c].astype(str).str.upper().str.strip()
-        else:
-            base_veh_df['Route'] = "N/A"
-
-        base_veh_df['Is_Delay'] = ~base_veh_df[late_col].apply(is_zero_late)
-        base_veh_df['Is_OnTime'] = base_veh_df[late_col].apply(is_zero_late)
-
-        agg_df = base_veh_df.groupby(lorry_c).agg(
-            Total_Trips=(lorry_c, 'count'),
-            Delay_Trips=('Is_Delay', 'sum'),
-            OnTime_Trips=('Is_OnTime', 'sum')
-        ).reset_index()
-
-        if freq_filter_option == "Delay > 2 times":
-            agg_df = agg_df[agg_df['Delay_Trips'] > 2]
-        elif freq_filter_option == "Delay > 3 times":
-            agg_df = agg_df[agg_df['Delay_Trips'] > 3]
-        elif freq_filter_option == "Delay > 4 times":
-            agg_df = agg_df[agg_df['Delay_Trips'] > 4]
-        elif freq_filter_option == "Delay > 5 times":
-            agg_df = agg_df[agg_df['Delay_Trips'] > 5]
-
-        if agg_df.empty:
-            st.info(f"Selected frequency filter ({freq_filter_option}) ke liye koi vehicle data nahi mila.")
-            return
-
-        merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='inner')
-
-        veh_type_c = next((c for c in merged_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
-        rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in merged_veh_df.columns), None)
-        staff_name_c = staff_col if staff_col else None
-
-        delay_table_data = []
-        for _, r_row in merged_veh_df.iterrows():
-            d_item = {}
-            d_item['Lorry No.'] = r_row.get(lorry_c, '')
-            if veh_type_c:
-                d_item['Veh.Type'] = r_row.get(veh_type_c, '')
-            d_item['Route'] = r_row.get('Route', 'N/A')
-            d_item['Client'] = r_row.get(client_col_name, 'N/A')
-            d_item['On-Time Trips'] = int(r_row.get('OnTime_Trips', 0))
-            d_item['Delay Trips'] = int(r_row.get('Delay_Trips', 0))
-            d_item['Total Trips'] = int(r_row.get('Total_Trips', 0))
-            d_item['Delay Hours'] = r_row.get(late_col, '')
-            if staff_name_c:
-                d_item['Controlling Staff'] = r_row.get(staff_name_c, '')
-            if rem_c:
-                d_item['Remarks'] = r_row.get(rem_c, '')
-            delay_table_data.append(d_item)
-
-        delay_report_df = pd.DataFrame(delay_table_data).sort_values(by='Delay Trips', ascending=False)
-        delay_report_df.insert(0, 'S.No', range(1, 1 + len(delay_report_df)))
-
-        st.markdown(render_html_table(delay_report_df), unsafe_allow_html=True)
-
-        staff_tag = f"_Staff_{selected_delay_staff.replace(' ', '_')}" if selected_delay_staff != "ALL" else ""
-        client_tag = f"_Client_{selected_delay_client.replace(' ', '_')}" if selected_delay_client != "ALL" else ""
-        freq_tag = f"_{freq_filter_option.replace(' ', '_')}"
-        excel_bytes_delay = to_excel_bytes({'Delay_Vehicle_Report': delay_report_df})
-        filename_delay = f"Delay_Vehicle_Report{staff_tag}{client_tag}{freq_tag}.xlsx"
-
-        st.download_button(
-            label="📥 Download Delay-wise Vehicle Report Excel",
-            data=excel_bytes_delay,
-            file_name=filename_delay,
-            mime=EXCEL_MIME,
-            type="secondary",
-            key=f"download_delay_veh_{unique_key}"
-        )
-    else:
-        st.info("Delay-wise vehicle report ke liye koi data available nahi hai.")
-
 
 # ================= FILE PROCESSING =================
 def process_uploaded_files(uploaded_files):
@@ -701,14 +471,22 @@ def process_uploaded_files(uploaded_files):
 
             temp_df.columns = temp_df.columns.astype(str).str.strip()
             fname = uploaded_file.name.lower()
+            
+            # Check if file is Callout
             has_category = any('category' in c.lower() for c in temp_df.columns)
-            is_callout = ('callout' in fname) or (has_category and 'mis' not in fname)
+            is_callout = ('callout' in fname) or has_category or ('breakdown' in fname)
 
             if is_callout:
+                # 1. Filter Category column for: BREAKDOWN, ACCIDENT, TYRE BLAST, TYRE PUNCHER
                 cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
                 if cat_col:
-                    temp_df = temp_df[temp_df[cat_col].astype(str).str.lower().str.contains('breakdown|accident', na=False)].copy()
+                    allowed_cats = ['breakdown', 'accident', 'tyre blast', 'tyre puncher', 'tyre blast / puncture', 'puncher']
+                    def check_cat(val):
+                        s = str(val).lower().strip()
+                        return any(kw in s for kw in allowed_cats)
+                    temp_df = temp_df[temp_df[cat_col].apply(check_cat)].copy()
 
+                # 2. Filter Customer column for: DHL, Busybees, Trackon
                 vendor_c = vendor_column(temp_df)
                 if vendor_c:
                     temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party)
@@ -717,10 +495,6 @@ def process_uploaded_files(uploaded_files):
                 date_col = next((c for c in temp_df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
                 if date_col:
                     temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce', dayfirst=True)
-                    temp_df = temp_df[
-                        temp_df['Parsed_Date'].dt.month.isin([8, 9, 10]) &
-                        (temp_df['Parsed_Date'].dt.year == current_year)
-                    ].copy()
 
                 callout_dfs.append(temp_df)
             else:
@@ -766,7 +540,7 @@ def process_uploaded_files(uploaded_files):
     return callout_df, mis_df
 
 
-# ================= MEMORY SETUP (Hard Persistence Logic) =================
+# ================= MEMORY SETUP =================
 DATA_FILE_CALLOUT = "saved_callout_data.pkl"
 DATA_FILE_MIS = "saved_mis_data.pkl"
 
@@ -797,15 +571,6 @@ def save_or_delete(df, path):
         df.to_pickle(path)
     elif os.path.exists(path):
         os.remove(path)
-
-
-# ================= STAFF USERS DATABASE =================
-if 'staff_users' not in st.session_state:
-    st.session_state.staff_users = {
-        "sandeep": {"pass": "1234", "staff_name": "SANDEEP KUMAR"},
-        "dhananjay": {"pass": "1234", "staff_name": "DHANANJAY TIWARI"},
-        "anil": {"pass": "1234", "staff_name": "ANIL KUMAR"}
-    }
 
 
 # ================= SIDEBAR =================
@@ -898,19 +663,7 @@ else:
 
 
 # ================= MAIN PAGE LOGIC =================
-
-if st.session_state.logged_in_staff is not None:
-    st.title(f"👨‍💼 Controlling Staff Portal: {st.session_state.logged_in_staff}")
-    st.info("🔒 **View-Only Mode:** Showing restricted vehicle data assigned to your name.")
-    
-    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
-    if has_mis:
-        show_reported_vehicle_table(st.session_state.mis_data, unique_key="staff_portal", staff_filter=st.session_state.logged_in_staff)
-    else:
-        st.warning("⚠️ Admin ne abhi tak MIS data upload nahi kiya hai.")
-
-# ----------------- 1. DASHBOARD -----------------
-elif "Dashboard" in selected_nav:
+if "Dashboard" in selected_nav:
     st.title("⚡ Sales Manager Live Monitoring Dashboard")
     st.info("🔒 **Restricted Vendor View:** Callout Count & Overall Performance")
 
@@ -923,7 +676,7 @@ elif "Dashboard" in selected_nav:
 
         st.markdown("---")
         
-        # --- FILTERS FOR CALLOUT & OVERVIEW ---
+        # --- 2 DROPDOWN BUTTONS FOR CALLOUT (Filter by Month & Filter by Client) ---
         f_col1, f_col2 = st.columns(2)
         with f_col1:
             month_filter_options = ["ALL", "August", "September", "October"]
@@ -951,7 +704,6 @@ elif "Dashboard" in selected_nav:
         busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if co_has_vendor else 0
         trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if co_has_vendor else 0
 
-        # Monthly breakdown calculation for the 3 clients
         def get_m_breakdown(m_num, c_name):
             if co_has_vendor and 'Parsed_Date' in filtered_callout.columns:
                 return int(((filtered_callout['Parsed_Date'].dt.month == m_num) & (filtered_callout['VendorName'] == c_name)).sum())
@@ -984,11 +736,11 @@ elif "Dashboard" in selected_nav:
                 f'<div class="metric-card" style="min-height: 200px;">'
                 f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({selected_client_filter.upper()})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
-                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown & Accident</div>'
+                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown, Accident, Tyre Blast & Puncher</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff; font-weight:700;">'
-                f'<span>DHL: <b style="color:#2ec4b6; font-size:15px;">{dhl_c}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703; font-size:15px;">{busy_c}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946; font-size:15px;">{trk_c}</b></span>'
+                f'<span>DHL: <b style="color:#2ec4b6; font-size:16px;">{dhl_c}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703; font-size:16px;">{busy_c}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946; font-size:16px;">{trk_c}</b></span>'
                 f'</div>'
                 f'<div style="font-size: 11px; color: #90e0ef; margin-top: 10px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
@@ -1075,14 +827,6 @@ elif "Dashboard" in selected_nav:
             st.warning("Is selection ke liye koi data available nahi hai.")
     else:
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
-
-# ----------------- OTHER PAGES -----------------
-elif "Client Performance" in selected_nav:
-    st.title("🎯 Customer-wise Performance Speedometer")
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        show_reported_vehicle_table(st.session_state.mis_data, unique_key="client_perf")
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
 
 else:
     st.title(selected_nav)
