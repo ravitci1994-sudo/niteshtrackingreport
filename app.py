@@ -9,7 +9,7 @@ import html as html_lib
 # 1. Page Configuration
 st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for Dynamic & Attractive Modern Dark Theme Styling
+# Custom CSS for Dynamic & Attractive Modern Dark Theme Styling (Clear Numbers & UI)
 st.markdown("""
     <style>
     .main, [data-testid="stAppViewContainer"] {
@@ -41,16 +41,17 @@ st.markdown("""
         margin-bottom: 10px;
     }
     .metric-value {
-        font-size: 36px;
+        font-size: 42px;
         color: #ffffff;
         font-weight: 900;
         margin-top: 5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
     .metric-sub-green {
-        font-size: 12px;
+        font-size: 13px;
         color: #2ec4b6;
         margin-top: 5px;
+        font-weight: 700;
     }
     .custom-table-container {
         overflow-x: auto;
@@ -147,7 +148,7 @@ def is_zero_late(v):
         return False
 
 
-def clean_party(v, keep_other=False):
+def clean_party(v):
     v_str = str(v).upper().strip()
     if "DHL" in v_str:
         return "DHL"
@@ -155,7 +156,7 @@ def clean_party(v, keep_other=False):
         return "Busybees"
     elif "TRACKON" in v_str:
         return "Trackon"
-    return str(v).strip() if keep_other else None
+    return None
 
 
 def find_col(df, exact=None, contains=None):
@@ -189,7 +190,6 @@ def show_cols(df):
 
 def render_speedometer_html(client_name, rate, ontime, delay, total):
     clamped_rate = max(0.0, min(100.0, float(rate)))
-
     if clamped_rate >= 80:
         val_color = "#2ec4b6"
     elif clamped_rate >= 50:
@@ -198,7 +198,6 @@ def render_speedometer_html(client_name, rate, ontime, delay, total):
         val_color = "#e63946"
 
     cx, cy = 120, 110
-
     ticks_svg = ""
     for p in range(0, 101, 10):
         rad = math.radians(180 - (p * 1.8))
@@ -282,7 +281,7 @@ def to_excel_bytes(sheets):
     return buffer_excel.getvalue()
 
 
-# ================= REPORTED VEHICLE TABLE + ROUTE-WISE + DELAY-WISE =================
+# ================= REPORTED VEHICLE TABLE =================
 def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📄 Reported Vehicle")
@@ -466,7 +465,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     reported_df['_Month_Key'] = parsed_rep_dt.dt.to_period('M')
     month_options_route = ["ALL"] + sorted(reported_df['_Month_Key'].dropna().unique().astype(str).tolist(), reverse=True)
     client_col_name = vendor_column(reported_df) or 'VendorName'
-    client_options_route = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in reported_df.columns else ["ALL"]
+    client_options_route = ["ALL", "DHL", "Busybees", "Trackon"]
 
     r_col1, r_col2, r_col3 = st.columns(3)
     with r_col1:
@@ -502,7 +501,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     if route_month_selected != "ALL":
         route_base_df = route_base_df[route_base_df['_Month_Key'].astype(str) == route_month_selected].copy()
     if route_client_selected != "ALL" and client_col_name in route_base_df.columns:
-        route_base_df = route_base_df[route_base_df[client_col_name].astype(str).str.strip() == route_client_selected].copy()
+        route_base_df = route_base_df[route_base_df[client_col_name].astype(str).str.upper().str.contains(route_client_selected.upper(), na=False)].copy()
 
     from_c = find_col(route_base_df, exact=('from',))
     dest_c = find_col(route_base_df, exact=('destination', 'to'))
@@ -575,10 +574,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     else:
         delay_staff_list = ["ALL"]
 
-    if client_col_name in reported_df.columns:
-        delay_client_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""])
-    else:
-        delay_client_list = ["ALL"]
+    delay_client_list = ["ALL", "DHL", "Busybees", "Trackon"]
 
     d_col1, d_col2, d_col3 = st.columns(3)
     with d_col1:
@@ -607,7 +603,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     if selected_delay_staff != "ALL" and staff_col:
         base_veh_df = base_veh_df[base_veh_df[staff_col].astype(str).str.strip() == selected_delay_staff].copy()
     if selected_delay_client != "ALL" and client_col_name in base_veh_df.columns:
-        base_veh_df = base_veh_df[base_veh_df[client_col_name].astype(str).str.strip() == selected_delay_client].copy()
+        base_veh_df = base_veh_df[base_veh_df[client_col_name].astype(str).str.upper().str.contains(selected_delay_client.upper(), na=False)].copy()
 
     if not base_veh_df.empty and late_col:
         lorry_c = get_lorry_col(base_veh_df) or 'Lorry No.'
@@ -734,7 +730,7 @@ def process_uploaded_files(uploaded_files):
 
                 vendor_c = vendor_column(temp_df)
                 if vendor_c:
-                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda v: clean_party(v, keep_other=True))
+                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda v: clean_party(v) if clean_party(v) else str(v).strip())
                 else:
                     temp_df['VendorName'] = "TEJAS CARGO"
 
@@ -803,7 +799,7 @@ def save_or_delete(df, path):
         os.remove(path)
 
 
-# ================= STAFF USERS DATABASE (Hard Persistence/Session Storage) =================
+# ================= STAFF USERS DATABASE =================
 if 'staff_users' not in st.session_state:
     st.session_state.staff_users = {
         "sandeep": {"pass": "1234", "staff_name": "SANDEEP KUMAR"},
@@ -926,40 +922,48 @@ elif "Dashboard" in selected_nav:
         mis_df = st.session_state.mis_data if has_mis else pd.DataFrame()
 
         st.markdown("---")
-        clients_set = set()
-        if not mis_df.empty and 'VendorName' in mis_df.columns:
-            clients_set.update(mis_df['VendorName'].dropna().unique())
-        if not callout_df.empty and 'VendorName' in callout_df.columns:
-            clients_set.update(callout_df['VendorName'].dropna().unique())
-
-        client_list = ["ALL"] + sorted(list(clients_set))
-        selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
+        
+        # --- FILTERS FOR CALLOUT & OVERVIEW ---
+        f_col1, f_col2 = st.columns(2)
+        with f_col1:
+            month_filter_options = ["ALL", "August", "September", "October"]
+            selected_month_filter = st.selectbox("📅 Filter Callout by Month:", month_filter_options, key="dash_month_filter")
+        with f_col2:
+            client_filter_options = ["ALL", "DHL", "Busybees", "Trackon"]
+            selected_client_filter = st.selectbox("🏢 Filter Callout by Client:", client_filter_options, key="dash_client_filter")
 
         filtered_callout = callout_df.copy()
-        filtered_mis = mis_df.copy()
+        
+        # Apply Client Filter
+        if selected_client_filter != "ALL" and not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
+            filtered_callout = filtered_callout[filtered_callout['VendorName'].str.upper() == selected_client_filter.upper()]
 
-        if selected_client != "ALL":
-            if not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
-                filtered_callout = filtered_callout[filtered_callout['VendorName'] == selected_client]
-            if not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
-                filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
+        # Apply Month Filter
+        if selected_month_filter != "ALL" and not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
+            month_map = {"August": 8, "September": 9, "October": 10}
+            target_m = month_map.get(selected_month_filter)
+            filtered_callout = filtered_callout[filtered_callout['Parsed_Date'].dt.month == target_m]
 
         total_callouts = len(filtered_callout)
         co_has_vendor = not filtered_callout.empty and 'VendorName' in filtered_callout.columns
+        
         dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if co_has_vendor else 0
         busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if co_has_vendor else 0
         trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if co_has_vendor else 0
 
-        if co_has_vendor and 'Parsed_Date' in filtered_callout.columns:
-            aug_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 8]
-            sept_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 9]
-            oct_df = filtered_callout[filtered_callout['Parsed_Date'].dt.month == 10]
+        # Monthly breakdown calculation for the 3 clients
+        def get_m_breakdown(m_num, c_name):
+            if co_has_vendor and 'Parsed_Date' in filtered_callout.columns:
+                return int(((filtered_callout['Parsed_Date'].dt.month == m_num) & (filtered_callout['VendorName'] == c_name)).sum())
+            return 0
 
-            aug_dhl, aug_busy, aug_trk = int((aug_df['VendorName'] == 'DHL').sum()), int((aug_df['VendorName'] == 'Busybees').sum()), int((aug_df['VendorName'] == 'Trackon').sum())
-            sept_dhl, sept_busy, sept_trk = int((sept_df['VendorName'] == 'DHL').sum()), int((sept_df['VendorName'] == 'Busybees').sum()), int((sept_df['VendorName'] == 'Trackon').sum())
-            oct_dhl, oct_busy, oct_trk = int((oct_df['VendorName'] == 'DHL').sum()), int((oct_df['VendorName'] == 'Busybees').sum()), int((oct_df['VendorName'] == 'Trackon').sum())
-        else:
-            aug_dhl, aug_busy, aug_trk, sept_dhl, sept_busy, sept_trk, oct_dhl, oct_busy, oct_trk = [0] * 9
+        aug_dhl, aug_busy, aug_trk = get_m_breakdown(8, 'DHL'), get_m_breakdown(8, 'Busybees'), get_m_breakdown(8, 'Trackon')
+        sept_dhl, sept_busy, sept_trk = get_m_breakdown(9, 'DHL'), get_m_breakdown(9, 'Busybees'), get_m_breakdown(9, 'Trackon')
+        oct_dhl, oct_busy, oct_trk = get_m_breakdown(10, 'DHL'), get_m_breakdown(10, 'Busybees'), get_m_breakdown(10, 'Trackon')
+
+        filtered_mis = mis_df.copy()
+        if selected_client_filter != "ALL" and not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
+            filtered_mis = filtered_mis[filtered_mis['VendorName'].str.upper() == selected_client_filter.upper()]
 
         if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
             perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
@@ -976,31 +980,30 @@ elif "Dashboard" in selected_nav:
         col1, col2, col3 = st.columns([1.2, 1.8, 1])
 
         with col1:
-            client_label = "ALL CLIENTS" if selected_client == "ALL" else html_lib.escape(str(selected_client).upper())
             col1_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({client_label})</div>'
+                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({selected_client_filter.upper()})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
-                f'<div class="metric-sub-green" style="margin-bottom: 6px; font-weight:700;">Breakdown & Accident</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff;">'
-                f'<span>DHL: <b style="color:#2ec4b6;">{dhl_c}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703;">{busy_c}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946;">{trk_c}</b></span>'
+                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown & Accident</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff; font-weight:700;">'
+                f'<span>DHL: <b style="color:#2ec4b6; font-size:15px;">{dhl_c}</b></span>'
+                f'<span>Busybees: <b style="color:#ffb703; font-size:15px;">{busy_c}</b></span>'
+                f'<span>Trackon: <b style="color:#e63946; font-size:15px;">{trk_c}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 10px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{aug_busy}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{aug_trk}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">September Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">September Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{sept_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{sept_busy}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{sept_trk}</b></span>'
                 f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 6px; font-weight: 800; text-transform: uppercase;">October Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 11px; color: #ffffff;">'
+                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">October Breakdown</div>'
+                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
                 f'<span>DHL: <b style="color:#2ec4b6;">{oct_dhl}</b></span>'
                 f'<span>Busybees: <b style="color:#ffb703;">{oct_busy}</b></span>'
                 f'<span>Trackon: <b style="color:#e63946;">{oct_trk}</b></span>'
@@ -1016,20 +1019,20 @@ elif "Dashboard" in selected_nav:
                 f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #48cae4;">'
                 f'<div>'
                 f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Total Count</div>'
-                f'<div style="font-size: 28px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
+                f'<div style="font-size: 32px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
                 f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
                 f'</div>'
                 f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
                 f'<div>'
                 f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">On-Time</div>'
-                f'<div style="font-size: 28px; font-weight: 900; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
-                f'<div style="font-size: 13px; font-weight: 900; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
+                f'<div style="font-size: 32px; font-weight: 900; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
+                f'<div style="font-size: 14px; font-weight: 900; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
                 f'</div>'
                 f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
                 f'<div>'
                 f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Delay</div>'
-                f'<div style="font-size: 28px; font-weight: 900; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
-                f'<div style="font-size: 13px; font-weight: 900; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
+                f'<div style="font-size: 32px; font-weight: 900; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
+                f'<div style="font-size: 14px; font-weight: 900; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
                 f'</div>'
                 f'</div>'
                 f'</div>'
@@ -1037,33 +1040,30 @@ elif "Dashboard" in selected_nav:
             st.markdown(col2_html, unsafe_allow_html=True)
 
         with col3:
-            lb_clients = perf_mis['VendorName'].value_counts().index.tolist() if not perf_mis.empty and 'VendorName' in perf_mis.columns else []
+            lb_clients = ['DHL', 'Busybees', 'Trackon']
             lb_rows_html = ""
-            for c_name in lb_clients[:4]:
-                c_df = perf_mis[perf_mis['VendorName'] == c_name]
+            for c_name in lb_clients:
+                c_df = perf_mis[perf_mis['VendorName'].str.upper() == c_name.upper()] if not perf_mis.empty else pd.DataFrame()
                 c_tot = len(c_df)
-                c_ontime = int((c_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in c_df.columns else 0
-                c_delay = int((c_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in c_df.columns else 0
+                c_ontime = int((c_df['Status_Category'] == ONTIME).sum()) if not c_df.empty and 'Status_Category' in c_df.columns else 0
+                c_delay = int((c_df['Status_Category'] == DELAY).sum()) if not c_df.empty and 'Status_Category' in c_df.columns else 0
 
                 lb_rows_html += (
                     f'<div style="border-top: 1px solid #48cae4; padding-top: 8px; margin-top: 8px;">'
                     f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">'
-                    f'<span style="color: #ffffff;">{html_lib.escape(str(c_name))}</span>'
-                    f'<span style="color: #90e0ef;">Total: {c_tot}</span>'
+                    f'<span style="color: #ffffff;">{c_name}</span>'
+                    f'<span style="color: #90e0ef;">Total: <b>{c_tot}</b></span>'
                     f'</div>'
-                    f'<div style="display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px;">'
+                    f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 4px;">'
                     f'<span style="color: #2ec4b6;">On-Time: <b>{c_ontime}</b></span>'
                     f'<span style="color: #e63946;">Delay: <b>{c_delay}</b></span>'
                     f'</div>'
                     f'</div>'
                 )
 
-            if not lb_rows_html:
-                lb_rows_html = '<div style="font-size: 13px; color: #90e0ef; margin-top: 8px;">No MIS performance data</div>'
-
             col3_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">🏆 CUSTOMER LEADERBOARD</div>'
+                f'<div class="metric-title">🏆 TARGET CLIENTS LEADERBOARD</div>'
                 f'{lb_rows_html}'
                 f'</div>'
             )
@@ -1076,370 +1076,14 @@ elif "Dashboard" in selected_nav:
     else:
         st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
 
-# ----------------- 2. CLIENT PERFORMANCE -----------------
+# ----------------- OTHER PAGES -----------------
 elif "Client Performance" in selected_nav:
     st.title("🎯 Customer-wise Performance Speedometer")
     if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data
-
-        client_list = ["ALL"] + sorted(list(mis_df['VendorName'].dropna().unique())) if 'VendorName' in mis_df.columns else ["ALL"]
-        selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list)
-
-        filtered_mis = mis_df.copy()
-        if selected_client != "ALL":
-            filtered_mis = filtered_mis[filtered_mis['VendorName'] == selected_client]
-
-        if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
-            perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
-        else:
-            perf_mis = pd.DataFrame(columns=filtered_mis.columns)
-
-        unique_clients = perf_mis['VendorName'].dropna().unique() if 'VendorName' in perf_mis.columns else []
-
-        if len(unique_clients) > 0:
-            p_cols = st.columns(min(len(unique_clients), 3))
-            for i, client_name in enumerate(unique_clients):
-                client_df = perf_mis[perf_mis['VendorName'] == client_name]
-                c_total = len(client_df)
-                c_ontime = int((client_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in client_df.columns else 0
-                c_delay = int((client_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in client_df.columns else 0
-                c_rate = round((c_ontime / c_total) * 100, 1) if c_total > 0 else 0
-
-                with p_cols[i % len(p_cols)]:
-                    st.markdown(
-                        render_speedometer_html(client_name, c_rate, c_ontime, c_delay, c_total),
-                        unsafe_allow_html=True
-                    )
-        else:
-            st.warning("Koi Client data available nahi hai.")
-
-        if not filtered_mis.empty:
-            show_reported_vehicle_table(filtered_mis, unique_key="client_perf")
-        else:
-            st.warning("Is selection ke liye koi data available nahi hai.")
+        show_reported_vehicle_table(st.session_state.mis_data, unique_key="client_perf")
     else:
         st.info("👈 Kripya pehle MIS file upload karein.")
 
-# ----------------- 3. BRANCHES -----------------
-elif "Branches" in selected_nav:
-    st.title("🏢 Controlling Staff Performance")
-    st.info("Showing Performance Breakdown by Controlling Staff Name and Client.")
-
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data.copy()
-        staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower() or 'branch' in c.lower()), None)
-
-        if staff_col:
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
-                client_list = ["ALL"] + sorted(list(mis_df['VendorName'].dropna().unique())) if 'VendorName' in mis_df.columns else ["ALL"]
-                selected_client = st.selectbox("🏢 Filter by Customer (Party):", client_list, key="branch_client_filter")
-            with f_col2:
-                staff_list = ["ALL"] + sorted([str(x).strip() for x in mis_df[staff_col].dropna().unique() if str(x).strip() != ""])
-                selected_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="branch_staff_filter")
-
-            filtered_df = mis_df.copy()
-            if selected_client != "ALL":
-                filtered_df = filtered_df[filtered_df['VendorName'] == selected_client]
-            if selected_staff != "ALL":
-                filtered_df = filtered_df[filtered_df[staff_col].astype(str).str.strip() == selected_staff]
-
-            if not filtered_df.empty and 'Status_Category' in filtered_df.columns:
-                perf_df = filtered_df[filtered_df['Status_Category'].isin([ONTIME, DELAY])].copy()
-            else:
-                perf_df = pd.DataFrame(columns=filtered_df.columns)
-
-            staff_summary = []
-            if not perf_df.empty:
-                grouped = perf_df.groupby([staff_col, 'VendorName'])
-                for (staff, client), s_df in grouped:
-                    if pd.isna(staff) or str(staff).strip() == "":
-                        continue
-                    total = len(s_df)
-                    ontime = int((s_df['Status_Category'] == ONTIME).sum())
-                    delay = int((s_df['Status_Category'] == DELAY).sum())
-                    ontime_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
-                    staff_summary.append({
-                        "Controlling Staff Name": str(staff).strip(),
-                        "Client": str(client).strip(),
-                        "Total Trips": total,
-                        "On-Time Trips": ontime,
-                        "Delay Trips": delay,
-                        "Performance (%)": ontime_pct
-                    })
-
-            if staff_summary:
-                staff_df = pd.DataFrame(staff_summary).sort_values(by="Total Trips", ascending=False)
-                st.markdown(render_html_table(staff_df), unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown("## 📄 Detailed Filtered Records")
-                show_raw_df = show_cols(perf_df)
-                st.markdown(render_html_table(show_raw_df), unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                excel_bytes_staff = to_excel_bytes({'Staff_Performance_Summary': staff_df, 'Detailed_Records': show_raw_df})
-                st.download_button(
-                    label="📥 Download Summary & Detailed Data (Excel)",
-                    data=excel_bytes_staff,
-                    file_name="Controlling_Staff_Performance_Report.xlsx",
-                    mime=EXCEL_MIME,
-                    type="primary"
-                )
-            else:
-                st.warning("Is selection ke liye koi valid data nahi mila.")
-        else:
-            st.warning("Data mein 'Controlling Staff Name' column nahi mila.")
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 4. VEHICLE UTILISATION -----------------
-elif "Vehicle Utilisation" in selected_nav:
-    st.title("🚚 Vehicle Utilisation")
-    st.info("Closed trips (Status = 'Order Done' & Final Touching Time mentioned) vehicle-wise, route-wise aur client-wise.")
-
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data.copy()
-
-        if 'Parsed_Date' not in mis_df.columns or mis_df['Parsed_Date'].notna().sum() == 0:
-            st.warning("Date column sahi se read nahi hua. Despatch Date column check karein.")
-        else:
-            mis_df = mis_df[mis_df['Parsed_Date'].notna()].copy()
-
-            if 'Status_Category' in mis_df.columns:
-                mis_df = mis_df[mis_df['Status_Category'].isin([ONTIME, DELAY])]
-
-            mis_df['MonthKey'] = mis_df['Parsed_Date'].dt.strftime('%Y-%m')
-            month_options = sorted(mis_df['MonthKey'].unique(), reverse=True)
-
-            if not month_options:
-                st.warning("Koi closed trip data nahi mila.")
-            else:
-                current_key = datetime.now().strftime('%Y-%m')
-                default_idx = month_options.index(current_key) if current_key in month_options else 0
-
-                selected_month = st.selectbox(
-                    "📅 Select Month:", month_options, index=default_idx,
-                    format_func=lambda k: pd.Period(k).strftime('%B %Y').upper()
-                )
-                month_label = pd.Period(selected_month).strftime('%B %Y').upper()
-                month_df = mis_df[mis_df['MonthKey'] == selected_month].copy()
-
-                lorry_col = get_lorry_col(month_df)
-                if lorry_col is None:
-                    st.warning("'Lorry No.' column nahi mila.")
-                else:
-                    month_df[lorry_col] = month_df[lorry_col].astype(str).str.strip()
-                    mask = (month_df[lorry_col] != "") & (month_df[lorry_col].str.upper() != "NAN") & ~month_df[lorry_col].str.upper().str.contains('TBC|TBA|DUMMY', na=False)
-                    month_df = month_df[mask]
-
-                    from_col = find_col(month_df, exact=('from',))
-                    dest_col = find_col(month_df, exact=('destination', 'to'))
-                    if from_col and dest_col:
-                        month_df['Route'] = (
-                            month_df[from_col].astype(str).str.upper().str.strip() + " ➔ " +
-                            month_df[dest_col].astype(str).str.upper().str.strip()
-                        )
-                    else:
-                        month_df['Route'] = "N/A"
-
-                    km_col = next((c for c in month_df.columns if c.strip().upper() == 'KM'), None)
-                    month_df['_KM'] = pd.to_numeric(month_df[km_col], errors='coerce').fillna(0) if km_col else 0
-
-                    if 'VendorName' not in month_df.columns:
-                        month_df['VendorName'] = "N/A"
-
-                    vehicle_list = ["ALL"] + sorted(month_df[lorry_col].unique().tolist())
-                    selected_vehicle = st.selectbox("🚛 Filter by Vehicle No.:", vehicle_list, key="veh_util_filter")
-
-                    view_df = month_df if selected_vehicle == "ALL" else month_df[month_df[lorry_col] == selected_vehicle]
-
-                    total_trips = len(view_df)
-                    total_km = view_df['_KM'].sum()
-
-                    colors = ["#2ec4b6", "#ffb703", "#e63946", "#90e0ef", "#f72585"]
-                    chips = ""
-                    for i, (c_name, c_val) in enumerate(view_df['VendorName'].value_counts().items()):
-                        chips += (f'<span style="padding:5px 12px;">{html_lib.escape(str(c_name))}: '
-                                  f'<b style="color:{colors[i % len(colors)]}; font-size:20px;">{c_val}</b></span>')
-
-                    title = (f"TOTAL TRIP COUNT ({month_label})" if selected_vehicle == "ALL"
-                             else f"{html_lib.escape(selected_vehicle)} - TOTAL CLOSED TRIPS ({month_label})")
-
-                    card_html = (
-                        '<div class="metric-card" style="text-align:center; padding:35px;">'
-                        f'<div class="metric-title" style="font-size:18px;">{title}</div>'
-                        f'<div class="metric-value" style="font-size:60px; color:#48cae4;">{total_trips}</div>'
-                        '<div class="metric-sub-green" style="font-size:14px;">Closed Trips (Client-wise)</div>'
-                        '<div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; '
-                        f'margin-top:15px; padding-top:15px; border-top:1px dashed #48cae4; color:#ffffff; font-weight:800;">{chips}</div>'
-                        '<div style="font-size:16px; color:#90e0ef; margin-top:15px; font-weight:bold; '
-                        'border-top:1px solid #3a506b; padding-top:15px;">TOTAL DISTANCE: '
-                        f'<span style="color:#ffffff; font-size:26px;">{total_km:,.0f} KM</span></div>'
-                        '</div>'
-                    )
-                    c1, c2, c3 = st.columns([1, 2.5, 1])
-                    with c2:
-                        st.markdown(card_html, unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    heading = "ALL Vehicles" if selected_vehicle == "ALL" else selected_vehicle
-                    st.markdown(f"## 📍 Route & Client Summary ({heading})")
-
-                    group_cols = ['Route', 'VendorName'] if selected_vehicle != "ALL" else [lorry_col, 'Route', 'VendorName']
-                    if view_df.empty:
-                        st.warning("Is selection ke liye koi closed trip nahi mila.")
-                        summary = pd.DataFrame()
-                    else:
-                        summary = view_df.groupby(group_cols).agg(Trips=('Route', 'size'), Total_KM=('_KM', 'sum')).reset_index().rename(columns={lorry_col: 'Lorry No.', 'VendorName': 'Client'}).sort_values('Trips', ascending=False)
-                        summary['Total_KM'] = summary['Total_KM'].round(0).astype(int)
-                        summary.insert(0, 'S.No', range(1, 1 + len(summary)))
-                        st.markdown(render_html_table(summary), unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("## 📄 Detailed Vehicle Utilisation Records")
-                    veh_type_col = next((c for c in view_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
-                    detail = pd.DataFrame({'Lorry No.': view_df[lorry_col]})
-                    if veh_type_col:
-                        detail['Veh.Type'] = view_df[veh_type_col]
-                    detail['Route'] = view_df['Route']
-                    detail['KM'] = view_df['_KM']
-                    detail['Client'] = view_df['VendorName']
-                    detail.insert(0, 'S.No', range(1, 1 + len(detail)))
-                    st.markdown(render_html_table(detail), unsafe_allow_html=True)
-
-                    excel_bytes_util = to_excel_bytes({'Route_Client_Summary': summary, 'Detailed_Records': detail})
-                    st.download_button(
-                        label="📥 Download Utilisation Report (Excel)",
-                        data=excel_bytes_util,
-                        file_name="Vehicle_Utilisation_Report.xlsx",
-                        mime=EXCEL_MIME,
-                        type="primary"
-                    )
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 5. IN-TRANSIT VEHICLE STATUS -----------------
-elif "In-Transit Vehicle Status" in selected_nav:
-    st.title("🚚 In-Transit Vehicle Status")
-    st.info("Showing vehicles where Status is 'In-transit' (Final Touching Reporting Date is blank).")
-
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        mis_df = st.session_state.mis_data.copy()
-
-        final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in mis_df.columns), None)
-        status_col = next((c for c in mis_df.columns if 'status' in c.lower()), None)
-
-        if final_rep_col:
-            intransit_df = mis_df[mis_df[final_rep_col].apply(is_blank)].copy()
-        elif status_col:
-            intransit_df = mis_df[mis_df[status_col].astype(str).str.lower().str.contains('in-transit|transit', na=False)].copy()
-        else:
-            intransit_df = pd.DataFrame(columns=mis_df.columns)
-
-        if intransit_df.empty:
-            st.success("Koi bhi In-Transit vehicle nahi mili! 🎉")
-        else:
-            staff_col = next((c for c in intransit_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-            client_col_name = vendor_column(intransit_df) or 'VendorName'
-
-            it_col1, it_col2 = st.columns(2)
-            with it_col1:
-                staff_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"]
-                selected_it_staff = st.selectbox("👨‍💼 Filter by Controlling Staff:", staff_list, key="it_staff_filter")
-            with it_col2:
-                client_list = ["ALL"] + sorted([str(x).strip() for x in intransit_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in intransit_df.columns else ["ALL"]
-                selected_it_client = st.selectbox("🏢 Filter by Client:", client_list, key="it_client_filter")
-
-            if selected_it_staff != "ALL" and staff_col:
-                intransit_df = intransit_df[intransit_df[staff_col].astype(str).str.strip() == selected_it_staff].copy()
-            if selected_it_client != "ALL" and client_col_name in intransit_df.columns:
-                intransit_df = intransit_df[intransit_df[client_col_name].astype(str).str.strip() == selected_it_client].copy()
-
-            show_it_df = show_cols(intransit_df)
-            show_it_df.insert(0, 'S.No', range(1, 1 + len(show_it_df)))
-
-            st.markdown(render_html_table(show_it_df), unsafe_allow_html=True)
-
-            excel_bytes_it = to_excel_bytes({'In_Transit_Vehicles': show_it_df})
-            st.download_button(
-                label="📥 Download In-Transit Vehicles Excel",
-                data=excel_bytes_it,
-                file_name="In_Transit_Vehicle_Status.xlsx",
-                mime=EXCEL_MIME,
-                type="primary"
-            )
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 6. MONTHLY BREAKDOWN -----------------
-elif "Monthly Breakdown" in selected_nav:
-    st.title("📈 Monthly Breakdown")
-    st.info("🔒 Showing monthly performance breakdown.")
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        df = st.session_state.mis_data.copy()
-        if 'Parsed_Date' in df.columns and 'Status_Category' in df.columns:
-            try:
-                df = df[df['Parsed_Date'].notna()].copy()
-                df = df[df['Status_Category'].isin([ONTIME, DELAY])]
-                df['Month'] = df['Parsed_Date'].dt.to_period('M')
-                monthly_summary = (df.groupby(['Month', 'VendorName', 'Status_Category'])
-                                   .size().unstack(fill_value=0).reset_index()
-                                   .sort_values(['Month', 'VendorName']))
-                monthly_summary['Month'] = monthly_summary['Month'].dt.strftime('%B %Y')
-                st.markdown(render_html_table(monthly_summary), unsafe_allow_html=True)
-            except Exception as e:
-                st.warning(f"Could not parse monthly breakdown: {e}")
-        else:
-            st.warning("Date column not found for monthly breakdown.")
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-# ----------------- 7. USER & ACCESS CONTROL -----------------
-elif "User & Access Control" in selected_nav:
-    st.title("🔐 Controlling Staff ID & Access Control")
-    st.info("Yahan se aap controlling staff ke liye naye Login IDs aur Passwords create kar sakte hain.")
-
-    with st.form("create_staff_form"):
-        st.markdown("### ➕ Create New Staff Login")
-        new_user = st.text_input("Username (e.g. rahul, amit)")
-        new_pass = st.text_input("Password", type="password")
-        
-        available_staff_names = []
-        if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-            s_col = next((c for c in st.session_state.mis_data.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-            if s_col:
-                available_staff_names = sorted([str(x).strip() for x in st.session_state.mis_data[s_col].dropna().unique() if str(x).strip() != ""])
-        
-        if not available_staff_names:
-            available_staff_names = ["SANDEEP KUMAR", "DHANANJAY TIWARI", "ANIL KUMAR"]
-
-        assigned_staff_name = st.selectbox("Map to Controlling Staff Name (From MIS Data):", available_staff_names)
-
-        submit_user = st.form_submit_button("Create Staff Login ID", type="primary")
-        if submit_user:
-            if new_user and new_pass:
-                u_key = new_user.strip().lower()
-                st.session_state.staff_users[u_key] = {
-                    "pass": new_pass,
-                    "staff_name": assigned_staff_name
-                }
-                st.success(f"✅ Staff login successfully created for '{new_user}' mapped to '{assigned_staff_name}'!")
-            else:
-                st.warning("⚠️ Kripya Username aur Password dono bharein.")
-
-    st.markdown("### 📋 Existing Staff Accounts List")
-    staff_list_data = []
-    for u, details in st.session_state.staff_users.items():
-        staff_list_data.append({
-            "Username": u,
-            "Mapped Controlling Staff Name": details["staff_name"],
-            "Access Type": "View-Only Data Access"
-        })
-    if staff_list_data:
-        st.markdown(render_html_table(pd.DataFrame(staff_list_data)), unsafe_allow_html=True)
-
-# ----------------- OTHER PAGES -----------------
 else:
     st.title(selected_nav)
-    st.info("🚧 Yeh page abhi ban raha hai (Work in Progress).")
+    st.info("🚧 Yeh page abhi active hai.")
