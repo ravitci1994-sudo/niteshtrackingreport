@@ -344,7 +344,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         st.info(f"🔒 Logged in as Staff View: **{selected_staff}**")
         selected_client_report = "ALL"
     else:
-        # Added Filter by Client Dropdown here
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         with f_col1:
             selected_date = st.selectbox(
@@ -471,6 +470,104 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         type="primary",
         key=f"download_reported_{unique_key}"
     )
+
+    if staff_filter:
+        return
+
+    # ================= ROUTE-WISE PERFORMANCE REPORT SECTION =================
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("## 📍 Route-wise Performance Report")
+
+    client_col_name = vendor_column(reported_df) or 'VendorName'
+    route_client_options = ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in reported_df.columns else ["ALL"]
+
+    if staff_col:
+        route_staff_list = ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""])
+    else:
+        route_staff_list = ["ALL"]
+
+    r_col1, r_col2 = st.columns(2)
+    with r_col1:
+        route_client_selected = st.selectbox(
+            "🏢 Filter Route-wise by Client:",
+            route_client_options,
+            index=0,
+            key=f"route_client_filter_{unique_key}"
+        )
+    with r_col2:
+        route_staff_selected = st.selectbox(
+            "👨‍💼 Filter Route-wise by Controlling Staff:",
+            route_staff_list,
+            index=0,
+            key=f"route_staff_filter_{unique_key}"
+        )
+
+    route_base_df = reported_df.copy()
+    if route_client_selected != "ALL" and client_col_name in route_base_df.columns:
+        route_base_df = route_base_df[route_base_df[client_col_name].astype(str).str.strip() == route_client_selected].copy()
+    if route_staff_selected != "ALL" and staff_col:
+        route_base_df = route_base_df[route_base_df[staff_col].astype(str).str.strip() == route_staff_selected].copy()
+
+    from_c = find_col(route_base_df, exact=('from',))
+    dest_c = find_col(route_base_df, exact=('destination', 'to'))
+    client_c = 'Party' if 'Party' in final_report_df.columns else client_col_name
+
+    if from_c and dest_c:
+        route_base_df['Route'] = route_base_df[from_c].astype(str).str.upper().str.strip() + " ➔ " + route_base_df[dest_c].astype(str).str.upper().str.strip()
+    else:
+        route_base_df['Route'] = "N/A"
+
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in route_base_df.columns), None)
+    if 'Status_Category' not in route_base_df.columns and late_col:
+        route_base_df['Status_Category'] = route_base_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
+
+    route_summary = []
+    if not route_base_df.empty:
+        group_keys = ['Route']
+        if client_c and client_c in route_base_df.columns:
+            group_keys.append(client_c)
+
+        grouped = route_base_df.groupby(group_keys)
+        for name, g_df in grouped:
+            if isinstance(name, tuple):
+                route, client = name
+            else:
+                route, client = name, "ALL"
+
+            total = len(g_df)
+            ontime = int((g_df['Status_Category'] == ONTIME).sum()) if 'Status_Category' in g_df.columns else total
+            delay = int((g_df['Status_Category'] == DELAY).sum()) if 'Status_Category' in g_df.columns else 0
+            perf_pct = f"{round((ontime / total) * 100, 1)}%" if total > 0 else "0%"
+
+            route_summary.append({
+                "Route": route,
+                "Client": client,
+                "Total Trips": total,
+                "On-Time Trips": ontime,
+                "Delay Trips": delay,
+                "Performance (%)": perf_pct
+            })
+
+    if route_summary:
+        route_df = pd.DataFrame(route_summary).sort_values(by="Total Trips", ascending=False)
+        route_df.insert(0, 'S.No', range(1, 1 + len(route_df)))
+        st.markdown(render_html_table(route_df), unsafe_allow_html=True)
+
+        route_client_tag = f"_Client_{route_client_selected.replace(' ', '_')}" if route_client_selected != "ALL" else ""
+        route_staff_tag = f"_Staff_{route_staff_selected.replace(' ', '_')}" if route_staff_selected != "ALL" else ""
+        excel_bytes_route = to_excel_bytes({'Route_Performance': route_df})
+        filename_route = f"Route_Performance{route_client_tag}{route_staff_tag}.xlsx"
+
+        st.download_button(
+            label="📥 Download Route-wise Performance Excel",
+            data=excel_bytes_route,
+            file_name=filename_route,
+            mime=EXCEL_MIME,
+            type="secondary",
+            key=f"download_route_perf_{unique_key}"
+        )
+    else:
+        st.info("Route-wise performance ke liye koi data available nahi hai.")
 
 
 # ================= FILE PROCESSING =================
