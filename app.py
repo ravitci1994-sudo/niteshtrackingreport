@@ -472,12 +472,10 @@ def process_uploaded_files(uploaded_files):
             temp_df.columns = temp_df.columns.astype(str).str.strip()
             fname = uploaded_file.name.lower()
             
-            # Check if file is Callout
             has_category = any('category' in c.lower() for c in temp_df.columns)
             is_callout = ('callout' in fname) or has_category or ('breakdown' in fname)
 
             if is_callout:
-                # 1. Filter Category column for: BREAKDOWN, ACCIDENT, TYRE BLAST, TYRE PUNCHER
                 cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
                 if cat_col:
                     allowed_cats = ['breakdown', 'accident', 'tyre blast', 'tyre puncher', 'tyre blast / puncture', 'puncher']
@@ -486,7 +484,6 @@ def process_uploaded_files(uploaded_files):
                         return any(kw in s for kw in allowed_cats)
                     temp_df = temp_df[temp_df[cat_col].apply(check_cat)].copy()
 
-                # 2. Filter Customer column for: DHL, Busybees, Trackon
                 vendor_c = vendor_column(temp_df)
                 if vendor_c:
                     temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party)
@@ -676,26 +673,16 @@ if "Dashboard" in selected_nav:
 
         st.markdown("---")
         
-        # --- 2 DROPDOWN BUTTONS FOR CALLOUT (Filter by Month & Filter by Client) ---
-        f_col1, f_col2 = st.columns(2)
-        with f_col1:
-            month_filter_options = ["ALL", "August", "September", "October"]
-            selected_month_filter = st.selectbox("📅 Filter Callout by Month:", month_filter_options, key="dash_month_filter")
-        with f_col2:
-            client_filter_options = ["ALL", "DHL", "Busybees", "Trackon"]
-            selected_client_filter = st.selectbox("🏢 Filter Callout by Client:", client_filter_options, key="dash_client_filter")
+        # --- EXCLUSIVE CALLOUT FILTER DROPDOWN ---
+        st.markdown("### 🔍 Filter Total Callout Count")
+        callout_client_options = ["ALL", "DHL", "Busybees", "Trackon"]
+        selected_callout_client = st.selectbox("🏢 Select Client for Callout Count:", callout_client_options, key="exclusive_callout_client_dropdown")
 
         filtered_callout = callout_df.copy()
         
-        # Apply Client Filter
-        if selected_client_filter != "ALL" and not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
-            filtered_callout = filtered_callout[filtered_callout['VendorName'].str.upper() == selected_client_filter.upper()]
-
-        # Apply Month Filter
-        if selected_month_filter != "ALL" and not filtered_callout.empty and 'Parsed_Date' in filtered_callout.columns:
-            month_map = {"August": 8, "September": 9, "October": 10}
-            target_m = month_map.get(selected_month_filter)
-            filtered_callout = filtered_callout[filtered_callout['Parsed_Date'].dt.month == target_m]
+        # Apply exclusive client filter to callout data only
+        if selected_callout_client != "ALL" and not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
+            filtered_callout = filtered_callout[filtered_callout['VendorName'].str.upper() == selected_callout_client.upper()]
 
         total_callouts = len(filtered_callout)
         co_has_vendor = not filtered_callout.empty and 'VendorName' in filtered_callout.columns
@@ -714,9 +701,6 @@ if "Dashboard" in selected_nav:
         oct_dhl, oct_busy, oct_trk = get_m_breakdown(10, 'DHL'), get_m_breakdown(10, 'Busybees'), get_m_breakdown(10, 'Trackon')
 
         filtered_mis = mis_df.copy()
-        if selected_client_filter != "ALL" and not filtered_mis.empty and 'VendorName' in filtered_mis.columns:
-            filtered_mis = filtered_mis[filtered_mis['VendorName'].str.upper() == selected_client_filter.upper()]
-
         if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
             perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
         else:
@@ -734,7 +718,7 @@ if "Dashboard" in selected_nav:
         with col1:
             col1_html = (
                 f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({selected_client_filter.upper()})</div>'
+                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({selected_callout_client.upper()})</div>'
                 f'<div class="metric-value">{total_callouts}</div>'
                 f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown, Accident, Tyre Blast & Puncher</div>'
                 f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff; font-weight:700;">'
@@ -821,8 +805,8 @@ if "Dashboard" in selected_nav:
             )
             st.markdown(col3_html, unsafe_allow_html=True)
 
-        if not filtered_mis.empty:
-            show_reported_vehicle_table(filtered_mis, unique_key="dash")
+        if not mis_df.empty:
+            show_reported_vehicle_table(mis_df, unique_key="dash")
         else:
             st.warning("Is selection ke liye koi data available nahi hai.")
     else:
