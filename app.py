@@ -47,12 +47,6 @@ st.markdown("""
         margin-top: 5px;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
-    .metric-sub-green {
-        font-size: 13px;
-        color: #2ec4b6;
-        margin-top: 5px;
-        font-weight: 700;
-    }
     .custom-table-container {
         overflow-x: auto;
         max-height: 450px;
@@ -148,15 +142,17 @@ def is_zero_late(v):
         return False
 
 
-def clean_party(v, keep_other=False):
+def clean_party(v, keep_other=True):
+    if is_blank(v):
+        return "Other"
     v_str = str(v).upper().strip()
     if "DHL" in v_str:
         return "DHL"
-    elif "BUSYBEES" in v_str:
+    elif "BUSYBEE" in v_str:
         return "Busybees"
     elif "TRACKON" in v_str:
         return "Trackon"
-    return None
+    return str(v).strip() if keep_other else "Other"
 
 
 def find_col(df, exact=None, contains=None):
@@ -725,22 +721,24 @@ def process_uploaded_files(uploaded_files):
             temp_df.columns = temp_df.columns.astype(str).str.strip()
             fname = uploaded_file.name.lower()
             
-            has_category = any('category' in c.lower() for c in temp_df.columns)
+            # Flexible detection for callout/breakdown files
+            has_category = any(kw in c.lower() for c in temp_df.columns for kw in ['category', 'cat', 'callout', 'reason', 'breakdown', 'issue'])
             is_callout = ('callout' in fname) or has_category or ('breakdown' in fname)
 
             if is_callout:
-                cat_col = next((c for c in temp_df.columns if 'category' in c.lower() or 'cat' in c.lower()), None)
+                cat_col = next((c for c in temp_df.columns if any(kw in c.lower() for kw in ['category', 'cat', 'reason', 'issue'])), None)
                 if cat_col:
-                    allowed_cats = ['breakdown', 'accident', 'tyre blast', 'tyre puncher', 'tyre blast / puncture', 'puncher']
+                    allowed_keywords = ['breakdown', 'break down', 'accident', 'tyre', 'tire', 'puncture', 'puncher', 'blast']
                     def check_cat(val):
+                        if is_blank(val):
+                            return False
                         s = str(val).lower().strip()
-                        return any(kw in s for kw in allowed_cats)
+                        return any(kw in s for kw in allowed_keywords)
                     temp_df = temp_df[temp_df[cat_col].apply(check_cat)].copy()
 
                 vendor_c = vendor_column(temp_df)
                 if vendor_c:
-                    temp_df['VendorName'] = temp_df[vendor_c].apply(clean_party)
-                    temp_df = temp_df[temp_df['VendorName'].isin(['DHL', 'Busybees', 'Trackon'])].copy()
+                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda x: clean_party(x, keep_other=True))
 
                 date_col = next((c for c in temp_df.columns if 'date' in c.lower() or 'desp' in c.lower() or 'time' in c.lower()), None)
                 if date_col:
@@ -748,331 +746,72 @@ def process_uploaded_files(uploaded_files):
 
                 callout_dfs.append(temp_df)
             else:
-                desp_col = next((c for c in temp_df.columns if 'desp' in c.lower() or 'dispatch' in c.lower()), None)
+                desp_col = next((c for c in temp_df.columns if 'desp' in c.lower() or 'date' in c.lower() or 'time' in c.lower()), None)
                 if desp_col:
-                    temp_df = temp_df[~temp_df[desp_col].apply(is_blank)].copy()
+                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[desp_col], errors='coerce', dayfirst=True)
 
                 vendor_c = vendor_column(temp_df)
                 if vendor_c:
-                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda v: clean_party(v) if clean_party(v) else str(v).strip())
+                    temp_df['VendorName'] = temp_df[vendor_c].apply(lambda x: clean_party(x, keep_other=True))
                 else:
-                    temp_df['VendorName'] = "TEJAS CARGO"
+                    temp_df['VendorName'] = "Other"
 
-                date_col = (
-                    next((c for c in temp_df.columns if 'desp' in c.lower() and 'date' in c.lower()), None)
-                    or next((c for c in temp_df.columns if 'date' in c.lower()), None)
-                    or next((c for c in temp_df.columns if 'desp' in c.lower() or 'time' in c.lower()), None)
-                )
-                if date_col:
-                    temp_df['Parsed_Date'] = pd.to_datetime(temp_df[date_col], errors='coerce', dayfirst=True)
+                late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in temp_df.columns), None)
+                if late_col:
+                    temp_df['Status_Category'] = temp_df[late_col].apply(lambda v: DELAY if not is_zero_late(v) else ONTIME)
+                else:
+                    temp_df['Status_Category'] = ONTIME
 
-                status_col = next((c for c in temp_df.columns if 'status' in c.lower()), None)
-                final_cols = [c for c in ['Final Touching Reporting Date & Time', 'Reporting Date', 'Reporting Date & Time'] if c in temp_df.columns]
-                late_cols = [c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in temp_df.columns]
-
-                def get_status(row):
-                    late_val = first_valid(row, late_cols) if late_cols else None
-                    if status_col and final_cols:
-                        status_val = str(row.get(status_col, '')).lower()
-                        final_rep = first_valid(row, final_cols)
-                        if ("order done" in status_val) and final_rep is not None:
-                            return ONTIME if is_zero_late(late_val) else DELAY
-                        return "Invalid"
-                    return ONTIME if is_zero_late(late_val) else DELAY
-
-                temp_df['Status_Category'] = temp_df.apply(get_status, axis=1)
                 mis_dfs.append(temp_df)
+
         except Exception as e:
-            st.error(f"Error reading file {uploaded_file.name}: {e}")
+            st.error(f"Error processing file {uploaded_file.name}: {e}")
 
-    callout_df = pd.concat(callout_dfs, ignore_index=True) if callout_dfs else pd.DataFrame()
-    mis_df = pd.concat(mis_dfs, ignore_index=True) if mis_dfs else pd.DataFrame()
-    return callout_df, mis_df
-
-
-# ================= MEMORY SETUP =================
-DATA_FILE_CALLOUT = "saved_callout_data.pkl"
-DATA_FILE_MIS = "saved_mis_data.pkl"
-
-if 'callout_data' not in st.session_state or st.session_state.callout_data is None:
-    if os.path.exists(DATA_FILE_CALLOUT):
-        try:
-            st.session_state.callout_data = pd.read_pickle(DATA_FILE_CALLOUT)
-        except Exception:
-            st.session_state.callout_data = None
-    else:
-        st.session_state.callout_data = None
-
-if 'mis_data' not in st.session_state or st.session_state.mis_data is None:
-    if os.path.exists(DATA_FILE_MIS):
-        try:
-            st.session_state.mis_data = pd.read_pickle(DATA_FILE_MIS)
-        except Exception:
-            st.session_state.mis_data = None
-    else:
-        st.session_state.mis_data = None
-
-if 'uploader_key' not in st.session_state:
-    st.session_state.uploader_key = 0
+    combined_callout = pd.concat(callout_dfs, ignore_index=True) if callout_dfs else pd.DataFrame()
+    combined_mis = pd.concat(mis_dfs, ignore_index=True) if mis_dfs else pd.DataFrame()
+    return combined_callout, combined_mis
 
 
-def save_or_delete(df, path):
-    if df is not None and not df.empty:
-        df.to_pickle(path)
-    elif os.path.exists(path):
-        os.remove(path)
+# ================= MAIN APP =================
+def main():
+    st.title("🚀 Sales Manager Live Monitoring Dashboard")
+    st.markdown("Upload your MIS or Callout files to view real-time trip performance and statistics.")
 
+    uploaded_files = st.file_uploader("Upload MIS / Callout Excel or CSV Files", type=["xlsx", "csv"], accept_multiple_files=True)
 
-# ================= SIDEBAR =================
-st.sidebar.markdown("### Welcome, Tejas Cargo India Pvt Ltd")
+    if uploaded_files:
+        callout_df, mis_df = process_uploaded_files(uploaded_files)
 
-current_time = datetime.now().strftime("%d %b %Y | %I:%M %p")
-st.sidebar.markdown(f"<div style='color: #90e0ef; font-size: 13px; font-weight: bold; margin-top: -10px; margin-bottom: 5px;'>🕒 {current_time}</div>", unsafe_allow_html=True)
+        st.sidebar.header("📊 Dashboard Navigation")
+        app_mode = st.sidebar.selectbox("Choose View", ["Main MIS Dashboard", "Callout Summary", "Staff Login Portal"])
 
-if 'logged_in_staff' not in st.session_state:
-    st.session_state.logged_in_staff = None
-
-st.sidebar.markdown("---")
-if st.session_state.logged_in_staff is None:
-    st.sidebar.markdown("🔐 **Login Portal**")
-    login_mode = st.sidebar.radio("Login as:", ["Admin / Vendor", "Controlling Staff"], label_visibility="collapsed")
-    
-    if login_mode == "Controlling Staff":
-        s_user = st.sidebar.text_input("Staff Username")
-        s_pass = st.sidebar.text_input("Password", type="password")
-        if st.sidebar.button("Staff Login", use_container_width=True):
-            user_key = s_user.strip().lower()
-            if user_key in st.session_state.staff_users and st.session_state.staff_users[user_key]["pass"] == s_pass:
-                st.session_state.logged_in_staff = st.session_state.staff_users[user_key]["staff_name"]
-                st.sidebar.success(f"Welcome, {st.session_state.logged_in_staff}!")
-                st.rerun()
+        if app_mode == "Main MIS Dashboard":
+            st.header("📈 Main MIS Performance Dashboard")
+            if not mis_df.empty:
+                show_reported_vehicle_table(mis_df, unique_key="main_dashboard")
             else:
-                st.sidebar.error("Invalid Username or Password!")
-        st.sidebar.markdown("---")
+                st.warning("Koi MIS data available nahi hai ya file process nahi ho payi.")
 
-else:
-    st.sidebar.success(f"Logged in as Staff: **{st.session_state.logged_in_staff}**")
-    if st.sidebar.button("Logout Staff", use_container_width=True):
-        st.session_state.logged_in_staff = None
-        st.rerun()
-    st.sidebar.markdown("---")
+        elif app_mode == "Callout Summary":
+            st.header("⚠️ Callout / Breakdown Summary")
+            if not callout_df.empty:
+                st.metric("TOTAL CALLOUT COUNT (ALL)", len(callout_df))
+                st.markdown(render_html_table(callout_df), unsafe_allow_html=True)
+            else:
+                st.info("Koi Callout data available nahi hai.")
 
-if st.session_state.logged_in_staff is None:
-    st.sidebar.markdown("📂 **Upload Callout & MIS Files**")
-    uploaded_files = st.sidebar.file_uploader(
-        "Choose Excel/CSV files",
-        type=["xlsx", "csv"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-        key=f"uploader_{st.session_state.uploader_key}"
-    )
-
-    if st.sidebar.button("🚀 Process Data", type="primary", use_container_width=True):
-        if uploaded_files:
-            try:
-                c_df, m_df = process_uploaded_files(uploaded_files)
-                st.session_state.callout_data = c_df
-                st.session_state.mis_data = m_df
-
-                save_or_delete(c_df, DATA_FILE_CALLOUT)
-                save_or_delete(m_df, DATA_FILE_MIS)
-
-                st.sidebar.success("✅ Data successfully processed and saved!")
-                st.rerun()
-            except Exception as e:
-                st.sidebar.error(f"Error: {e}")
-        else:
-            st.sidebar.warning("⚠️ Pehle files upload karein!")
-
-    st.sidebar.markdown("---")
-
-    if st.sidebar.button("🗑️ REMOVE DATA", use_container_width=True):
-        if os.path.exists(DATA_FILE_CALLOUT):
-            os.remove(DATA_FILE_CALLOUT)
-        if os.path.exists(DATA_FILE_MIS):
-            os.remove(DATA_FILE_MIS)
-        st.session_state.callout_data = None
-        st.session_state.mis_data = None
-        st.session_state.uploader_key += 1
-        st.rerun()
-
-    st.sidebar.markdown("Navigation:")
-    selected_nav = st.sidebar.radio("Navigation", [
-        "📊 Dashboard",
-        "📊 Client Performance",
-        "🏢 Branches",
-        "🚚 Vehicle Utilisation",
-        "🚚 In-Transit Vehicle Status",
-        "📈 Monthly Breakdown",
-        "🔐 User & Access Control"
-    ], label_visibility="collapsed")
-
-else:
-    selected_nav = "📊 Dashboard"
-    st.sidebar.info("Controlling staff mode: View-only access enabled for assigned vehicles.")
-
-
-# ================= MAIN PAGE LOGIC =================
-if "Dashboard" in selected_nav:
-    st.title("⚡ Sales Manager Live Monitoring Dashboard")
-    st.info("🔒 **Restricted Vendor View:** Callout Count & Overall Performance")
-
-    has_callout = st.session_state.callout_data is not None and not st.session_state.callout_data.empty
-    has_mis = st.session_state.mis_data is not None and not st.session_state.mis_data.empty
-
-    if has_callout or has_mis:
-        callout_df = st.session_state.callout_data if has_callout else pd.DataFrame()
-        mis_df = st.session_state.mis_data if has_mis else pd.DataFrame()
-
-        st.markdown("---")
-        
-        # --- EXCLUSIVE CALLOUT FILTER DROPDOWN ---
-        st.markdown("### 🔍 Filter Total Callout Count")
-        callout_client_options = ["ALL", "DHL", "Busybees", "Trackon"]
-        selected_callout_client = st.selectbox("🏢 Select Client for Callout Count:", callout_client_options, key="exclusive_callout_client_dropdown")
-
-        filtered_callout = callout_df.copy()
-        
-        # Apply exclusive client filter to callout data only
-        if selected_callout_client != "ALL" and not filtered_callout.empty and 'VendorName' in filtered_callout.columns:
-            filtered_callout = filtered_callout[filtered_callout['VendorName'].str.upper() == selected_callout_client.upper()]
-
-        total_callouts = len(filtered_callout)
-        co_has_vendor = not filtered_callout.empty and 'VendorName' in filtered_callout.columns
-        
-        dhl_c = int((filtered_callout['VendorName'] == 'DHL').sum()) if co_has_vendor else 0
-        busy_c = int((filtered_callout['VendorName'] == 'Busybees').sum()) if co_has_vendor else 0
-        trk_c = int((filtered_callout['VendorName'] == 'Trackon').sum()) if co_has_vendor else 0
-
-        def get_m_breakdown(m_num, c_name):
-            if co_has_vendor and 'Parsed_Date' in filtered_callout.columns:
-                return int(((filtered_callout['Parsed_Date'].dt.month == m_num) & (filtered_callout['VendorName'] == c_name)).sum())
-            return 0
-
-        aug_dhl, aug_busy, aug_trk = get_m_breakdown(8, 'DHL'), get_m_breakdown(8, 'Busybees'), get_m_breakdown(8, 'Trackon')
-        sept_dhl, sept_busy, sept_trk = get_m_breakdown(9, 'DHL'), get_m_breakdown(9, 'Busybees'), get_m_breakdown(9, 'Trackon')
-        oct_dhl, oct_busy, oct_trk = get_m_breakdown(10, 'DHL'), get_m_breakdown(10, 'Busybees'), get_m_breakdown(10, 'Trackon')
-
-        filtered_mis = mis_df.copy()
-        if not filtered_mis.empty and 'Status_Category' in filtered_mis.columns:
-            perf_mis = filtered_mis[filtered_mis['Status_Category'].isin([ONTIME, DELAY])].copy()
-        else:
-            perf_mis = pd.DataFrame(columns=filtered_mis.columns)
-
-        total_trips = len(perf_mis)
-        ontime_trips = int((perf_mis['Status_Category'] == ONTIME).sum()) if not perf_mis.empty else 0
-        delay_trips = int((perf_mis['Status_Category'] == DELAY).sum()) if not perf_mis.empty else 0
-
-        ontime_pct = round((ontime_trips / total_trips) * 100, 1) if total_trips > 0 else 0
-        delay_pct = round((delay_trips / total_trips) * 100, 1) if total_trips > 0 else 0
-
-        col1, col2, col3 = st.columns([1.2, 1.8, 1])
-
-        with col1:
-            col1_html = (
-                f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">📊 TOTAL CALLOUT COUNT ({selected_callout_client.upper()})</div>'
-                f'<div class="metric-value">{total_callouts}</div>'
-                f'<div class="metric-sub-green" style="margin-bottom: 6px;">Breakdown, Accident, Tyre Blast & Puncher</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #48cae4; color: #ffffff; font-weight:700;">'
-                f'<span>DHL: <b style="color:#2ec4b6; font-size:16px;">{dhl_c}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703; font-size:16px;">{busy_c}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946; font-size:16px;">{trk_c}</b></span>'
-                f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 10px; font-weight: 800; text-transform: uppercase;">August Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
-                f'<span>DHL: <b style="color:#2ec4b6;">{aug_dhl}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703;">{aug_busy}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946;">{aug_trk}</b></span>'
-                f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">September Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
-                f'<span>DHL: <b style="color:#2ec4b6;">{sept_dhl}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703;">{sept_busy}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946;">{sept_trk}</b></span>'
-                f'</div>'
-                f'<div style="font-size: 11px; color: #90e0ef; margin-top: 8px; font-weight: 800; text-transform: uppercase;">October Breakdown</div>'
-                f'<div style="display: flex; justify-content: space-between; font-size: 12px; color: #ffffff; font-weight:600;">'
-                f'<span>DHL: <b style="color:#2ec4b6;">{oct_dhl}</b></span>'
-                f'<span>Busybees: <b style="color:#ffb703;">{oct_busy}</b></span>'
-                f'<span>Trackon: <b style="color:#e63946;">{oct_trk}</b></span>'
-                f'</div>'
-                f'</div>'
-            )
-            st.markdown(col1_html, unsafe_allow_html=True)
-
-        with col2:
-            col2_html = (
-                f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">⚡ OVER ALL PERFORMANCE</div>'
-                f'<div style="display: flex; justify-content: space-around; align-items: center; text-align: center; margin-top: 35px; padding-top: 15px; border-top: 1px solid #48cae4;">'
-                f'<div>'
-                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Total Count</div>'
-                f'<div style="font-size: 32px; font-weight: 900; color: #ffffff; margin-top: 4px;">{total_trips}</div>'
-                f'<div style="font-size: 12px; color: #8d99ae; margin-top: 2px;">Performance Trips</div>'
-                f'</div>'
-                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
-                f'<div>'
-                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">On-Time</div>'
-                f'<div style="font-size: 32px; font-weight: 900; color: #2ec4b6; margin-top: 4px;">{ontime_trips}</div>'
-                f'<div style="font-size: 14px; font-weight: 900; color: #2ec4b6; margin-top: 2px;">{ontime_pct}%</div>'
-                f'</div>'
-                f'<div style="border-left: 1px solid #48cae4; height: 55px;"></div>'
-                f'<div>'
-                f'<div style="font-size: 12px; color: #90e0ef; font-weight: 800; text-transform: uppercase;">Delay</div>'
-                f'<div style="font-size: 32px; font-weight: 900; color: #e63946; margin-top: 4px;">{delay_trips}</div>'
-                f'<div style="font-size: 14px; font-weight: 900; color: #e63946; margin-top: 2px;">{delay_pct}%</div>'
-                f'</div>'
-                f'</div>'
-                f'</div>'
-            )
-            st.markdown(col2_html, unsafe_allow_html=True)
-
-        with col3:
-            lb_clients = ['DHL', 'Busybees', 'Trackon']
-            lb_rows_html = ""
-            for c_name in lb_clients:
-                c_df = perf_mis[perf_mis['VendorName'].str.upper() == c_name.upper()] if not perf_mis.empty else pd.DataFrame()
-                c_tot = len(c_df)
-                c_ontime = int((c_df['Status_Category'] == ONTIME).sum()) if not c_df.empty and 'Status_Category' in c_df.columns else 0
-                c_delay = int((c_df['Status_Category'] == DELAY).sum()) if not c_df.empty and 'Status_Category' in c_df.columns else 0
-
-                lb_rows_html += (
-                    f'<div style="border-top: 1px solid #48cae4; padding-top: 8px; margin-top: 8px;">'
-                    f'<div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">'
-                    f'<span style="color: #ffffff;">{c_name}</span>'
-                    f'<span style="color: #90e0ef;">Total: <b>{c_tot}</b></span>'
-                    f'</div>'
-                    f'<div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 4px;">'
-                    f'<span style="color: #2ec4b6;">On-Time: <b>{c_ontime}</b></span>'
-                    f'<span style="color: #e63946;">Delay: <b>{c_delay}</b></span>'
-                    f'</div>'
-                    f'</div>'
-                )
-
-            col3_html = (
-                f'<div class="metric-card" style="min-height: 200px;">'
-                f'<div class="metric-title">🏆 TARGET CLIENTS LEADERBOARD</div>'
-                f'{lb_rows_html}'
-                f'</div>'
-            )
-            st.markdown(col3_html, unsafe_allow_html=True)
-
-        if not mis_df.empty:
-            show_reported_vehicle_table(mis_df, unique_key="dash")
-        else:
-            st.warning("Is selection ke liye koi data available nahi hai.")
+        elif app_mode == "Staff Login Portal":
+            st.header("🔒 Staff Login Portal")
+            staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
+            if staff_col and not mis_df.empty:
+                staff_names = sorted([str(x).strip() for x in mis_df[staff_col].dropna().unique() if str(x).strip() != ""])
+                selected_staff = st.selectbox("Select Staff Member", staff_names)
+                if selected_staff:
+                    show_reported_vehicle_table(mis_df, unique_key="staff_portal", staff_filter=selected_staff)
+            else:
+                st.warning("Controlling Staff column nahi mila ya MIS data khali hai.")
     else:
-        st.info("👈 Kripya Sidebar se apni Callout aur MIS Performance files upload karein aur 'Process Data' par click karein.")
+        st.info("Please sidebar ya upar diye gaye uploader se files upload karein.")
 
-# ----------------- OTHER PAGES -----------------
-elif "Client Performance" in selected_nav:
-    st.title("🎯 Customer-wise Performance Speedometer")
-    if st.session_state.mis_data is not None and not st.session_state.mis_data.empty:
-        show_reported_vehicle_table(st.session_state.mis_data, unique_key="client_perf")
-    else:
-        st.info("👈 Kripya pehle MIS file upload karein.")
-
-else:
-    st.title(selected_nav)
-    st.info("🚧 Yeh page abhi active hai.")
+if __name__ == '__main__':
+    main()
