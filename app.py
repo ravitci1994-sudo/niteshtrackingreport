@@ -99,6 +99,12 @@ ONTIME = 'On-Time Trip Closed'
 DELAY = 'Delay Trip Closed'
 EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+# Persistent storage directory
+DATA_DIR = "saved_data"
+os.makedirs(DATA_DIR, exist_ok=True)
+CALLOUT_PATH = os.path.join(DATA_DIR, "callout.pkl")
+MIS_PATH = os.path.join(DATA_DIR, "mis.pkl")
+
 
 # ================= HELPERS =================
 def is_blank(v):
@@ -443,7 +449,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
         return
 
-    # Requested Columns including Remarks mapping
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
@@ -456,8 +461,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
 
     actual_cols = []
     rename_dict = {}
-
-    # Find matching remark column from compiled data (e.g. 'Tracking Remark', 'Remark', 'Remarks')
     remark_src_col = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in filtered_report_df.columns), None)
 
     for req_col in requested_cols:
@@ -821,13 +824,21 @@ def main():
     st.title("🚀 Sales Manager Live Monitoring Dashboard")
     st.markdown("Upload your MIS or Callout files to view real-time trip performance and statistics.")
 
-    # Initialize Session State for Data Persistence
+    # Initialize Session State & Load Persistent Disk Data if available
     if 'stored_callout_df' not in st.session_state:
-        st.session_state.stored_callout_df = pd.DataFrame()
+        if os.path.exists(CALLOUT_PATH):
+            st.session_state.stored_callout_df = pd.read_pickle(CALLOUT_PATH)
+        else:
+            st.session_state.stored_callout_df = pd.DataFrame()
+
     if 'stored_mis_df' not in st.session_state:
-        st.session_state.stored_mis_df = pd.DataFrame()
+        if os.path.exists(MIS_PATH):
+            st.session_state.stored_mis_df = pd.read_pickle(MIS_PATH)
+        else:
+            st.session_state.stored_mis_df = pd.DataFrame()
+
     if 'data_loaded' not in st.session_state:
-        st.session_state.data_loaded = False
+        st.session_state.data_loaded = not st.session_state.stored_mis_df.empty or not st.session_state.stored_callout_df.empty
 
     # Sidebar Controls
     st.sidebar.header("📁 Data Management")
@@ -839,12 +850,24 @@ def main():
             st.session_state.stored_callout_df = c_df
             st.session_state.stored_mis_df = m_df
             st.session_state.data_loaded = True
-            st.sidebar.success("Data successfully loaded and saved!")
+            
+            # Save permanently to disk
+            c_df.to_pickle(CALLOUT_PATH)
+            m_df.to_pickle(MIS_PATH)
+            
+            st.sidebar.success("Data successfully loaded and saved permanently!")
 
     if st.sidebar.button("🗑️ Remove Data", type="secondary"):
         st.session_state.stored_callout_df = pd.DataFrame()
         st.session_state.stored_mis_df = pd.DataFrame()
         st.session_state.data_loaded = False
+        
+        # Remove from disk
+        if os.path.exists(CALLOUT_PATH):
+            os.remove(CALLOUT_PATH)
+        if os.path.exists(MIS_PATH):
+            os.remove(MIS_PATH)
+            
         st.sidebar.warning("Data has been removed.")
         st.rerun()
 
