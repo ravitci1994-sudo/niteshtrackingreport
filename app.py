@@ -128,6 +128,24 @@ def is_zero_late(v):
         return False
 
 
+def get_delay_minutes(v):
+    if is_blank(v):
+        return 0.0
+    s = str(v).strip().lower()
+    if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00"):
+        return 0.0
+    try:
+        td = pd.to_timedelta(s)
+        return td.total_seconds() / 60.0
+    except Exception:
+        pass
+    try:
+        val = float(s)
+        return val * 60.0
+    except Exception:
+        return 0.0
+
+
 def clean_party(v, keep_other=True):
     if is_blank(v):
         return "Other"
@@ -318,8 +336,9 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         selected_staff = staff_filter
         st.info(f"🔒 Logged in as Staff View: **{selected_staff}**")
         selected_client_report = "ALL"
+        selected_delay_hours = "ALL"
     else:
-        f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
         with f_col1:
             selected_date = st.selectbox(
                 "📅 Filter by Reporting Date:",
@@ -356,6 +375,13 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
                 index=0,
                 key=f"reported_client_filter_{unique_key}"
             )
+        with f_col5:
+            selected_delay_hours = st.selectbox(
+                "⏱️ Filter by Delay Hours:",
+                ["ALL", "Delay < 10 mins", "Delay < 20 mins", "Delay < 30 mins", "Delay < 40 mins", "Delay <= 1 hour"],
+                index=0,
+                key=f"reported_delay_hours_filter_{unique_key}"
+            )
 
         st.markdown("📅 **Filter by Week (Multiple Selection):**")
         standard_weeks = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
@@ -374,18 +400,37 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
             selected_weeks = []
 
     filtered_report_df = reported_df.copy()
+    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
 
     if not staff_filter:
         if selected_date != "ALL":
             filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date].copy()
         if selected_weeks:
             filtered_report_df = filtered_report_df[filtered_report_df['_Rel_Week'].isin(selected_weeks)].copy()
-        late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
         if late_col:
             if delay_filter == "Only Delay Vehicles":
                 filtered_report_df = filtered_report_df[~filtered_report_df[late_col].apply(is_zero_late)].copy()
             elif delay_filter == "Only On-Time Vehicles":
                 filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)].copy()
+
+            if selected_delay_hours != "ALL":
+                def check_delay_range(val):
+                    mins = get_delay_minutes(val)
+                    if mins <= 0:
+                        return False
+                    if selected_delay_hours == "Delay < 10 mins":
+                        return mins < 10
+                    elif selected_delay_hours == "Delay < 20 mins":
+                        return mins < 20
+                    elif selected_delay_hours == "Delay < 30 mins":
+                        return mins < 30
+                    elif selected_delay_hours == "Delay < 40 mins":
+                        return mins < 40
+                    elif selected_delay_hours == "Delay <= 1 hour":
+                        return mins <= 60
+                    return False
+                filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(check_delay_range)].copy()
+
         if selected_staff != "ALL" and staff_col:
             filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff].copy()
         if selected_client_report != "ALL" and client_col_name in filtered_report_df.columns:
@@ -452,9 +497,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     # ================= 1. OVERALL TRIP CLOSED DATA (CLIENT-WISE SPEEDOMETER) =================
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## 📊 Overall Trip Closed Data (Client-wise)")
-    
-    client_col_name = vendor_column(reported_df) or 'VendorName'
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in reported_df.columns), None)
     
     if client_col_name in reported_df.columns and late_col:
         temp_stat_df = reported_df.copy()
