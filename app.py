@@ -443,6 +443,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         st.info(f"Selected filter ke liye koi Reported Vehicle data nahi mila.")
         return
 
+    # Requested Columns including Remarks mapping
     requested_cols = [
         'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
         'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
@@ -450,14 +451,21 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', 
         '2nd Touching Hrs', '2nd Touching Hrs.', 'Final Touching Reporting Date & Time', 
         'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)', 
-        'Late Hrs', 'Tracking Remark', 'Controlling Staff Name', 'Foreman Name'
+        'Late Hrs', 'Tracking Remark', 'Controlling Staff Name', 'Foreman Name', 'Remarks'
     ]
 
     actual_cols = []
     rename_dict = {}
 
+    # Find matching remark column from compiled data (e.g. 'Tracking Remark', 'Remark', 'Remarks')
+    remark_src_col = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in filtered_report_df.columns), None)
+
     for req_col in requested_cols:
-        if req_col in filtered_report_df.columns and req_col not in actual_cols:
+        if req_col == 'Remarks':
+            if remark_src_col and remark_src_col not in actual_cols:
+                actual_cols.append(remark_src_col)
+                rename_dict[remark_src_col] = 'Remarks'
+        elif req_col in filtered_report_df.columns and req_col not in actual_cols:
             actual_cols.append(req_col)
         elif req_col == 'Party' and 'Party' not in filtered_report_df.columns:
             vendor_c = vendor_column(filtered_report_df) or 'VendorName'
@@ -698,7 +706,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         merged_veh_df = base_veh_df.drop_duplicates(subset=[lorry_c], keep='last').merge(agg_df, on=lorry_c, how='inner')
 
         veh_type_c = next((c for c in merged_veh_df.columns if 'veh' in c.lower() and 'type' in c.lower()), None)
-        rem_c = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in merged_veh_df.columns), None)
         staff_name_c = staff_col if staff_col else None
 
         veh_table_data = []
@@ -716,8 +723,8 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
             d_item['Performance (%)'] = perf_pct_veh
             if staff_name_c:
                 d_item['Controlling Staff'] = r_row.get(staff_name_c, '')
-            if rem_c:
-                d_item['Remarks'] = r_row.get(rem_c, '')
+            if remark_src_col:
+                d_item['Remarks'] = r_row.get(remark_src_col, '')
             veh_table_data.append(d_item)
 
         veh_report_df = pd.DataFrame(veh_table_data).sort_values(by='Delay Trips', ascending=False)
