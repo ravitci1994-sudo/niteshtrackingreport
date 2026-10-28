@@ -37,7 +37,7 @@ st.markdown("""
 
     /* Premium Animated Title */
     .premium-title {
-        font-size: 2.8rem;
+        font-size: 2.3rem;
         font-weight: 900;
         text-align: left;
         background: linear-gradient(to right, #ffffff 0%, #48cae4 20%, #f72585 50%, #48cae4 80%, #ffffff 100%);
@@ -47,9 +47,9 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         animation: textShine 4s linear infinite;
-        margin-bottom: 10px;
+        margin-bottom: 0px;
         margin-top: 0px;
-        padding-bottom: 5px;
+        padding-bottom: 0px;
     }
     @keyframes textShine { to { background-position: 200% center; } }
     
@@ -372,7 +372,7 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         if staff_col: filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == staff_filter]
 
     if filtered_report_df.empty:
-        st.info("No data found for the selected filters.")
+        st.warning("No data found for the selected filters.")
         return
 
     # EXACT USER SPECIFIED COLUMNS FILTERING
@@ -408,14 +408,15 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
     excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
     st.download_button(label=f"📥 Download Filtered Excel", data=excel_bytes_reported, file_name="Reported_Vehicles.xlsx", mime=EXCEL_MIME, type="primary", key=f"dl_{unique_key}")
 
-    # ================= 🔥 CLIENT-WISE PERFORMANCE SECTION 🔥 =================
+    # ================= 🔥 CLIENT-WISE PERFORMANCE SECTION (BASE INDEPENDENT OF FILTERS) 🔥 =================
     st.markdown("<br><h3 style='color:#f72585; font-size:22px; margin-bottom:15px;'>🏢 Client-wise Performance Summary</h3>", unsafe_allow_html=True)
-    if client_col_name and client_col_name in filtered_report_df.columns and late_col:
-        client_df = filtered_report_df.copy()
-        client_df['Is_OnTime'] = client_df[late_col].apply(is_zero_late)
-        client_df['Is_Delay'] = ~client_df[late_col].apply(is_zero_late)
+    
+    if client_col_name and client_col_name in reported_df.columns and late_col:
+        client_base_df = reported_df.copy()
+        client_base_df['Is_OnTime'] = client_base_df[late_col].apply(is_zero_late)
+        client_base_df['Is_Delay'] = ~client_base_df[late_col].apply(is_zero_late)
         
-        client_summary = client_df.groupby(client_col_name).agg(
+        client_summary = client_base_df.groupby(client_col_name).agg(
             Total=('Is_OnTime', 'count'),
             OnTime=('Is_OnTime', 'sum'),
             Delay=('Is_Delay', 'sum')
@@ -459,7 +460,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
         veh_staff_list = ["ALL"] + sorted([str(x).strip() for x in temp_veh_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"]
         veh_client_list = ["ALL"] + sorted([str(x).strip() for x in temp_veh_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in temp_veh_df.columns else ["ALL"]
         
-        # 🔥 NEW: FREQUENCY FILTER OPTIONS
         freq_options = ["ALL", "> 1 Delay", "> 2 Delays", "> 3 Delays", "> 4 Delays", "> 5 Delays"]
         
         with v_f1: sel_veh_staff = st.selectbox("👨‍💼 Controlling Staff:", veh_staff_list, key=f"vs_{unique_key}")
@@ -479,7 +479,6 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
 
         veh_groups = veh_df.groupby([lorry_col, 'Route']).agg(Total=('Is_OnTime', 'count'), OnTime=('Is_OnTime', 'sum'), Delay=('Is_Delay', 'sum')).reset_index()
         
-        # 🔥 APPLYING THE DELAY FREQUENCY FILTER HERE
         if sel_veh_freq != "ALL":
             if sel_veh_freq == "> 1 Delay": veh_groups = veh_groups[veh_groups['Delay'] > 1]
             elif sel_veh_freq == "> 2 Delays": veh_groups = veh_groups[veh_groups['Delay'] > 2]
@@ -501,6 +500,66 @@ def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
             st.info("No records found for Vehicle Performance matching selected frequency.")
     else:
         st.info("Vehicle-wise performance ke liye required columns nahi mile.")
+
+
+# ================= IN-TRANSIT VEHICLE VIEW =================
+def show_in_transit_view(mis_df):
+    st.markdown("<h2 style='color:#48cae4;'>🚚 In-Transit Vehicles (Active Trips)</h2>", unsafe_allow_html=True)
+    
+    final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date & Time', 'Reporting Date'] if c in mis_df.columns), None)
+    if not final_rep_col:
+        final_rep_col = next((c for c in mis_df.columns if 'report' in c.lower()), None)
+
+    if not final_rep_col:
+        st.warning("MIS data mein reporting date column nahi mila.")
+        return
+
+    # Filter: Jinka Final Touching Reporting Date & Time BLANK hai (In-Transit)
+    in_transit_df = mis_df[mis_df[final_rep_col].apply(is_blank)].copy()
+
+    if in_transit_df.empty:
+        st.success("🟢 All trips are reported / closed! Koi bhi In-Transit vehicle nahi hai.")
+        return
+
+    st.metric("TOTAL IN-TRANSIT VEHICLES", len(in_transit_df))
+
+    # Client-wise aur Staff-wise dropdown filters
+    staff_col = next((c for c in in_transit_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
+    client_col_name = vendor_column(in_transit_df) or 'VendorName'
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_staff_it = st.selectbox("Filter by Staff:", ["ALL"] + sorted([str(x).strip() for x in in_transit_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"], key="it_staff")
+    with col2:
+        selected_client_it = st.selectbox("Filter by Client:", ["ALL"] + sorted([str(x).strip() for x in in_transit_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in in_transit_df.columns else ["ALL"], key="it_client")
+
+    filtered_it_df = in_transit_df.copy()
+    if selected_staff_it != "ALL" and staff_col:
+        filtered_it_df = filtered_it_df[filtered_it_df[staff_col].astype(str).str.strip() == selected_staff_it]
+    if selected_client_it != "ALL" and client_col_name in filtered_it_df.columns:
+        filtered_it_df = filtered_it_df[filtered_it_df[client_col_name].astype(str).str.strip() == selected_client_it]
+
+    # Desired Columns Selection
+    desired_cols = [
+        'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
+        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
+        'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
+    ]
+
+    actual_display_cols = []
+    for col in desired_cols:
+        matched_c = next((c for c in filtered_it_df.columns if c.lower().strip() == col.lower().strip()), None)
+        if matched_c: actual_display_cols.append(matched_c)
+
+    if not actual_display_cols: actual_display_cols = [c for c in filtered_it_df.columns if not c.startswith('_')]
+
+    final_it_df = filtered_it_df[actual_display_cols].copy()
+    final_it_df.insert(0, 'S.No', range(1, 1 + len(final_it_df)))
+
+    st.markdown(render_html_table(final_it_df), unsafe_allow_html=True)
+
+    excel_bytes_it = to_excel_bytes({'In_Transit_Vehicles': final_it_df})
+    st.download_button(label="📥 Download In-Transit Excel", data=excel_bytes_it, file_name="In_Transit_Vehicles.xlsx", mime=EXCEL_MIME, type="primary", key="dl_in_transit")
 
 
 # ================= FILE PROCESSING =================
@@ -538,7 +597,33 @@ def process_uploaded_files(uploaded_files):
 
 # ================= MAIN APP =================
 def main():
-    st.markdown("<h1 class='premium-title'>🚀 Sales Manager Live Monitoring Dashboard</h1>", unsafe_allow_html=True)
+    # Top header with Title on left and Tejas Cargo Branding Badge & Icons on right corner
+    header_col1, header_col2 = st.columns([3.2, 1.8])
+    with header_col1:
+        st.markdown("<h1 class='premium-title' style='padding-top: 5px;'>🚀 Sales Manager Live Monitoring Dashboard</h1>", unsafe_allow_html=True)
+    with header_col2:
+        # Online CSS & SVG based Badge representing Tejas Cargo Logo and Truck seamlessly without local files
+        st.markdown(
+            """
+            <div style="background: linear-gradient(135deg, rgba(247, 37, 133, 0.2), rgba(72, 202, 228, 0.2)); 
+                        border: 1px solid rgba(72, 202, 228, 0.4); padding: 8px 14px; border-radius: 12px; 
+                        text-align: right; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: flex-end; gap: 12px;">
+                <div style="text-align: right;">
+                    <div style="color: #64ffda; font-weight: 900; font-size: 13px; letter-spacing: 0.5px;">TEJAS CARGO INDIA LTD.</div>
+                    <div style="color: #ffffff; font-size: 10px; font-weight: 700;">KEEP MOVING ON 🚛</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <!-- Company Logo representation icon -->
+                    <div style="width: 32px; height: 32px; background: #f72585; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 8px rgba(247,37,133,0.6);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    </div>
+                    <!-- Truck icon -->
+                    <div style="font-size: 22px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px;">🚚</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     if 'stored_mis_df' not in st.session_state: st.session_state.stored_mis_df = pd.read_pickle(MIS_PATH) if os.path.exists(MIS_PATH) else pd.DataFrame()
     if 'stored_callout_df' not in st.session_state: st.session_state.stored_callout_df = pd.read_pickle(CALLOUT_PATH) if os.path.exists(CALLOUT_PATH) else pd.DataFrame()
@@ -568,7 +653,7 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.markdown("<h2 style='color:#64ffda; font-size:18px;'>📊 Application Views</h2>", unsafe_allow_html=True)
     
-    app_mode = st.sidebar.selectbox("Navigate To:", ["Main MIS Dashboard", "Callout Summary", "Staff Login Portal"])
+    app_mode = st.sidebar.selectbox("Navigate To:", ["Main MIS Dashboard", "In-Transit Vehicles", "Callout Summary", "Staff Login Portal"])
 
     callout_df = st.session_state.stored_callout_df
     mis_df = st.session_state.stored_mis_df
@@ -580,6 +665,12 @@ def main():
     if app_mode == "Main MIS Dashboard":
         if not mis_df.empty:
             show_reported_vehicle_table(mis_df, unique_key="main")
+        else:
+            st.warning("Koi MIS data available nahi hai.")
+
+    elif app_mode == "In-Transit Vehicles":
+        if not mis_df.empty:
+            show_in_transit_view(mis_df)
         else:
             st.warning("Koi MIS data available nahi hai.")
 
