@@ -1,709 +1,1481 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import math
-import io
-import os
-import html as html_lib
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fleet Operations Command Center</title>
 
-# 1. Page Configuration
-st.set_page_config(page_title="Sales Manager Live Monitoring Dashboard", layout="wide", initial_sidebar_state="expanded")
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-# ================= CUSTOM CSS FOR 4K ULTRA-CLEAR THEME WITH VISIBLE LABELS =================
-st.markdown("""
-    <style>
-    /* 4K High Definition Background & Global Font Styling */
-    .main, [data-testid="stAppViewContainer"] {
-        background-color: #fcfdfe !important;
-        color: #0f172a !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  <!-- React 18 & Babel Standalone -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Framer Motion Standalone -->
+  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+  <!-- SheetJS (XLSX) for Dynamic Excel Parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background: radial-gradient(circle at 50% -15%, #3d0812 0%, #150307 45%, #080103 100%);
+      min-height: 100vh;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
-
-    /* Custom Sleek Scrollbar */
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: #f1f5f9; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-    /* Glassmorphism Sidebar */
-    [data-testid="stSidebar"] {
-        background: #ffffff !important;
-        border-right: 1px solid #e2e8f0;
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
     }
-
-    /* Crisp Title */
-    .premium-title {
-        font-size: 2.3rem;
-        font-weight: 900;
-        color: #090d16;
-        letter-spacing: -0.5px;
-        margin-bottom: 0px;
-        margin-top: 0px;
+    .active-nav-pill {
+      background: linear-gradient(90deg, #e11d48 0%, #dc2626 100%);
+      box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.55);
     }
-    
-    /* Explicit Styling for Selectbox Labels / Headers so they are clearly visible */
-    [data-testid="stSelectbox"] label {
-        color: #0f172a !important;
-        font-weight: 800 !important;
-        font-size: 14px !important;
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
     }
-
-    /* 4K News Ticker */
-    .news-ticker-container {
-        width: 100%;
-        background: linear-gradient(90deg, #2563eb, #1d4ed8);
-        color: white;
-        overflow: hidden;
-        white-space: nowrap;
-        box-sizing: border-box;
-        border-radius: 6px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-        position: relative;
-        display: flex;
-        align-items: center;
-        height: 40px;
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.25);
     }
-    .ticker-label {
-        background: #0f172a;
-        color: #38bdf8;
-        font-weight: 900;
-        padding: 0 15px;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        position: absolute;
-        left: 0;
-        z-index: 10;
-        border-radius: 6px 0 0 6px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+    ::-webkit-scrollbar-thumb {
+      background: rgba(244, 63, 94, 0.3);
+      border-radius: 9999px;
     }
-    .ticker-text-wrapper {
-        padding-left: 140px; 
-        display: inline-block;
-        white-space: nowrap;
-        animation: marquee 45s linear infinite; 
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(244, 63, 94, 0.6);
     }
-    .ticker-item {
-        display: inline-block;
-        padding: 0 40px;
-        font-size: 14.5px;
-        font-weight: 600;
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
     }
-    @keyframes marquee {
-        0% { transform: translateX(100vw); }
-        100% { transform: translateX(-100%); }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
     }
-
-    /* Streamlit Selectbox Enhancements */
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
-        border-radius: 6px !important;
-        color: #0f172a !important;
-        font-weight: 500;
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(244, 63, 94, 0.4);
+      border-radius: 4px;
     }
-    
-    /* Action Buttons */
-    .stButton > button {
-        background: #2563eb !important;
-        border: none !important;
-        color: white !important;
-        border-radius: 6px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3) !important;
-    }
-    .stButton > button:hover {
-        background: #1d4ed8 !important;
-    }
-
-    /* 4K ULTRA-CLEAR TABLES WITH CLEAR BORDERS */
-    .custom-table-container {
-        overflow-x: auto; 
-        max-height: 500px;
-        border: 2px solid #cbd5e1;
-        border-radius: 8px;
-        background-color: #ffffff;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-        margin-bottom: 25px;
-    }
-    .custom-table { 
-        width: 100%; 
-        border-collapse: collapse; 
-        font-size: 13.5px; 
-        white-space: nowrap; 
-    }
-    .custom-table th { 
-        background: #e2e8f0; 
-        color: #0f172a; 
-        padding: 12px 14px; 
-        text-align: left; 
-        position: sticky; 
-        top: 0; 
-        font-weight: 800; 
-        z-index: 2; 
-        border: 1px solid #94a3b8;
-    }
-    .custom-table td { 
-        padding: 10px 14px; 
-        border: 1px solid #cbd5e1;
-        color: #1e293b; 
-        font-weight: 500;
-    }
-    .custom-table tr:nth-child(even) td {
-        background-color: #f8fafc;
-    }
-    .custom-table tr:hover td { 
-        background-color: #e0f2fe; 
-        color: #0369a1; 
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# ================= CONSTANTS & DIRECTORIES =================
-ONTIME = 'On-Time Trip Closed'
-DELAY = 'Delay Trip Closed'
-EXCEL_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-DATA_DIR = "saved_data"
-os.makedirs(DATA_DIR, exist_ok=True)
-CALLOUT_PATH = os.path.join(DATA_DIR, "callout.pkl")
-MIS_PATH = os.path.join(DATA_DIR, "mis.pkl")
-
-
-# ================= DATA HELPERS =================
-def is_blank(v):
-    if v is None: return True
-    try:
-        if pd.isna(v): return True
-    except: pass
-    return str(v).strip().lower() in ("", "nan", "nat", "none")
-
-def is_zero_late(v):
-    if is_blank(v): return True
-    s = str(v).strip().lower()
-    if s in ("0", "0.0", "00:00", "0:00", "00:00:00", "0:00:00", "0 days 00:00:00"): return True
-    try: return pd.to_timedelta(s) <= pd.Timedelta(0)
-    except: pass
-    try: return float(s) <= 0
-    except: return False
-
-def get_delay_minutes(v):
-    if is_blank(v): return 0.0
-    s = str(v).strip().lower()
-    if s in ("0", "0.0", "00:00", "0:00"): return 0.0
-    try: return pd.to_timedelta(s).total_seconds() / 60.0
-    except: pass
-    try: return float(s) * 60.0
-    except: return 0.0
-
-def clean_party(v, keep_other=True):
-    if is_blank(v): return "Other"
-    v_str = str(v).upper().strip()
-    if "DHL" in v_str: return "DHL"
-    elif "BUSYBEE" in v_str: return "Busybees"
-    elif "TRACKON" in v_str: return "Trackon"
-    return str(v).strip() if keep_other else "Other"
-
-def vendor_column(df):
-    return next((c for c in df.columns if any(k in c.lower() for k in ('vendor', 'party', 'client', 'customer'))), None)
-
-def render_html_table(df_to_show, max_rows=2000):
-    clean_df = df_to_show.fillna("").astype(str)
-    note = ""
-    if len(clean_df) > max_rows:
-        note = f'<div style="color:#e11d48; font-size:12px; margin-bottom:6px; font-weight:700;">⚡ Showing first {max_rows} rows for 4K performance. Download Excel for full data.</div>'
-        clean_df = clean_df.head(max_rows)
-    headers = "".join([f"<th>{html_lib.escape(str(col))}</th>" for col in clean_df.columns])
-    rows_html = []
-    for _, row in clean_df.iterrows():
-        cells = "".join([f"<td>{html_lib.escape('' if val.lower() in ('nan', 'nat') else val)}</td>" for val in row])
-        rows_html.append(f"<tr>{cells}</tr>")
-    body = "".join(rows_html)
-    return f'{note}<div class="custom-table-container"><table class="custom-table"><thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table></div>'
-
-def to_excel_bytes(sheets):
-    buffer_excel = io.BytesIO()
-    with pd.ExcelWriter(buffer_excel, engine='openpyxl') as writer:
-        for name, frame in sheets.items(): frame.to_excel(writer, index=False, sheet_name=name)
-    return buffer_excel.getvalue()
-
-# ================= NEWS TICKER COMPONENT =================
-def render_news_ticker(df):
-    if df.empty:
-        ticker_text = "🟢 SYSTEM READY... WAITING FOR DATA UPLOAD... PLEASE UPLOAD MIS FILE FROM SIDEBAR..."
-    else:
-        late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in df.columns), None)
-        staff_col = next((c for c in df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-        client_col = vendor_column(df)
-        
-        if late_col:
-            total = len(df)
-            delayed = len(df[~df[late_col].apply(is_zero_late)])
-            on_time_pct = round(((total - delayed) / total) * 100, 1) if total > 0 else 0
-            
-            staff_text = ""
-            if staff_col:
-                top_staff = df[staff_col].value_counts()
-                if not top_staff.empty:
-                    staff_text = f" | 👨‍💼 TOP STAFF: {top_staff.index[0]} ({top_staff.iloc[0]} Trips)"
-            
-            client_text = ""
-            if client_col:
-                top_client = df[client_col].value_counts()
-                if not top_client.empty:
-                    client_text = f" | 🏢 TOP CLIENT: {top_client.index[0]} ({top_client.iloc[0]} Trips)"
-            
-            ticker_text = f"🚀 LIVE PERFORMANCE: Total Trips: {total} | ✅ On-Time: {on_time_pct}% | ⚠️ Delayed: {delayed}{staff_text}{client_text} | ⚡ KEEP MONITORING DASHBOARD FOR REAL-TIME UPDATES"
-        else:
-            ticker_text = f"🚀 LIVE UPDATE: Total Active Trips: {len(df)} | 🟢 ALL SYSTEMS NORMAL "
-
-    full_text = f"<span class='ticker-item'>{ticker_text}</span>" * 4
-    
-    html_out = f"""<div class="news-ticker-container">
-<div class="ticker-label">INFO 🔴</div>
-<div class="ticker-text-wrapper">{full_text}</div>
-</div>"""
-    st.markdown(html_out, unsafe_allow_html=True)
-
-
-# ================= REPORTED VEHICLE TABLE & REPORTS =================
-def show_reported_vehicle_table(df, unique_key="", staff_filter=None):
-    final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date & Time', 'Reporting Date', 'Desp. Date & Time'] if c in df.columns), None)
-    if not final_rep_col: final_rep_col = next((c for c in df.columns if 'report' in c.lower() or 'desp' in c.lower() or 'date' in c.lower()), None)
-
-    temp_df = df.copy()
-    if final_rep_col: reported_df = temp_df[~temp_df[final_rep_col].apply(is_blank)].copy()
-    else: reported_df = temp_df.copy()
-
-    if reported_df.empty:
-        st.warning("Selected data khali hai.")
-        return
-
-    if final_rep_col:
-        parsed_rep_dt = pd.to_datetime(reported_df[final_rep_col], errors='coerce', dayfirst=True)
-        reported_df['_Rep_Date_Obj'] = parsed_rep_dt.dt.date
-        reported_df['_Rep_Date_Str'] = parsed_rep_dt.dt.strftime('%d-%m-%Y')
-        reported_df['_Month_Str'] = parsed_rep_dt.dt.strftime('%B %Y')
-    else:
-        reported_df['_Rep_Date_Obj'] = None
-        reported_df['_Rep_Date_Str'] = "ALL"
-        reported_df['_Month_Str'] = "ALL"
-
-    current_dt = datetime.now().date()
-    def get_relative_week(row_date):
-        if pd.isna(row_date): return None
-        diff = (current_dt - row_date).days
-        if diff < 0: return "Current / Future"
-        elif diff <= 7: return "Last 1 Week"
-        elif diff <= 14: return "Last 2 Weeks"
-        elif diff <= 21: return "Last 3 Weeks"
-        elif diff <= 28: return "Last 4 Weeks"
-        return None
-
-    reported_df['_Rel_Week'] = reported_df['_Rep_Date_Obj'].apply(get_relative_week)
-
-    valid_dates = reported_df[reported_df['_Rep_Date_Obj'].notna()].drop_duplicates(subset=['_Rep_Date_Str']).sort_values('_Rep_Date_Obj', ascending=False)
-    date_options = ["ALL"] + valid_dates['_Rep_Date_Str'].tolist()
-    valid_months = reported_df[reported_df['_Rep_Date_Obj'].notna()].drop_duplicates(subset=['_Month_Str']).sort_values('_Rep_Date_Obj', ascending=False)
-    month_options = ["ALL"] + valid_months['_Month_Str'].tolist()
-
-    staff_col = next((c for c in reported_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-    client_col_name = vendor_column(reported_df) or 'VendorName'
-
-    if staff_filter:
-        selected_staff = staff_filter
-        st.info(f"🔒 Logged in as Staff View: **{selected_staff}**")
-        selected_client_report, selected_delay_hours, selected_remarks_filter = "ALL", "ALL", "ALL"
-        selected_month, selected_date, delay_filter, selected_weeks = "ALL", "ALL", "ALL Reported Vehicles", []
-    else:
-        st.markdown("<h3 style='color:#0f172a; font-size:16px; font-weight:700;'>🔍 Live Data Filters</h3>", unsafe_allow_html=True)
-        f_col1, f_col2, f_col3, f_col4, f_col5, f_col6, f_col7 = st.columns(7)
-        with f_col1: selected_date = st.selectbox("📅 Date", date_options, index=0, key=f"d_{unique_key}")
-        with f_col2: selected_month = st.selectbox("🗓️ Month", month_options, index=0, key=f"m_{unique_key}")
-        with f_col3: delay_filter = st.selectbox("🚨 Status", ["ALL Reported Vehicles", "Only Delay", "Only On-Time"], index=0, key=f"s_{unique_key}")
-        with f_col4: selected_staff = st.selectbox("👨‍💼 Staff", ["ALL"] + sorted([str(x).strip() for x in reported_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"], index=0, key=f"st_{unique_key}")
-        with f_col5: selected_client_report = st.selectbox("🏢 Client", ["ALL"] + sorted([str(x).strip() for x in reported_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in reported_df.columns else ["ALL"], index=0, key=f"c_{unique_key}")
-        with f_col6: selected_delay_hours = st.selectbox("⏱️ Delay Hrs", ["ALL", "Delay < 10 mins", "Delay < 30 mins", "Delay <= 1 hour"], index=0, key=f"dh_{unique_key}")
-        with f_col7: selected_remarks_filter = st.selectbox("📝 Remarks", ["ALL", "With Remarks", "Without Remarks (Empty)", "Delay + Without Remarks"], index=0, key=f"r_{unique_key}")
-
-        strict_week_options = ["Last 1 Week", "Last 2 Weeks", "Last 3 Weeks", "Last 4 Weeks"]
-        available_weeks = [w for w in strict_week_options if w in reported_df['_Rel_Week'].unique()]
-        selected_weeks = []
-        if available_weeks:
-            st.markdown("<div style='font-size: 13px; color: #475569; margin-bottom: 5px; margin-top:10px; font-weight:600;'>Filter by Week:</div>", unsafe_allow_html=True)
-            chk_cols = st.columns(len(strict_week_options))
-            for i, wk in enumerate(strict_week_options):
-                with chk_cols[i]:
-                    if st.checkbox(wk, key=f"w_{unique_key}_{wk}"): selected_weeks.append(wk)
-
-    filtered_report_df = reported_df.copy()
-    late_col = next((c for c in ['Late Hrs', 'Delay Hrs', 'Delay'] if c in filtered_report_df.columns), None)
-    remark_col = next((c for c in ['Tracking Remark', 'Remark', 'Remarks'] if c in filtered_report_df.columns), None)
-
-    if not staff_filter:
-        if selected_date != "ALL": filtered_report_df = filtered_report_df[filtered_report_df['_Rep_Date_Str'] == selected_date]
-        if selected_month != "ALL": filtered_report_df = filtered_report_df[filtered_report_df['_Month_Str'] == selected_month]
-        if selected_weeks: filtered_report_df = filtered_report_df[filtered_report_df['_Rel_Week'].isin(selected_weeks)]
-        
-        if late_col:
-            if delay_filter == "Only Delay": filtered_report_df = filtered_report_df[~filtered_report_df[late_col].apply(is_zero_late)]
-            elif delay_filter == "Only On-Time": filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(is_zero_late)]
-
-            if selected_delay_hours != "ALL":
-                def check_delay(val):
-                    mins = get_delay_minutes(val)
-                    if mins <= 0: return False
-                    if "10" in selected_delay_hours: return mins < 10
-                    if "30" in selected_delay_hours: return mins < 30
-                    if "1" in selected_delay_hours: return mins <= 60
-                    return False
-                filtered_report_df = filtered_report_df[filtered_report_df[late_col].apply(check_delay)]
-
-        if selected_remarks_filter != "ALL" and remark_col:
-            valid_indices = []
-            for idx, row in filtered_report_df.iterrows():
-                is_empty = is_blank(row.get(remark_col, None))
-                is_delayed = not is_zero_late(row.get(late_col, 0)) if late_col else True
-                if selected_remarks_filter == "With Remarks" and not is_empty: valid_indices.append(idx)
-                elif selected_remarks_filter == "Without Remarks (Empty)" and is_empty: valid_indices.append(idx)
-                elif selected_remarks_filter == "Delay + Without Remarks" and is_delayed and is_empty: valid_indices.append(idx)
-            filtered_report_df = filtered_report_df.loc[valid_indices]
-
-        if selected_staff != "ALL" and staff_col: filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == selected_staff]
-        if selected_client_report != "ALL" and client_col_name in filtered_report_df.columns: filtered_report_df = filtered_report_df[filtered_report_df[client_col_name].astype(str).str.strip() == selected_client_report]
-    else:
-        if staff_col: filtered_report_df = filtered_report_df[filtered_report_df[staff_col].astype(str).str.strip() == staff_filter]
-
-    if filtered_report_df.empty:
-        st.warning("No data found for the selected filters.")
-        return
-
-    # EXACT USER SPECIFIED COLUMNS FILTERING
-    desired_cols = [
-        'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
-        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
-        '1st Touching Delivery Date & Time', '1st Touching Hrs.', '2nd Touching', 
-        '2nd Touching Reporting Date & Time', '2nd Touching Delivery Date & Time', 
-        '2nd Touching Hrs.', 'Final Touching Reporting Date & Time', 
-        'Total Touching Hrs.', 'Hrs. Taken with touching', 'Hrs. Taken without touching (Dly.)', 
-        'Late Hrs', 'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-    ]
-
-    actual_display_cols = []
-    for col in desired_cols:
-        matched_c = next((c for c in filtered_report_df.columns if c.lower().strip() == col.lower().strip()), None)
-        if matched_c: actual_display_cols.append(matched_c)
-        else:
-            if col == 'Tracking Remark': 
-                rem_alt = next((c for c in filtered_report_df.columns if 'remark' in c.lower()), None)
-                if rem_alt: actual_display_cols.append(rem_alt)
-            elif col == 'Party':
-                party_alt = vendor_column(filtered_report_df)
-                if party_alt: actual_display_cols.append(party_alt)
-
-    if not actual_display_cols: actual_display_cols = [c for c in filtered_report_df.columns if not c.startswith('_')]
-
-    final_report_df = filtered_report_df[actual_display_cols].copy()
-    final_report_df.insert(0, 'S.No', range(1, 1 + len(final_report_df)))
-
-    st.markdown(render_html_table(final_report_df), unsafe_allow_html=True)
-
-    excel_bytes_reported = to_excel_bytes({'Reported_Vehicles': final_report_df})
-    st.download_button(label=f"📥 Download Filtered Excel", data=excel_bytes_reported, file_name="Reported_Vehicles.xlsx", mime=EXCEL_MIME, type="primary", key=f"dl_{unique_key}")
-
-    # ================= 🔥 CLIENT-WISE PERFORMANCE SECTION 🔥 =================
-    st.markdown("<br><h3 style='color:#0f172a; font-size:18px; font-weight:800; margin-bottom:15px;'>🏢 Client-wise Performance Summary</h3>", unsafe_allow_html=True)
-    
-    if client_col_name and client_col_name in reported_df.columns and late_col:
-        client_base_df = reported_df.copy()
-        client_base_df['Is_OnTime'] = client_base_df[late_col].apply(is_zero_late)
-        client_base_df['Is_Delay'] = ~client_base_df[late_col].apply(is_zero_late)
-        
-        client_summary = client_base_df.groupby(client_col_name).agg(
-            Total=('Is_OnTime', 'count'),
-            OnTime=('Is_OnTime', 'sum'),
-            Delay=('Is_Delay', 'sum')
-        ).reset_index()
-        
-        client_summary['On-Time %'] = client_summary.apply(
-            lambda r: f"{round((r['OnTime'] / r['Total']) * 100, 1)}%" if r['Total'] > 0 else "0.0%", axis=1
-        )
-        client_summary = client_summary.rename(columns={
-            client_col_name: 'Client Name',
-            'Total': 'Total Trips',
-            'OnTime': 'On-Time Trips',
-            'Delay': 'Delay Trips'
-        }).sort_values(by='Total Trips', ascending=False)
-        
-        client_summary.insert(0, 'S.No', range(1, 1 + len(client_summary)))
-        
-        st.markdown(render_html_table(client_summary), unsafe_allow_html=True)
-        
-        excel_bytes_client = to_excel_bytes({'Client_Performance': client_summary})
-        st.download_button(label="📥 Download Client Performance", data=excel_bytes_client, file_name="Client_Performance.xlsx", mime=EXCEL_MIME, type="secondary", key=f"dl_client_{unique_key}")
-    else:
-        st.info("Client-wise performance ka data yahan available nahi hai.")
-
-    if staff_filter: return
-
-    # ================= VEHICLE-WISE PERFORMANCE SECTION =================
-    st.markdown("<br><h3 style='color:#0f172a; font-size:18px; font-weight:800; margin-bottom:15px;'>🚛 Vehicle-wise Trip Closed Performance</h3>", unsafe_allow_html=True)
-
-    lorry_col = next((c for c in reported_df.columns if c.lower().strip() in ['lorry no.', 'lorry no', 'vehicle no', 'vehicle', 'truck']), None)
-    if not lorry_col: lorry_col = next((c for c in reported_df.columns if any(k in c.lower() for k in ['lorry', 'vehicle', 'truck'])) , None)
-    from_col = next((c for c in reported_df.columns if c.lower().strip() in ['from', 'source', 'origin']), None)
-    dest_col = next((c for c in reported_df.columns if c.lower().strip() in ['destination', 'to']), None)
-
-    if lorry_col and late_col:
-        temp_veh_df = reported_df.copy()
-        if from_col and dest_col: temp_veh_df['Route'] = temp_veh_df[from_col].astype(str).str.strip() + " ➔ " + temp_veh_df[dest_col].astype(str).str.strip()
-        else: temp_veh_df['Route'] = "N/A"
-
-        v_f1, v_f2, v_f3, v_f4 = st.columns(4)
-        veh_staff_list = ["ALL"] + sorted([str(x).strip() for x in temp_veh_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"]
-        veh_client_list = ["ALL"] + sorted([str(x).strip() for x in temp_veh_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in temp_veh_df.columns else ["ALL"]
-        
-        freq_options = ["ALL", "> 1 Delay", "> 2 Delays", "> 3 Delays", "> 4 Delays", "> 5 Delays"]
-        
-        with v_f1: sel_veh_staff = st.selectbox("👨‍💼 Controlling Staff", veh_staff_list, key=f"vs_{unique_key}")
-        with v_f2: sel_veh_client = st.selectbox("🏢 Client", veh_client_list, key=f"vc_{unique_key}")
-        with v_f3: sel_veh_freq = st.selectbox("🔄 Delay Frequency", freq_options, key=f"vf_{unique_key}")
-        with v_f4: sel_veh_status = st.selectbox("⚖️ Delay/On-time", ["ALL", "Only On-Time", "Only Delay"], key=f"vst_{unique_key}")
-
-        veh_df = temp_veh_df.copy()
-        if sel_veh_staff != "ALL" and staff_col: veh_df = veh_df[veh_df[staff_col].astype(str).str.strip() == sel_veh_staff]
-        if sel_veh_client != "ALL" and client_col_name in veh_df.columns: veh_df = veh_df[veh_df[client_col_name].astype(str).str.strip() == sel_veh_client]
-
-        veh_df['Is_OnTime'] = veh_df[late_col].apply(is_zero_late)
-        veh_df['Is_Delay'] = ~veh_df[late_col].apply(is_zero_late)
-
-        if sel_veh_status == "Only On-Time": veh_df = veh_df[veh_df['Is_OnTime']]
-        elif sel_veh_status == "Only Delay": veh_df = veh_df[veh_df['Is_Delay']]
-
-        veh_groups = veh_df.groupby([lorry_col, 'Route']).agg(Total=('Is_OnTime', 'count'), OnTime=('Is_OnTime', 'sum'), Delay=('Is_Delay', 'sum')).reset_index()
-        
-        if sel_veh_freq != "ALL":
-            if sel_veh_freq == "> 1 Delay": veh_groups = veh_groups[veh_groups['Delay'] > 1]
-            elif sel_veh_freq == "> 2 Delays": veh_groups = veh_groups[veh_groups['Delay'] > 2]
-            elif sel_veh_freq == "> 3 Delays": veh_groups = veh_groups[veh_groups['Delay'] > 3]
-            elif sel_veh_freq == "> 4 Delays": veh_groups = veh_groups[veh_groups['Delay'] > 4]
-            elif sel_veh_freq == "> 5 Delays": veh_groups = veh_groups[veh_groups['Delay'] > 5]
-
-        veh_summary_df = veh_groups.copy()
-        veh_summary_df['On-Time %'] = veh_summary_df.apply(lambda r: f"{round((r['OnTime'] / r['Total']) * 100, 1)}%" if r['Total'] > 0 else "0.0%", axis=1)
-        veh_summary_df = veh_summary_df.rename(columns={lorry_col: 'Vehicle No.', 'Route': 'Route (From ➔ Destination)', 'Total': 'Total Trips', 'OnTime': 'On-Time Trips', 'Delay': 'Delay Trips'})
-        veh_summary_df = veh_summary_df.sort_values(by='Total Trips', ascending=False)
-        veh_summary_df.insert(0, 'S.No', range(1, 1 + len(veh_summary_df)))
-
-        if not veh_summary_df.empty:
-            st.markdown(render_html_table(veh_summary_df), unsafe_allow_html=True)
-            excel_bytes_veh = to_excel_bytes({'Vehicle_Performance': veh_summary_df})
-            st.download_button(label=f"📥 Download Vehicle Performance Excel", data=excel_bytes_veh, file_name="Vehicle_Performance_Summary.xlsx", mime=EXCEL_MIME, type="primary", key=f"download_veh_summary_{unique_key}")
-        else:
-            st.info("No records found for Vehicle Performance matching selected frequency.")
-    else:
-        st.info("Vehicle-wise performance ke liye required columns nahi mile.")
-
-
-# ================= IN-TRANSIT VEHICLE VIEW =================
-def show_in_transit_view(mis_df):
-    st.markdown("<h2 style='color:#0f172a; font-weight:800;'>🚚 In-Transit Vehicles (Active Trips)</h2>", unsafe_allow_html=True)
-    
-    final_rep_col = next((c for c in ['Final Touching Reporting Date & Time', 'Reporting Date & Time', 'Reporting Date'] if c in mis_df.columns), None)
-    if not final_rep_col:
-        final_rep_col = next((c for c in mis_df.columns if 'report' in c.lower()), None)
-
-    if not final_rep_col:
-        st.warning("MIS data mein reporting date column nahi mila.")
-        return
-
-    in_transit_df = mis_df[mis_df[final_rep_col].apply(is_blank)].copy()
-
-    if in_transit_df.empty:
-        st.success("🟢 All trips are reported / closed! Koi bhi In-Transit vehicle nahi hai.")
-        return
-
-    st.metric("TOTAL IN-TRANSIT VEHICLES", len(in_transit_df))
-
-    staff_col = next((c for c in in_transit_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-    client_col_name = vendor_column(in_transit_df) or 'VendorName'
-
-    col1, col2 = st.columns(2)
-    with col1:
-        selected_staff_it = st.selectbox("Filter by Staff", ["ALL"] + sorted([str(x).strip() for x in in_transit_df[staff_col].dropna().unique() if str(x).strip() != ""]) if staff_col else ["ALL"], key="it_staff")
-    with col2:
-        selected_client_it = st.selectbox("Filter by Client", ["ALL"] + sorted([str(x).strip() for x in in_transit_df[client_col_name].dropna().unique() if str(x).strip() != ""]) if client_col_name in in_transit_df.columns else ["ALL"], key="it_client")
-
-    filtered_it_df = in_transit_df.copy()
-    if selected_staff_it != "ALL" and staff_col:
-        filtered_it_df = filtered_it_df[filtered_it_df[staff_col].astype(str).str.strip() == selected_staff_it]
-    if selected_client_it != "ALL" and client_col_name in filtered_it_df.columns:
-        filtered_it_df = filtered_it_df[filtered_it_df[client_col_name].astype(str).str.strip() == selected_client_it]
-
-    desired_cols = [
-        'Lorry No.', 'Veh.Type', 'From', 'Destination', 'Party', 'Desp. Date & Time',
-        'Hrs. Given', '1st Touching', '1st Touching Reporting Date & Time', 
-        'Tracking Remark', 'Group Name', 'Controlling Staff Name', 'Foreman Name'
-    ]
-
-    actual_display_cols = []
-    for col in desired_cols:
-        matched_c = next((c for c in filtered_it_df.columns if c.lower().strip() == col.lower().strip()), None)
-        if matched_c: actual_display_cols.append(matched_c)
-
-    if not actual_display_cols: actual_display_cols = [c for c in filtered_it_df.columns if not c.startswith('_')]
-
-    final_it_df = filtered_it_df[actual_display_cols].copy()
-    final_it_df.insert(0, 'S.No', range(1, 1 + len(final_it_df)))
-
-    st.markdown(render_html_table(final_it_df), unsafe_allow_html=True)
-
-    excel_bytes_it = to_excel_bytes({'In_Transit_Vehicles': final_it_df})
-    st.download_button(label="📥 Download In-Transit Excel", data=excel_bytes_it, file_name="In_Transit_Vehicles.xlsx", mime=EXCEL_MIME, type="primary", key="dl_in_transit")
-
-
-# ================= FILE PROCESSING =================
-def process_uploaded_files(uploaded_files):
-    callout_dfs, mis_dfs = [], []
-    for uploaded_file in uploaded_files:
-        try:
-            filename_lower = uploaded_file.name.lower()
-            temp_df = None
-            if filename_lower.endswith('.csv'):
-                for enc in ['utf-8', 'latin-1', 'cp1252']:
-                    try:
-                        uploaded_file.seek(0)
-                        temp_df = pd.read_csv(uploaded_file, low_memory=False, encoding=enc)
-                        break
-                    except: continue
-            else:
-                temp_df = pd.read_excel(uploaded_file)
-
-            if temp_df is None or temp_df.empty: continue
-            temp_df.columns = temp_df.columns.astype(str).str.strip()
-            
-            vendor_c = vendor_column(temp_df)
-            if ('callout' in filename_lower) or ('breakdown' in filename_lower):
-                temp_df['VendorName'] = temp_df[vendor_c].apply(lambda x: clean_party(x, False)) if vendor_c else "Other"
-                callout_dfs.append(temp_df)
-            else:
-                temp_df['VendorName'] = temp_df[vendor_c].apply(lambda x: clean_party(x, True)) if vendor_c else "Other"
-                mis_dfs.append(temp_df)
-
-        except Exception as e: st.error(f"Error: {e}")
-
-    return pd.concat(callout_dfs, ignore_index=True) if callout_dfs else pd.DataFrame(), pd.concat(mis_dfs, ignore_index=True) if mis_dfs else pd.DataFrame()
-
-
-# ================= MAIN APP =================
-def main():
-    header_col1, header_col2 = st.columns([3, 2])
-    with header_col1:
-        st.markdown("<h1 class='premium-title' style='padding-top: 5px;'>🚀 Sales Manager Live Dashboard</h1>", unsafe_allow_html=True)
-    with header_col2:
-        st.markdown(
-            """
-            <div style="background: #ffffff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; 
-                        text-align: right; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-                <div style="text-align: right;">
-                    <div style="color: #0f172a; font-weight: 800; font-size: 12px;">TEJAS CARGO INDIA LTD.</div>
-                    <div style="color: #64748b; font-size: 10px; font-weight: 700;">KEEP MOVING ON 🚛</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <div style="width: 28px; height: 28px; background: #e11d48; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                    </div>
-                    <div style="font-size: 18px; background: #f1f5f9; padding: 2px 5px; border-radius: 4px;">🚚</div>
-                </div>
+  </style>
+</head>
+<body class="selection:bg-rose-500 selection:text-white">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+    const { motion, AnimatePresence } = window.Motion || window.framerMotion || {
+      motion: {
+        div: "div",
+        button: "button",
+        tr: "tr",
+        span: "span",
+        label: "label"
+      },
+      AnimatePresence: ({ children }) => children
+    };
+
+    const INITIAL_RECORDS = [
+      { id: "TRP-9021", date: "2026-11-10", vehicle: "DL-01-AB-1234", client: "Amazon India", staff: "Ramesh Kumar", route: "Delhi Hub ➔ Mumbai Port", status: "In-Transit", isDelay: false, remarks: "Shipment moving as scheduled" },
+      { id: "TRP-9022", date: "2026-11-09", vehicle: "MH-04-CD-5678", client: "Flipkart Wholesale", staff: "Suresh Patil", route: "Pune DC ➔ Bengaluru DC", status: "Trip Closed", isDelay: false, remarks: "Delivered on-time with clean POD" },
+      { id: "TRP-9023", date: "2026-11-08", vehicle: "HR-26-EE-9901", client: "Reliance Retail", staff: "Vikram Singh", route: "Gurugram ➔ Jaipur Depot", status: "Delay Closed", isDelay: true, remarks: "Heavy highway traffic jam and toll gridlock" },
+      { id: "TRP-9024", date: "2026-11-08", vehicle: "KA-05-FF-4321", client: "Amazon India", staff: "Anand Rao", route: "Bengaluru Hub ➔ Chennai Port", status: "Delay Closed", isDelay: true, remarks: "Single driver duty hours expired; rest required" },
+      { id: "TRP-9025", date: "2026-10-25", vehicle: "GJ-01-GG-7788", client: "Tata Consumer", staff: "Jignesh Patel", route: "Ahmedabad ➔ Surat Yard", status: "Trip Closed", isDelay: false, remarks: "Completed on-time" },
+      { id: "TRP-9026", date: "2026-10-22", vehicle: "UP-14-HH-3344", client: "Flipkart Wholesale", staff: "Mohan Verma", route: "Noida Plant ➔ Kanpur Depot", status: "Delay Closed", isDelay: true, remarks: "Breakdown: Clutch wire snapped on express route" },
+      { id: "TRP-9027", date: "2026-11-05", vehicle: "TN-02-JJ-6655", client: "Reliance Retail", staff: "Karthik Raja", route: "Chennai Hub ➔ Hyderabad", status: "In-Transit", isDelay: true, remarks: "Driver issue: medical emergency replacement requested" },
+      { id: "TRP-9028", date: "2026-09-18", vehicle: "WB-02-KK-1122", client: "Tata Consumer", staff: "Subhash Roy", route: "Kolkata Hub ➔ Patna Terminal", status: "Trip Closed", isDelay: false, remarks: "POD received" },
+      { id: "TRP-9029", date: "2026-11-09", vehicle: "MH-12-PQ-8899", client: "BlueDart Express", staff: "Sunil Verma", route: "Mumbai ➔ Ahmedabad", status: "Delay Closed", isDelay: true, remarks: "Client warehouse dock unloading congestion" },
+      { id: "TRP-9030", date: "2026-11-07", vehicle: "DL-04-RR-3344", client: "Delhivery Crossdock", staff: "Mohit Pandey", route: "Delhi Hub ➔ Lucknow", status: "Delay Closed", isDelay: true, remarks: "" }
+    ];
+
+    function FleetDashboard() {
+      const [activeTab, setActiveTab] = useState("overall");
+      const [trips, setTrips] = useState(INITIAL_RECORDS);
+
+      // Filters for Day Wise Arrival
+      const [filterDate, setFilterDate] = useState("");
+      const [filterClient, setFilterClient] = useState("");
+      const [filterStaff, setFilterStaff] = useState("");
+
+      // Mobile sidebar toggle state
+      const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+      // Calendar popup states
+      const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+      const [calYear, setCalYear] = useState(2026);
+      const [calMonth, setCalMonth] = useState(10); // November
+
+      // AI Delay Category Filter
+      const [aiCategoryFilter, setAiCategoryFilter] = useState("all");
+      const [isAiGenerating, setIsAiGenerating] = useState(false);
+      const [aiPlanOutput, setAiPlanOutput] = useState("");
+
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [activeTab, trips, isCalendarOpen, aiCategoryFilter, aiPlanOutput, isMobileMenuOpen]);
+
+      // Handle Excel Upload
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+            const parsed = json.map((row, idx) => {
+              const keys = Object.keys(row);
+              const getVal = (pattern, fallback) => {
+                const found = keys.find(k => pattern.test(k));
+                return found !== undefined && row[found] !== "" ? String(row[found]).trim() : fallback;
+              };
+
+              let rawDate = getVal(/date|close|closing|dispatch|arrival/i, "2026-11-10");
+              if (typeof row["Closing Date"] === "number") {
+                const utcDays = Math.floor(row["Closing Date"] - 25569);
+                rawDate = new Date(utcDays * 86400 * 1000).toISOString().split("T")[0];
+              }
+
+              const status = getVal(/status|state|trip status/i, "Trip Closed");
+              const isDelay = /delay|late/i.test(status) || /yes|delay/i.test(getVal(/delay/i, ""));
+              const remarks = getVal(/remark|reason|comment|notes/i, "");
+
+              return {
+                id: getVal(/trip|id|lr/i, `TRP-${1000 + idx}`),
+                date: rawDate,
+                vehicle: getVal(/vehicle|truck|lorry/i, `VEH-${2000 + idx}`),
+                client: getVal(/client|customer|account|party/i, "General Client"),
+                staff: getVal(/staff|driver|pilot/i, "Assigned Staff"),
+                route: getVal(/route|corridor|from.*to/i, "Direct Corridor"),
+                status: status,
+                isDelay: isDelay,
+                remarks: remarks
+              };
+            });
+
+            if (parsed.length > 0) {
+              setTrips(parsed);
+            }
+          } catch (err) {
+            console.error("Error reading Excel", err);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      };
+
+      // Metrics Counts
+      const totalTrips = trips.length;
+      const inTransitCount = trips.filter(t => t.status === "In-Transit").length;
+      const closedCount = trips.filter(t => t.status === "Trip Closed" && !t.isDelay).length;
+      const delayClosedCount = trips.filter(t => t.isDelay).length;
+
+      // Aggregations
+      const clientStats = useMemo(() => {
+        const map = {};
+        trips.forEach(t => {
+          if (!map[t.client]) map[t.client] = { name: t.client, total: 0, closed: 0, delayed: 0 };
+          map[t.client].total += 1;
+          if (t.status === "Trip Closed" && !t.isDelay) map[t.client].closed += 1;
+          if (t.isDelay) map[t.client].delayed += 1;
+        });
+        return Object.values(map).map(c => ({
+          ...c,
+          sla: c.total ? Math.round(((c.total - c.delayed) / c.total) * 100) : 100
+        }));
+      }, [trips]);
+
+      const staffStats = useMemo(() => {
+        const map = {};
+        trips.forEach(t => {
+          if (!map[t.staff]) map[t.staff] = { name: t.staff, total: 0, closed: 0, delayed: 0 };
+          map[t.staff].total += 1;
+          if (t.status === "Trip Closed" && !t.isDelay) map[t.staff].closed += 1;
+          if (t.isDelay) map[t.staff].delayed += 1;
+        });
+        return Object.values(map).map(s => ({
+          ...s,
+          sla: s.total ? Math.round(((s.total - s.delayed) / s.total) * 100) : 100
+        }));
+      }, [trips]);
+
+      const routeStats = useMemo(() => {
+        const map = {};
+        trips.forEach(t => {
+          if (!map[t.route]) map[t.route] = { name: t.route, total: 0, closed: 0, delayed: 0 };
+          map[t.route].total += 1;
+          if (t.status === "Trip Closed" && !t.isDelay) map[t.route].closed += 1;
+          if (t.isDelay) map[t.route].delayed += 1;
+        });
+        return Object.values(map).map(r => ({
+          ...r,
+          sla: r.total ? Math.round(((r.total - r.delayed) / r.total) * 100) : 100
+        }));
+      }, [trips]);
+
+      // Day Wise Filtered Trips
+      const dayWiseTrips = useMemo(() => {
+        return trips.filter(t => {
+          if (filterDate && t.date !== filterDate) return false;
+          if (filterClient && t.client !== filterClient) return false;
+          if (filterStaff && t.staff !== filterStaff) return false;
+          return true;
+        });
+      }, [trips, filterDate, filterClient, filterStaff]);
+
+      // Only Delay Trips
+      const delayedTrips = useMemo(() => trips.filter(t => t.isDelay), [trips]);
+
+      // AI Delay Classifier Function
+      const classifyDelay = (remarks) => {
+        const text = (remarks || "").toLowerCase();
+        if (!text.trim()) {
+          return {
+            category: "Unexplained",
+            action: "Issue show-cause notice & demand driver explanation",
+            badgeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+            icon: "help-circle"
+          };
+        }
+        if (text.includes("breakdown") || text.includes("tyre") || text.includes("engine") || text.includes("puncture") || text.includes("clutch") || text.includes("repair")) {
+          return {
+            category: "Breakdown",
+            action: "Deploy nearest authorized roadside mechanic & tow assistance",
+            badgeColor: "bg-red-500/15 text-red-300 border-red-500/30",
+            icon: "wrench"
+          };
+        }
+        if (text.includes("driver") && (text.includes("issue") || text.includes("emergency") || text.includes("sick") || text.includes("leave") || text.includes("absent"))) {
+          return {
+            category: "Driver Issue",
+            action: "Mobilize backup relief driver from hub roster immediately",
+            badgeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+            icon: "user-x"
+          };
+        }
+        if (text.includes("traffic") || text.includes("toll") || text.includes("jam") || text.includes("congestion") || text.includes("highway") || text.includes("route blocked")) {
+          return {
+            category: "Traffic Jam",
+            action: "Reroute via bypass corridor & alert destination dock supervisor",
+            badgeColor: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
+            icon: "navigation"
+          };
+        }
+        if (text.includes("single driver") || text.includes("rest") || text.includes("fatigue") || text.includes("hours") || text.includes("sleep")) {
+          return {
+            category: "Single Driver Fatigue",
+            action: "Verify mandatory 6-hr rest log; assign dual-driver protocol for trips >450km",
+            badgeColor: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+            icon: "moon"
+          };
+        }
+        if (text.includes("dock") || text.includes("unloading") || text.includes("loading") || text.includes("warehouse") || text.includes("gate") || text.includes("holding")) {
+          return {
+            category: "Dock Jam",
+            action: "Escalate with client logistics team for priority dock bay allocation",
+            badgeColor: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+            icon: "anchor"
+          };
+        }
+        return {
+          category: "Operational Delay",
+          action: "Review telemetry log and audit transit timeline",
+          badgeColor: "bg-rose-500/10 text-rose-300 border-rose-500/20",
+          icon: "alert-triangle"
+        };
+      };
+
+      // Categorized AI review list
+      const aiDelayRecords = useMemo(() => {
+        return delayedTrips.map(trip => {
+          const classification = classifyDelay(trip.remarks);
+          return {
+            ...trip,
+            classification
+          };
+        });
+      }, [delayedTrips]);
+
+      // Category breakdown counts
+      const aiCategoryCounts = useMemo(() => {
+        const counts = {
+          Breakdown: 0,
+          "Driver Issue": 0,
+          "Traffic Jam": 0,
+          "Single Driver Fatigue": 0,
+          "Dock Jam": 0,
+          Unexplained: 0
+        };
+        aiDelayRecords.forEach(r => {
+          if (counts[r.classification.category] !== undefined) {
+            counts[r.classification.category]++;
+          }
+        });
+        return counts;
+      }, [aiDelayRecords]);
+
+      const filteredAiRecords = useMemo(() => {
+        if (aiCategoryFilter === "all") return aiDelayRecords;
+        return aiDelayRecords.filter(r => r.classification.category === aiCategoryFilter);
+      }, [aiDelayRecords, aiCategoryFilter]);
+
+      // Action Plan Generator simulation
+      const handleGenerateAiPlan = () => {
+        setIsAiGenerating(true);
+        setTimeout(() => {
+          const breakdownCount = aiCategoryCounts["Breakdown"] || 0;
+          const driverCount = aiCategoryCounts["Driver Issue"] || 0;
+          const trafficCount = aiCategoryCounts["Traffic Jam"] || 0;
+          const singleDriverCount = aiCategoryCounts["Single Driver Fatigue"] || 0;
+          const dockCount = aiCategoryCounts["Dock Jam"] || 0;
+          const unexplainedCount = aiCategoryCounts["Unexplained"] || 0;
+
+          const breakdownVehicles = aiDelayRecords
+            .filter(r => r.classification.category === 'Breakdown')
+            .map(r => r.vehicle)
+            .join(", ") || "No current units";
+
+          const planLines = [
+            "🚨 AUTOMATED AI DISPATCH DIRECTIVE | GENERATED FOR " + new Date().toLocaleTimeString(),
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+            "1. MECHANICAL & ROAD REPAIRS (" + breakdownCount + " Vehicles)",
+            "   ➔ Priority: Immediate emergency dispatch to " + breakdownVehicles + ". Authorize highway roadside vendor PO.",
+            "",
+            "2. DRIVER ALLOCATION & FATIGUE (" + (driverCount + singleDriverCount) + " Vehicles)",
+            "   ➔ Action: Single-driver routes (>450km) show recurring rest stops. Mandate 2-driver staffing on Delhi-Mumbai & Pune-Bengaluru line-hauls.",
+            "",
+            "3. TRAFFIC & DOCK CONGESTION (" + (trafficCount + dockCount) + " Vehicles)",
+            "   ➔ Directive: Advance notification to client receivers (Amazon/Reliance) to reserve dock bays 2 hours before gate arrival.",
+            "",
+            "4. COMPLIANCE AUDIT (" + unexplainedCount + " Vehicles without remarks)",
+            "   ➔ Immediate action required: Mandatory incident reports demanded from drivers with 0 explanation tags."
+          ];
+
+          setAiPlanOutput(planLines.join("\n"));
+          setIsAiGenerating(false);
+        }, 500);
+      };
+
+      // Calendar helpers
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      const calendarDays = useMemo(() => {
+        const firstDay = new Date(calYear, calMonth, 1).getDay();
+        const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
+        const startOffset = (firstDay + 6) % 7; // Mon start
+        const days = [];
+        for (let i = 0; i < startOffset; i++) days.push(null);
+        for (let d = 1; d <= totalDays; d++) {
+          const mStr = String(calMonth + 1).padStart(2, '0');
+          const dStr = String(d).padStart(2, '0');
+          const dateString = `${calYear}-${mStr}-${dStr}`;
+          const hasRecords = trips.some(t => t.date === dateString);
+          days.push({ day: d, dateString, hasRecords });
+        }
+        return days;
+      }, [calYear, calMonth, trips]);
+
+      // Company Logo Helper
+      const renderCompanyLogo = (clientName) => {
+        const name = (clientName || "").toLowerCase();
+        if (name.includes("amazon")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#131921] border border-amber-500/30 flex items-center justify-center shrink-0" title="Amazon India">
+              <span className="text-[10px] font-black text-amber-400">a</span>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+          );
+        }
+        if (name.includes("flipkart")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#2874f0] flex items-center justify-center shrink-0 shadow-sm" title="Flipkart Wholesale">
+              <span className="text-[10px] font-black text-[#ffe500] italic">f</span>
+            </div>
+          );
+        }
+        if (name.includes("reliance")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#d8232a] flex items-center justify-center shrink-0 shadow-sm" title="Reliance Retail">
+              <span className="text-[9px] font-black text-white">R</span>
+            </div>
+          );
+        }
+        if (name.includes("tata")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#0f2c59] border border-blue-400/40 flex items-center justify-center shrink-0" title="Tata Consumer">
+              <span className="text-[7px] font-extrabold text-blue-200 tracking-tighter">TATA</span>
+            </div>
+          );
+        }
+        if (name.includes("bluedart")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#002b66] border border-cyan-400/30 flex items-center justify-center shrink-0" title="BlueDart Express">
+              <span className="text-[8px] font-black text-cyan-300">BD</span>
+            </div>
+          );
+        }
+        if (name.includes("delhivery")) {
+          return (
+            <div className="w-5 h-5 rounded-md bg-[#b71c1c] flex items-center justify-center shrink-0" title="Delhivery Crossdock">
+              <span className="text-[9px] font-black text-white">D</span>
+            </div>
+          );
+        }
+        return (
+          <div className="w-5 h-5 rounded-md bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-300 shrink-0 text-[9px] font-bold">
+            {clientName.charAt(0) || "C"}
+          </div>
+        );
+      };
 
-    # 🔥 PERSISTENT SESSION STATE: Load from saved_data pickle files automatically on refresh
-    if 'stored_mis_df' not in st.session_state:
-        if os.path.exists(MIS_PATH):
-            try:
-                st.session_state.stored_mis_df = pd.read_pickle(MIS_PATH)
-            except:
-                st.session_state.stored_mis_df = pd.DataFrame()
-        else:
-            st.session_state.stored_mis_df = pd.DataFrame()
+      const navItems = [
+        { id: "overall", label: "Over All Performance", icon: "activity" },
+        { id: "client", label: "Client Wise Performance", icon: "briefcase" },
+        { id: "staff", label: "Staff Wise Performance", icon: "user" },
+        { id: "daywise", label: "Day Wise Arrival Report", icon: "calendar" },
+        { id: "delay", label: "Only Delay Arrival Report", icon: "alert-triangle" },
+        { id: "ai_review", label: "AI Delay Review", icon: "bot" }
+      ];
 
-    if 'stored_callout_df' not in st.session_state:
-        if os.path.exists(CALLOUT_PATH):
-            try:
-                st.session_state.stored_callout_df = pd.read_pickle(CALLOUT_PATH)
-            except:
-                st.session_state.stored_callout_df = pd.DataFrame()
-        else:
-            st.session_state.stored_callout_df = pd.DataFrame()
+      return (
+        <div className="min-h-screen flex flex-col md:flex-row antialiased overflow-x-hidden">
 
-    render_news_ticker(st.session_state.stored_mis_df)
+          {/* ================= MOBILE HEADER (< md screens) ================= */}
+          <div className="md:hidden bg-[#120306]/95 border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-xl">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-600 to-red-600 flex items-center justify-center shadow-md shadow-rose-950/80 shrink-0">
+                <i data-lucide="shield" className="w-4 h-4 text-white"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-xs text-white tracking-tight">FLEET CONTROL</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">V5</span>
+                </div>
+                <p className="text-[10px] text-white/40">Logistics Mobile Center</p>
+              </div>
+            </div>
 
-    st.sidebar.markdown("<h2 style='color:#0f172a; font-size:16px; margin-top:20px; font-weight:800;'>📁 Data Management</h2>", unsafe_allow_html=True)
-    uploaded_files = st.sidebar.file_uploader("Upload MIS/Callout (Excel/CSV)", type=["xlsx", "csv"], accept_multiple_files=True)
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white flex items-center justify-center focus:outline-none"
+            >
+              <i data-lucide={isMobileMenuOpen ? "x" : "menu"} className="w-4 h-4 text-rose-400"></i>
+            </button>
+          </div>
 
-    if uploaded_files and st.sidebar.button("💾 Process & Save Data", type="primary"):
-        c_df, m_df = process_uploaded_files(uploaded_files)
-        if not c_df.empty:
-            st.session_state.stored_callout_df = c_df
-            c_df.to_pickle(CALLOUT_PATH)
-        if not m_df.empty:
-            st.session_state.stored_mis_df = m_df
-            m_df.to_pickle(MIS_PATH)
-        st.sidebar.success("Data processed and permanently saved successfully!")
-        st.rerun()
+          {/* Mobile Drawer Navigation */}
+          <AnimatePresence>
+            {isMobileMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="md:hidden bg-[#150307] border-b border-white/10 px-4 py-3 space-y-1.5 z-30"
+              >
+                {navItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                        isActive ? "bg-rose-600 text-white font-bold" : "text-white/70 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <i data-lucide={item.icon} className={`w-4 h-4 ${isActive ? 'text-white' : 'text-rose-400'}`}></i>
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-    if st.sidebar.button("🗑️ Clear Dashboard Data"):
-        st.session_state.stored_callout_df = pd.DataFrame()
-        st.session_state.stored_mis_df = pd.DataFrame()
-        if os.path.exists(CALLOUT_PATH): os.remove(CALLOUT_PATH)
-        if os.path.exists(MIS_PATH): os.remove(MIS_PATH)
-        st.sidebar.success("Data cleared successfully!")
-        st.rerun()
+          {/* Mobile Quick-Scroll Tab Strip */}
+          <div className="md:hidden bg-[#0d0104] px-3 py-2 border-b border-white/5 overflow-x-auto flex items-center gap-2 custom-scroll">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition shrink-0 ${
+                    isActive ? "bg-rose-600 text-white shadow-sm" : "bg-white/5 text-white/60 hover:text-white"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("<h2 style='color:#0f172a; font-size:16px; font-weight:800;'>📊 Application Views</h2>", unsafe_allow_html=True)
-    
-    app_mode = st.sidebar.selectbox("Navigate To:", ["Main MIS Dashboard", "In-Transit Vehicles", "Callout Summary", "Staff Login Portal"])
+          {/* ================= COMPACT LAPTOP/DESKTOP SIDEBAR (w-56) ================= */}
+          <aside className="hidden md:flex md:w-56 bg-[#120306] border-r border-white/5 p-3.5 flex-col justify-between shrink-0 min-h-screen sticky top-0 h-screen">
+            <div className="space-y-4">
 
-    callout_df = st.session_state.stored_callout_df
-    mis_df = st.session_state.stored_mis_df
+              {/* Brand Header */}
+              <div className="flex items-center gap-2.5 px-1 pt-1">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-600 to-red-600 flex items-center justify-center shadow-md shadow-rose-950/80 shrink-0">
+                  <i data-lucide="shield" className="w-4 h-4 text-white"></i>
+                </div>
+                <div className="truncate">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-xs text-white tracking-tight">FLEET CONTROL</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">V5</span>
+                  </div>
+                  <p className="text-[10px] text-white/40 truncate">Logistics Command Center</p>
+                </div>
+              </div>
 
-    if mis_df.empty and callout_df.empty:
-        st.info("👋 Welcome! Please upload your MIS or Callout files in the sidebar and click 'Process & Save Data' to start. Once saved, your data will persist across page refreshes.")
-        return
+              {/* Nav Navigation Items */}
+              <nav className="space-y-1.5 pt-2 relative">
+                {navItems.map((item) => {
+                  const isActive = activeTab === item.id;
+                  return (
+                    <motion.button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-150 relative z-10 ${
+                        isActive ? "text-white font-bold" : "text-white/60 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate z-10">
+                        <i data-lucide={item.icon} className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-rose-400'}`}></i>
+                        <span className="truncate">{item.label}</span>
+                      </div>
 
-    if app_mode == "Main MIS Dashboard":
-        if not mis_df.empty:
-            show_reported_vehicle_table(mis_df, unique_key="main")
-        else:
-            st.warning("Koi MIS data available nahi hai.")
+                      {isActive && (
+                        <>
+                          <motion.div
+                            layoutId="activeNavBackground"
+                            className="absolute inset-0 rounded-xl active-nav-pill -z-0"
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                          />
+                          <span className="w-1 h-3 bg-white rounded-full shadow-sm shrink-0 ml-1 z-10"></span>
+                        </>
+                      )}
+                    </motion.button>
+                  );
+                })}
+              </nav>
 
-    elif app_mode == "In-Transit Vehicles":
-        if not mis_df.empty:
-            show_in_transit_view(mis_df)
-        else:
-            st.warning("Koi MIS data available nahi hai.")
+            </div>
 
-    elif app_mode == "Callout Summary":
-        st.markdown("<h2 style='color:#e11d48; font-weight:800;'>⚠️ Callout / Breakdown Summary</h2>", unsafe_allow_html=True)
-        if not callout_df.empty:
-            st.metric("TOTAL CALLOUT COUNT", len(callout_df))
-            st.markdown(render_html_table(callout_df), unsafe_allow_html=True)
-        else:
-            st.info("Koi Callout data available nahi hai.")
+            {/* Bottom Meta Status */}
+            <div className="pt-3 border-t border-white/5">
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-2 text-[10px] text-white/50">
+                <i data-lucide="file-spreadsheet" className="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                <div className="overflow-hidden">
+                  <p className="text-[9px] uppercase font-bold text-white/30 tracking-wider">Live Telemetry</p>
+                  <p className="text-white/80 font-mono text-[10px] truncate">{trips.length} Dispatches Synced</p>
+                </div>
+              </div>
+            </div>
+          </aside>
 
-    elif app_mode == "Staff Login Portal":
-        st.markdown("<h2 style='color:#2563eb; font-weight:800;'>🔒 Staff Login Portal</h2>", unsafe_allow_html=True)
-        staff_col = next((c for c in mis_df.columns if 'controlling' in c.lower() or 'staff' in c.lower()), None)
-        if staff_col and not mis_df.empty:
-            staff_names = sorted([str(x).strip() for x in mis_df[staff_col].dropna().unique() if str(x).strip() != ""])
-            selected_staff = st.selectbox("Select Staff Member", staff_names)
-            if selected_staff:
-                show_reported_vehicle_table(mis_df, unique_key="staff", staff_filter=selected_staff)
+          {/* ================= RIGHT WORKSPACE ================= */}
+          <main className="flex-1 p-3.5 sm:p-5 md:p-7 overflow-y-auto space-y-4 sm:space-y-5">
 
-if __name__ == '__main__':
-    main()
+            {/* BORDERLESS TOP BAR (NO CARD CONTAINER FOR TITLE) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white capitalize">
+                  {navItems.find(i => i.id === activeTab)?.label}
+                </h2>
+                <p className="text-[11px] sm:text-xs text-white/40 mt-0.5">Live operational telemetry & dispatch management</p>
+              </div>
+
+              {/* Upload & Sample buttons ONLY visible on Over All Performance */}
+              {activeTab === "overall" && (
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap sm:flex-nowrap">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      setTrips(INITIAL_RECORDS);
+                      setFilterDate("");
+                      setFilterClient("");
+                      setFilterStaff("");
+                    }}
+                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <i data-lucide="sparkles" className="w-3.5 h-3.5 text-amber-400"></i>
+                    <span>Load Sample</span>
+                  </motion.button>
+
+                  <motion.label
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="cursor-pointer px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-950/80 transition"
+                  >
+                    <i data-lucide="upload-cloud" className="w-3.5 h-3.5 text-white"></i>
+                    <span>Upload Excel File</span>
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
+                  </motion.label>
+                </div>
+              )}
+            </div>
+
+            {/* Content Views */}
+            <AnimatePresence mode="wait">
+
+              {/* TAB 1: OVER ALL PERFORMANCE */}
+              {activeTab === "overall" && (
+                <motion.div
+                  key="overall-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4 sm:space-y-5"
+                >
+                  {/* SLEEK STATS: 2x2 ON MOBILE, INLINE ROW ON LAPTOP/DESKTOP */}
+                  <div className="grid grid-cols-2 md:flex md:flex-wrap md:items-center md:justify-between gap-3 sm:gap-4 py-2 px-1 border-b border-white/5">
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
+                      <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">{totalTrips}</span>
+                      <div>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-white/70 uppercase tracking-wider">Total Fleet Trips</p>
+                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Total active recorded dispatches</p>
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
+                      <span className="text-2xl sm:text-3xl font-black text-blue-400 tracking-tight">{inTransitCount}</span>
+                      <div>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-blue-400/90 uppercase tracking-wider">In-Transit Vehicle</p>
+                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Active line-haul movements</p>
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
+                      <span className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">{closedCount}</span>
+                      <div>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-emerald-400/90 uppercase tracking-wider">Trip Closed</p>
+                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Completed on-time dispatches</p>
+                      </div>
+                    </div>
+
+                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
+                      <span className="text-2xl sm:text-3xl font-black text-rose-400 tracking-tight">{delayClosedCount}</span>
+                      <div>
+                        <p className="text-[10px] sm:text-[11px] font-bold text-rose-400/90 uppercase tracking-wider">Delay Closed</p>
+                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Delayed exception completions</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. Client Wise Performance Report (NO In-Transit Column) */}
+                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <i data-lucide="briefcase" className="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>Client Wise Performance Report</span>
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
+                        {clientStats.length} Accounts Active
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scroll">
+                      <table className="w-full text-left text-[11px] whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                            <th className="py-2 px-3">Client Name</th>
+                            <th className="py-2 px-3 text-center">Total Trips</th>
+                            <th className="py-2 px-3 text-center">Trip Closed</th>
+                            <th className="py-2 px-3 text-center">Delay Closed</th>
+                            <th className="py-2 px-3">On-Time SLA %</th>
+                            <th className="py-2 px-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {clientStats.map((c, idx) => (
+                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
+                                {renderCompanyLogo(c.name)}
+                                <span>{c.name}</span>
+                              </td>
+                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{c.total}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{c.closed}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{c.delayed}</td>
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <div
+                                      style={{ width: `${c.sla}%` }}
+                                      className={`h-full rounded-full ${
+                                        c.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
+                                        c.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
+                                        'bg-gradient-to-r from-rose-600 to-red-500'
+                                      }`}
+                                    />
+                                  </div>
+                                  <span className={`font-mono font-bold text-[10px] ${
+                                    c.sla >= 90 ? 'text-emerald-400' :
+                                    c.sla >= 60 ? 'text-amber-400' :
+                                    'text-rose-400'
+                                  }`}>
+                                    {c.sla}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-3 text-right">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
+                                  c.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  c.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                }`}>
+                                  {c.sla >= 90 ? 'Compliant' : c.sla >= 60 ? 'Moderate' : 'At Risk'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 2. Staff Wise Performance Report (NO In-Transit Column) */}
+                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <i data-lucide="user" className="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>Staff Wise Performance Report</span>
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
+                        {staffStats.length} Personnel
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scroll">
+                      <table className="w-full text-left text-[11px] whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                            <th className="py-2 px-3">Staff / Driver</th>
+                            <th className="py-2 px-3 text-center">Total Assigned</th>
+                            <th className="py-2 px-3 text-center">Trip Closed</th>
+                            <th className="py-2 px-3 text-center">Delay Closed</th>
+                            <th className="py-2 px-3">On-Time SLA %</th>
+                            <th className="py-2 px-3 text-right">Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {staffStats.map((s, idx) => (
+                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                                  <i data-lucide="user" className="w-3 h-3"></i>
+                                </div>
+                                <span>{s.name}</span>
+                              </td>
+                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{s.total}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{s.closed}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{s.delayed}</td>
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <div
+                                      style={{ width: `${s.sla}%` }}
+                                      className={`h-full rounded-full ${
+                                        s.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
+                                        s.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
+                                        'bg-gradient-to-r from-rose-600 to-red-500'
+                                      }`}
+                                    />
+                                  </div>
+                                  <span className={`font-mono font-bold text-[10px] ${
+                                    s.sla >= 90 ? 'text-emerald-400' :
+                                    s.sla >= 60 ? 'text-amber-400' :
+                                    'text-rose-400'
+                                  }`}>
+                                    {s.sla}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-3 text-right">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
+                                  s.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  s.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                }`}>
+                                  {s.sla >= 90 ? 'Top Pilot' : s.sla >= 60 ? 'Satisfactory' : 'Needs Review'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 3. Route Wise Performance Report (NO In-Transit Column) */}
+                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <i data-lucide="map-pin" className="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>Route Wise Performance Report</span>
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
+                        {routeStats.length} Corridors
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scroll">
+                      <table className="w-full text-left text-[11px] whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                            <th className="py-2 px-3">Route / Corridor</th>
+                            <th className="py-2 px-3 text-center">Total Dispatches</th>
+                            <th className="py-2 px-3 text-center">Trip Closed</th>
+                            <th className="py-2 px-3 text-center">Delay Closed</th>
+                            <th className="py-2 px-3">Corridor SLA %</th>
+                            <th className="py-2 px-3 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {routeStats.map((r, idx) => (
+                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                                  <i data-lucide="corner-down-right" className="w-3 h-3"></i>
+                                </div>
+                                <span>{r.name}</span>
+                              </td>
+                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{r.total}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{r.closed}</td>
+                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{r.delayed}</td>
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                    <div
+                                      style={{ width: `${r.sla}%` }}
+                                      className={`h-full rounded-full ${
+                                        r.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
+                                        r.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
+                                        'bg-gradient-to-r from-rose-600 to-red-500'
+                                      }`}
+                                    />
+                                  </div>
+                                  <span className={`font-mono font-bold text-[10px] ${
+                                    r.sla >= 90 ? 'text-emerald-400' :
+                                    r.sla >= 60 ? 'text-amber-400' :
+                                    'text-rose-400'
+                                  }`}>
+                                    {r.sla}%
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-3 text-right">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
+                                  r.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                  r.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                }`}>
+                                  {r.sla >= 90 ? 'Optimal' : r.sla >= 60 ? 'Congested' : 'Bottleneck'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </motion.div>
+              )}
+
+              {/* TAB 2: CLIENT WISE PERFORMANCE */}
+              {activeTab === "client" && (
+                <motion.div
+                  key="client-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Client Portfolio Compliance</h3>
+                      <p className="text-[11px] sm:text-xs text-white/40">Detailed accounts breakdown, SLA compliance, and closed shipment volume</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono">
+                      {clientStats.length} Accounts
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto custom-scroll">
+                    <table className="w-full text-left text-xs whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Client</th>
+                          <th className="py-2.5 px-3 text-center">Total Trips</th>
+                          <th className="py-2.5 px-3 text-center">Trip Closed</th>
+                          <th className="py-2.5 px-3 text-center">Delay Closed</th>
+                          <th className="py-2.5 px-3">SLA Compliance</th>
+                          <th className="py-2.5 px-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {clientStats.map((c, idx) => (
+                          <tr key={idx} className="hover:bg-white/[0.02]">
+                            <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-2">
+                              {renderCompanyLogo(c.name)}
+                              <span>{c.name}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-white font-mono">{c.total}</td>
+                            <td className="py-2.5 px-3 text-center font-semibold text-emerald-400 font-mono">{c.closed}</td>
+                            <td className="py-2.5 px-3 text-center font-semibold text-rose-400 font-mono">{c.delayed}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-rose-400 font-mono">{c.sla}% SLA</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                c.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                              }`}>
+                                {c.sla >= 90 ? 'Compliant' : 'Needs Review'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 3: STAFF WISE PERFORMANCE */}
+              {activeTab === "staff" && (
+                <motion.div
+                  key="staff-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Staff / Driver Operational Ledger</h3>
+                      <p className="text-[11px] sm:text-xs text-white/40">Assignment volumes, closed clean shipments, and driver compliance</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono">
+                      {staffStats.length} Drivers
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto custom-scroll">
+                    <table className="w-full text-left text-xs whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Staff / Driver</th>
+                          <th className="py-2.5 px-3 text-center">Total Assigned</th>
+                          <th className="py-2.5 px-3 text-center">Trip Closed</th>
+                          <th className="py-2.5 px-3 text-center">Delay Closed</th>
+                          <th className="py-2.5 px-3">Driver SLA %</th>
+                          <th className="py-2.5 px-3 text-right">Rating</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {staffStats.map((s, idx) => (
+                          <tr key={idx} className="hover:bg-white/[0.02]">
+                            <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-2">
+                              <i data-lucide="user" className="w-3.5 h-3.5 text-rose-400"></i>
+                              <span>{s.name}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-white font-mono">{s.total}</td>
+                            <td className="py-2.5 px-3 text-center font-semibold text-emerald-400 font-mono">{s.closed}</td>
+                            <td className="py-2.5 px-3 text-center font-semibold text-rose-400 font-mono">{s.delayed}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-rose-400 font-mono">{s.sla}% SLA</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                s.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              }`}>
+                                {s.sla >= 90 ? 'Top Pilot' : 'Satisfactory'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 4: DAY WISE ARRIVAL REPORT */}
+              {activeTab === "daywise" && (
+                <motion.div
+                  key="daywise-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Day Wise Arrival Chronology</h3>
+                      <p className="text-[11px] sm:text-xs text-white/40">Chronological vehicle arrivals with calendar date, client, and staff selectors</p>
+                    </div>
+
+                    {/* Filter Controls Row */}
+                    <div className="flex flex-wrap items-center gap-2">
+
+                      {/* 1. Compact Interactive Calendar Pop-up */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition shadow-md ${
+                            filterDate
+                              ? "bg-rose-500/20 border-rose-500 text-rose-200"
+                              : "bg-[#1f050b] hover:bg-[#28070e] border-rose-500/30 text-white"
+                          }`}
+                        >
+                          <i data-lucide="calendar" className="w-3.5 h-3.5 text-rose-400"></i>
+                          <span>{filterDate || "Select Date"}</span>
+                          <i data-lucide={isCalendarOpen ? "chevron-up" : "chevron-down"} className="w-3 h-3 text-white/50"></i>
+                        </button>
+
+                        {/* Dropdown Calendar (w-60 compact, touch friendly) */}
+                        <AnimatePresence>
+                          {isCalendarOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute left-0 sm:left-auto sm:right-0 top-10 z-50 w-60 p-3 rounded-2xl bg-[#190308]/98 backdrop-blur-2xl border border-rose-500/30 shadow-2xl shadow-black/95 space-y-2"
+                            >
+                              {/* Month Nav */}
+                              <div className="flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+                                    else { setCalMonth(m => m - 1); }
+                                  }}
+                                  className="w-5 h-5 rounded bg-white/5 hover:bg-rose-500/20 text-white flex items-center justify-center transition"
+                                >
+                                  <i data-lucide="chevron-left" className="w-3 h-3"></i>
+                                </button>
+                                <span className="text-[11px] font-bold text-white">
+                                  {monthNames[calMonth]} {calYear}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+                                    else { setCalMonth(m => m + 1); }
+                                  }}
+                                  className="w-5 h-5 rounded bg-white/5 hover:bg-rose-500/20 text-white flex items-center justify-center transition"
+                                >
+                                  <i data-lucide="chevron-right" className="w-3 h-3"></i>
+                                </button>
+                              </div>
+
+                              {/* Days Header */}
+                              <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-rose-300/60 uppercase">
+                                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+                              </div>
+
+                              {/* Days Grid */}
+                              <div className="grid grid-cols-7 gap-0.5 text-center">
+                                {calendarDays.map((item, idx) => {
+                                  if (!item) return <div key={`empty-${idx}`} className="h-5 w-5"></div>;
+                                  const isSelected = filterDate === item.dateString;
+                                  return (
+                                    <button
+                                      key={item.dateString}
+                                      type="button"
+                                      onClick={() => {
+                                        setFilterDate(item.dateString);
+                                        setIsCalendarOpen(false);
+                                      }}
+                                      className={`h-5 w-5 mx-auto rounded text-[10px] font-medium flex items-center justify-center transition ${
+                                        isSelected
+                                          ? "bg-rose-600 text-white font-bold"
+                                          : item.hasRecords
+                                          ? "bg-rose-500/15 text-rose-200 hover:bg-rose-500/30 font-semibold"
+                                          : "text-white/40 hover:text-white"
+                                      }`}
+                                    >
+                                      {item.day}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Clear / Close Bottom Buttons */}
+                              <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px]">
+                                <button
+                                  type="button"
+                                  onClick={() => { setFilterDate(""); setIsCalendarOpen(false); }}
+                                  className="text-white/40 hover:text-rose-400 transition"
+                                >
+                                  Clear Date
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsCalendarOpen(false)}
+                                  className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white font-semibold transition"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* 2. Client Filter Dropdown Button */}
+                      <div className="relative">
+                        <select
+                          value={filterClient}
+                          onChange={(e) => setFilterClient(e.target.value)}
+                          className="bg-[#1f050b] hover:bg-[#28070e] border border-rose-500/30 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl outline-none transition cursor-pointer max-w-[130px] sm:max-w-none truncate"
+                        >
+                          <option value="">All Clients</option>
+                          {clientStats.map(c => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* 3. Staff Filter Dropdown Button */}
+                      <div className="relative">
+                        <select
+                          value={filterStaff}
+                          onChange={(e) => setFilterStaff(e.target.value)}
+                          className="bg-[#1f050b] hover:bg-[#28070e] border border-rose-500/30 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl outline-none transition cursor-pointer max-w-[130px] sm:max-w-none truncate"
+                        >
+                          <option value="">All Staff / Drivers</option>
+                          {staffStats.map(s => (
+                            <option key={s.name} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Reset All Filters Button */}
+                      {(filterDate || filterClient || filterStaff) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilterDate("");
+                            setFilterClient("");
+                            setFilterStaff("");
+                          }}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-semibold flex items-center gap-1 transition"
+                        >
+                          <i data-lucide="rotate-ccw" className="w-3 h-3"></i>
+                          <span>Reset</span>
+                        </button>
+                      )}
+
+                    </div>
+                  </div>
+
+                  {/* Clean Arrival Table with NO Arrival Date Column */}
+                  <div className="overflow-x-auto custom-scroll">
+                    <table className="w-full text-left text-xs whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Vehicle No</th>
+                          <th className="py-2.5 px-3">Client</th>
+                          <th className="py-2.5 px-3">Staff / Driver</th>
+                          <th className="py-2.5 px-3">Route</th>
+                          <th className="py-2.5 px-3">Arrival Status</th>
+                          <th className="py-2.5 px-3">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {dayWiseTrips.map((t, idx) => (
+                          <tr key={idx} className="hover:bg-white/[0.02]">
+                            <td className="py-2.5 px-3 font-mono font-bold text-white">{t.vehicle}</td>
+                            <td className="py-2.5 px-3 font-semibold text-white/90 flex items-center gap-2">
+                              {renderCompanyLogo(t.client)}
+                              <span>{t.client}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-white/75">{t.staff}</td>
+                            <td className="py-2.5 px-3 text-white/80">{t.route}</td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                t.status === "In-Transit" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                                t.isDelay ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
+                                "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                              }`}>
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-white/60">
+                              {t.remarks || <span className="text-white/20 italic">None</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 5: ONLY DELAY ARRIVAL REPORT */}
+              {activeTab === "delay" && (
+                <motion.div
+                  key="delay-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <i data-lucide="alert-triangle" className="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>Only Delay Arrival Exception Report</span>
+                      </h3>
+                      <p className="text-[11px] sm:text-xs text-white/40">Isolates delayed dispatches and highlights unexplained delays without remarks</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold font-mono">
+                      {delayedTrips.length} Delayed Units
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto custom-scroll">
+                    <table className="w-full text-left text-xs whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                          <th className="py-2.5 px-3">Vehicle No</th>
+                          <th className="py-2.5 px-3">Client</th>
+                          <th className="py-2.5 px-3">Staff / Driver</th>
+                          <th className="py-2.5 px-3">Corridor</th>
+                          <th className="py-2.5 px-3">Status</th>
+                          <th className="py-2.5 px-3">Delay Justification</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {delayedTrips.map((t, idx) => (
+                          <tr key={idx} className="hover:bg-white/[0.02]">
+                            <td className="py-2.5 px-3 font-mono font-bold text-rose-400">{t.vehicle}</td>
+                            <td className="py-2.5 px-3 text-white/90 flex items-center gap-2">
+                              {renderCompanyLogo(t.client)}
+                              <span>{t.client}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-white/75">{t.staff}</td>
+                            <td className="py-2.5 px-3 text-white/80">{t.route}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {t.remarks ? (
+                                <span className="text-white/80">{t.remarks}</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">
+                                  <i data-lucide="alert-circle" className="w-3 h-3 text-rose-400"></i>
+                                  Delay w/o Remarks ⚠️
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 6: AI DELAY REVIEW (DIRECT OPERATIONAL ACTION DIRECTIVES) */}
+              {activeTab === "ai_review" && (
+                <motion.div
+                  key="ai-review-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  {/* AI Review Header with Generate Action Plan Button */}
+                  <div className="glass-panel p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <i data-lucide="bot" className="w-4 h-4 text-rose-400"></i>
+                        <span>AI Delay Review & Action Intelligence</span>
+                      </h3>
+                      <p className="text-[11px] sm:text-xs text-white/40">Analyzes delay remarks and generates immediate operational interventions</p>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={handleGenerateAiPlan}
+                      disabled={isAiGenerating}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-rose-950/80 transition shrink-0"
+                    >
+                      <i data-lucide="sparkles" className={`w-3.5 h-3.5 ${isAiGenerating ? 'animate-spin' : 'text-amber-300'}`}></i>
+                      <span>{isAiGenerating ? "Synthesizing Directives..." : "Generate AI Action Plan"}</span>
+                    </motion.button>
+                  </div>
+
+                  {/* AI Generated Action Plan Output Box (if generated) */}
+                  {aiPlanOutput && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-rose-950/60 to-black/80 border border-rose-500/40 shadow-xl space-y-2 font-mono text-xs text-rose-100"
+                    >
+                      <div className="flex items-center justify-between border-b border-rose-500/30 pb-2">
+                        <span className="font-bold flex items-center gap-1.5 text-white text-[11px] sm:text-xs">
+                          <i data-lucide="check-circle" className="w-3.5 h-3.5 text-emerald-400"></i>
+                          Operational Response Plan Ready
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAiPlanOutput("")}
+                          className="text-white/40 hover:text-white"
+                        >
+                          <i data-lucide="x" className="w-3.5 h-3.5"></i>
+                        </button>
+                      </div>
+                      <pre className="whitespace-pre-wrap leading-relaxed text-[10px] sm:text-[11px] text-white/90 custom-scroll overflow-x-auto">
+                        {aiPlanOutput}
+                      </pre>
+                    </motion.div>
+                  )}
+
+                  {/* Root Cause Category Filters */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {[
+                      { key: "Breakdown", label: "Breakdowns", count: aiCategoryCounts["Breakdown"], icon: "wrench", color: "text-red-400" },
+                      { key: "Driver Issue", label: "Driver Issues", count: aiCategoryCounts["Driver Issue"], icon: "user-x", color: "text-amber-400" },
+                      { key: "Traffic Jam", label: "Traffic Jams", count: aiCategoryCounts["Traffic Jam"], icon: "navigation", color: "text-yellow-400" },
+                      { key: "Single Driver Fatigue", label: "Driver Rest", count: aiCategoryCounts["Single Driver Fatigue"], icon: "moon", color: "text-purple-400" },
+                      { key: "Dock Jam", label: "Dock Holds", count: aiCategoryCounts["Dock Jam"], icon: "anchor", color: "text-blue-400" },
+                      { key: "Unexplained", label: "No Remarks", count: aiCategoryCounts["Unexplained"], icon: "help-circle", color: "text-rose-400" }
+                    ].map(cat => {
+                      const isSelected = aiCategoryFilter === cat.key;
+                      return (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => setAiCategoryFilter(isSelected ? "all" : cat.key)}
+                          className={`p-2.5 rounded-xl border text-left transition ${
+                            isSelected
+                              ? "bg-rose-500/25 border-rose-500 shadow-md shadow-rose-950/60"
+                              : "bg-white/[0.02] border-white/5 hover:border-white/20"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-white/40 text-[10px]">
+                            <span className="truncate font-semibold">{cat.label}</span>
+                            <i data-lucide={cat.icon} className={`w-3 h-3 ${cat.color}`}></i>
+                          </div>
+                          <div className="text-base sm:text-lg font-black text-white mt-1">{cat.count}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* AI Classified Action Items Table */}
+                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Actionable Intervention Matrix</span>
+                        {aiCategoryFilter !== "all" && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                            Filtered: {aiCategoryFilter}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-white/40">
+                        {filteredAiRecords.length} vehicles requiring operational action
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scroll">
+                      <table className="w-full text-left text-xs whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
+                            <th className="py-2.5 px-3">Vehicle No</th>
+                            <th className="py-2.5 px-3">Client</th>
+                            <th className="py-2.5 px-3">Driver / Staff</th>
+                            <th className="py-2.5 px-3">Identified Root Cause</th>
+                            <th className="py-2.5 px-3">Delay Remarks</th>
+                            <th className="py-2.5 px-3">Prescribed Action / Directive</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {filteredAiRecords.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-white/[0.02]">
+                              <td className="py-2.5 px-3 font-mono font-bold text-rose-400">{item.vehicle}</td>
+                              <td className="py-2.5 px-3 font-semibold text-white/90 flex items-center gap-1.5">
+                                {renderCompanyLogo(item.client)}
+                                <span>{item.client}</span>
+                              </td>
+                              <td className="py-2.5 px-3 text-white/80">{item.staff}</td>
+                              <td className="py-2.5 px-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${item.classification.badgeColor}`}>
+                                  {item.classification.category}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-white/70 max-w-xs truncate">
+                                {item.remarks ? item.remarks : <span className="text-rose-400 font-bold italic">Missing Remarks ⚠️</span>}
+                              </td>
+                              <td className="py-2.5 px-3 text-emerald-300 font-medium">
+                                <div className="flex items-center gap-1.5">
+                                  <i data-lucide="arrow-right-circle" className="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+                                  <span>{item.classification.action}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </motion.div>
+              )}
+
+            </AnimatePresence>
+
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<FleetDashboard />);
+  </script>
+</body>
+</html>
