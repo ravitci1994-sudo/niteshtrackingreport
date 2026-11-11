@@ -44,7 +44,7 @@ html_code = """<!DOCTYPE html>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
@@ -102,7 +102,7 @@ html_code = """<!DOCTYPE html>
       background: linear-gradient(135deg, rgba(35, 4, 13, 0.72) 0%, rgba(16, 2, 7, 0.88) 100%);
       backdrop-filter: blur(14px);
       -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(244, 91, 134, 0.12);
+      border: 1px solid rgba(244, 91, 134, 0.15);
     }
 
     .glass-nav-active {
@@ -112,12 +112,39 @@ html_code = """<!DOCTYPE html>
 
     .glass-input {
       background: rgba(20, 2, 8, 0.75);
-      border: 1px solid rgba(244, 91, 134, 0.2);
+      border: 1px solid rgba(244, 91, 134, 0.25);
     }
     .glass-input:focus {
       border-color: #f45b86;
       outline: none;
       box-shadow: 0 0 0 2px rgba(244, 91, 134, 0.25);
+    }
+
+    /* Structured Grid Table Borders */
+    .grid-table {
+      border: 1px solid rgba(244, 91, 134, 0.25);
+      border-collapse: separate;
+      border-spacing: 0;
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    .grid-table th {
+      border-bottom: 2px solid rgba(244, 91, 134, 0.35);
+      border-right: 1px solid rgba(244, 91, 134, 0.15);
+      background: rgba(26, 3, 10, 0.85);
+    }
+    .grid-table th:last-child {
+      border-right: none;
+    }
+    .grid-table td {
+      border-bottom: 1px solid rgba(244, 91, 134, 0.15);
+      border-right: 1px solid rgba(244, 91, 134, 0.15);
+    }
+    .grid-table td:last-child {
+      border-right: none;
+    }
+    .grid-table tr:last-child td {
+      border-bottom: none;
     }
   </style>
 </head>
@@ -171,6 +198,27 @@ html_code = """<!DOCTYPE html>
           </div>
         );
       }
+      if (lower.includes('trackon')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#990000] border border-rose-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-white font-black text-[8px] leading-none">T</span>
+          </div>
+        );
+      }
+      if (lower.includes('dhl')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#FFCC00] border border-red-600/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-[#D40511] font-black text-[8px] leading-none">DHL</span>
+          </div>
+        );
+      }
+      if (lower.includes('busybees') || lower.includes('shadowfax')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#FF6F00] border border-amber-300/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-white font-black text-[8px] leading-none">B</span>
+          </div>
+        );
+      }
       const initial = (name || 'C').charAt(0).toUpperCase();
       return (
         <div className="w-5 h-5 rounded-md bg-wine-800 border border-wine-500/30 flex items-center justify-center shrink-0" title={name}>
@@ -215,7 +263,6 @@ html_code = """<!DOCTYPE html>
         }
       }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput, records]);
 
-      // ROBUST EXCEL PARSER WITH FLEXIBLE HEADER DETECTION
       const handleMultipleFileUpload = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -232,7 +279,6 @@ html_code = """<!DOCTYPE html>
               const sheet = workbook.Sheets[sheetName];
               if (!sheet || !sheet['!ref']) return;
 
-              // Read sheet as objects
               const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
               if (!Array.isArray(json) || json.length === 0) return;
 
@@ -248,7 +294,6 @@ html_code = """<!DOCTYPE html>
                   return matchedKey ? String(row[matchedKey]).trim() : '';
                 };
 
-                // Detection keywords
                 const rawVehicle = getValue(['vehicleno', 'vehicle', 'truck', 'regno', 'vehicle_num', 'lorry', 'truckno', 'rcno']);
                 const rawClient = getValue(['client', 'customer', 'account', 'party', 'consignor', 'consignee', 'branch', 'hub']);
                 const rawStaff = getValue(['staff', 'driver', 'pilot', 'drivername', 'operator', 'executive']);
@@ -258,12 +303,10 @@ html_code = """<!DOCTYPE html>
                 const rawTripId = getValue(['tripid', 'trip', 'id', 'challan', 'docket', 'cnno', 'lrno']);
                 const rawDate = getValue(['date', 'arrival', 'closing', 'closed', 'dispatch', 'start']);
 
-                // Ignore rows that don't have vehicle or client or route
                 if (!rawVehicle && !rawClient && !rawRoute && !rawTripId) {
                   return;
                 }
 
-                // Normalizing Date
                 let formattedDate = '2026-11-10';
                 if (rawDate) {
                   const parsed = new Date(rawDate);
@@ -679,6 +722,7 @@ html_code = """<!DOCTYPE html>
             {activeTab === 'overall' && (
               <div className="space-y-4">
                 
+                {/* 1. CLIENT WISE REPORT WITH BORDER & BOLD HEADERS */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -696,30 +740,30 @@ html_code = """<!DOCTYPE html>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-[11px] grid-table">
                       <thead>
-                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                          <th className="py-2 px-3">Client Name</th>
-                          <th className="py-2 px-3 text-center">Total Trips</th>
-                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
-                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
-                          <th className="py-2 px-3">On-Time SLA %</th>
-                          <th className="py-2 px-3 text-right">Status</th>
+                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                          <th className="py-2.5 px-3.5 font-black text-white">CLIENT NAME</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-wine-500/10">
+                      <tbody>
                         {clientStats.map((c, i) => (
-                          <tr key={i} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 flex items-center space-x-2">
+                          <tr key={i} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
                               <ClientBrandBadge name={c.name} />
-                              <span className="font-semibold text-white">{c.name}</span>
+                              <span className="font-bold text-white tracking-tight">{c.name}</span>
                             </td>
-                            <td className="py-2 px-3 text-center font-mono font-bold">{c.total}</td>
-                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
-                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                            <td className="py-2 px-3">
+                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
+                            <td className="py-2.5 px-3.5">
                               <div className="flex items-center space-x-2">
-                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
                                   <div
                                     className={`h-full rounded-full ${
                                       c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
@@ -727,16 +771,16 @@ html_code = """<!DOCTYPE html>
                                     style={{ width: `${c.sla}%` }}
                                   ></div>
                                 </div>
-                                <span className="font-mono text-[10px] text-slate-300">{c.sla}%</span>
+                                <span className="font-mono text-[11px] font-bold text-slate-200">{c.sla}%</span>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                            <td className="py-2.5 px-3.5 text-center">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
                                 c.status === 'Compliant'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                   : c.status === 'Moderate'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                               }`}>
                                 {c.status}
                               </span>
@@ -748,6 +792,7 @@ html_code = """<!DOCTYPE html>
                   </div>
                 </div>
 
+                {/* 2. STAFF WISE REPORT WITH BORDER & BOLD HEADERS */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -765,27 +810,27 @@ html_code = """<!DOCTYPE html>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-[11px] grid-table">
                       <thead>
-                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                          <th className="py-2 px-3">Staff / Driver</th>
-                          <th className="py-2 px-3 text-center">Total Assigned</th>
-                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
-                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
-                          <th className="py-2 px-3">On-Time SLA %</th>
-                          <th className="py-2 px-3 text-right">Rating</th>
+                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                          <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">RATING</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-wine-500/10">
+                      <tbody>
                         {staffStats.map((s, i) => (
-                          <tr key={i} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 font-semibold text-white">{s.name}</td>
-                            <td className="py-2 px-3 text-center font-mono font-bold">{s.total}</td>
-                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
-                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                            <td className="py-2 px-3">
+                          <tr key={i} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 font-bold text-white tracking-wide">{s.name}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
+                            <td className="py-2.5 px-3.5">
                               <div className="flex items-center space-x-2">
-                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
                                   <div
                                     className={`h-full rounded-full ${
                                       s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
@@ -793,16 +838,16 @@ html_code = """<!DOCTYPE html>
                                     style={{ width: `${s.sla}%` }}
                                   ></div>
                                 </div>
-                                <span className="font-mono text-[10px] text-slate-300">{s.sla}%</span>
+                                <span className="font-mono text-[11px] font-bold text-slate-200">{s.sla}%</span>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                            <td className="py-2.5 px-3.5 text-center">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
                                 s.status === 'Top Pilot'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                   : s.status === 'Satisfactory'
-                                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                               }`}>
                                 {s.status}
                               </span>
@@ -814,6 +859,7 @@ html_code = """<!DOCTYPE html>
                   </div>
                 </div>
 
+                {/* 3. ROUTE WISE REPORT WITH BORDER & BOLD HEADERS */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -831,27 +877,27 @@ html_code = """<!DOCTYPE html>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-[11px] grid-table">
                       <thead>
-                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                          <th className="py-2 px-3">Route / Corridor</th>
-                          <th className="py-2 px-3 text-center">Total Dispatches</th>
-                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
-                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
-                          <th className="py-2 px-3">Corridor SLA %</th>
-                          <th className="py-2 px-3 text-right">Status</th>
+                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                          <th className="py-2.5 px-3.5 font-black text-white">ROUTE / CORRIDOR</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL DISPATCHES</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">CORRIDOR SLA %</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-wine-500/10">
+                      <tbody>
                         {routeStats.map((r, i) => (
-                          <tr key={i} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 font-semibold text-white font-mono">{r.name}</td>
-                            <td className="py-2 px-3 text-center font-mono font-bold">{r.total}</td>
-                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{r.closed}</td>
-                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{r.delayed}</td>
-                            <td className="py-2 px-3">
+                          <tr key={i} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{r.name}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{r.total}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{r.closed}</td>
+                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{r.delayed}</td>
+                            <td className="py-2.5 px-3.5">
                               <div className="flex items-center space-x-2">
-                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
                                   <div
                                     className={`h-full rounded-full ${
                                       r.sla >= 80 ? 'bg-emerald-400' : r.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
@@ -859,16 +905,16 @@ html_code = """<!DOCTYPE html>
                                     style={{ width: `${r.sla}%` }}
                                   ></div>
                                 </div>
-                                <span className="font-mono text-[10px] text-slate-300">{r.sla}%</span>
+                                <span className="font-mono text-[11px] font-bold text-slate-200">{r.sla}%</span>
                               </div>
                             </td>
-                            <td className="py-2 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                            <td className="py-2.5 px-3.5 text-center">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
                                 r.status === 'Optimal'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                   : r.status === 'Congested'
-                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                               }`}>
                                 {r.status}
                               </span>
@@ -883,6 +929,7 @@ html_code = """<!DOCTYPE html>
               </div>
             )}
 
+            {/* TAB 2: CLIENT WISE REPORT (DEDICATED) */}
             {activeTab === 'client' && (
               <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                 <div className="flex items-center justify-between">
@@ -901,30 +948,30 @@ html_code = """<!DOCTYPE html>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px]">
+                  <table className="w-full text-left text-[11px] grid-table">
                     <thead>
-                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                        <th className="py-2 px-3">Client Name</th>
-                        <th className="py-2 px-3 text-center">Total Trips</th>
-                        <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
-                        <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
-                        <th className="py-2 px-3">On-Time SLA %</th>
-                        <th className="py-2 px-3 text-right">Status</th>
+                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT NAME</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-wine-500/10">
+                    <tbody>
                       {clientStats.map((c, i) => (
-                        <tr key={i} className="hover:bg-wine-900/30 transition">
-                          <td className="py-2 px-3 flex items-center space-x-2">
+                        <tr key={i} className="hover:bg-wine-900/40 transition">
+                          <td className="py-2.5 px-3.5 flex items-center space-x-2">
                             <ClientBrandBadge name={c.name} />
-                            <span className="font-semibold text-white">{c.name}</span>
+                            <span className="font-bold text-white tracking-tight">{c.name}</span>
                           </td>
-                          <td className="py-2 px-3 text-center font-mono font-bold">{c.total}</td>
-                          <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
-                          <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                          <td className="py-2 px-3">
+                          <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
+                          <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
+                          <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
+                          <td className="py-2.5 px-3.5">
                             <div className="flex items-center space-x-2">
-                              <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                              <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
                                 <div
                                   className={`h-full rounded-full ${
                                     c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
@@ -932,16 +979,16 @@ html_code = """<!DOCTYPE html>
                                   style={{ width: `${c.sla}%` }}
                                 ></div>
                               </div>
-                              <span className="font-mono text-[10px] text-slate-300">{c.sla}%</span>
+                              <span className="font-mono text-[11px] font-bold text-slate-200">{c.sla}%</span>
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-right">
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                          <td className="py-2.5 px-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
                               c.status === 'Compliant'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : c.status === 'Moderate'
-                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                             }`}>
                               {c.status}
                             </span>
@@ -954,6 +1001,7 @@ html_code = """<!DOCTYPE html>
               </div>
             )}
 
+            {/* TAB 3: STAFF WISE REPORT (DEDICATED) */}
             {activeTab === 'staff' && (
               <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                 <div className="flex items-center justify-between">
@@ -972,27 +1020,27 @@ html_code = """<!DOCTYPE html>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px]">
+                  <table className="w-full text-left text-[11px] grid-table">
                     <thead>
-                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                        <th className="py-2 px-3">Staff / Driver</th>
-                        <th className="py-2 px-3 text-center">Total Assigned</th>
-                        <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
-                        <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
-                        <th className="py-2 px-3">On-Time SLA %</th>
-                        <th className="py-2 px-3 text-right">Rating</th>
+                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">RATING</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-wine-500/10">
+                    <tbody>
                       {staffStats.map((s, i) => (
-                        <tr key={i} className="hover:bg-wine-900/30 transition">
-                          <td className="py-2 px-3 font-semibold text-white">{s.name}</td>
-                          <td className="py-2 px-3 text-center font-mono font-bold">{s.total}</td>
-                          <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
-                          <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                          <td className="py-2 px-3">
+                        <tr key={i} className="hover:bg-wine-900/40 transition">
+                          <td className="py-2.5 px-3.5 font-bold text-white tracking-wide">{s.name}</td>
+                          <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
+                          <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
+                          <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
+                          <td className="py-2.5 px-3.5">
                             <div className="flex items-center space-x-2">
-                              <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                              <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
                                 <div
                                   className={`h-full rounded-full ${
                                     s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
@@ -1000,16 +1048,16 @@ html_code = """<!DOCTYPE html>
                                   style={{ width: `${s.sla}%` }}
                                 ></div>
                               </div>
-                              <span className="font-mono text-[10px] text-slate-300">{s.sla}%</span>
+                              <span className="font-mono text-[11px] font-bold text-slate-200">{s.sla}%</span>
                             </div>
                           </td>
-                          <td className="py-2 px-3 text-right">
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                          <td className="py-2.5 px-3.5 text-center">
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
                               s.status === 'Top Pilot'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : s.status === 'Satisfactory'
-                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                             }`}>
                               {s.status}
                             </span>
@@ -1022,6 +1070,7 @@ html_code = """<!DOCTYPE html>
               </div>
             )}
 
+            {/* TAB 4: DAY WISE ARRIVAL REPORT */}
             {activeTab === 'arrival' && (
               <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-4">
                 
@@ -1163,18 +1212,18 @@ html_code = """<!DOCTYPE html>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px]">
+                  <table className="w-full text-left text-[11px] grid-table">
                     <thead>
-                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                        <th className="py-2 px-3">Vehicle No</th>
-                        <th className="py-2 px-3">Client</th>
-                        <th className="py-2 px-3">Staff / Driver</th>
-                        <th className="py-2 px-3">Route</th>
-                        <th className="py-2 px-3">Arrival Status</th>
-                        <th className="py-2 px-3">Remarks</th>
+                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                        <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">ROUTE</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">ARRIVAL STATUS</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">REMARKS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-wine-500/10">
+                    <tbody>
                       {filteredArrivals.length === 0 ? (
                         <tr>
                           <td colSpan="6" className="py-8 text-center text-wine-300/60 font-mono">
@@ -1183,24 +1232,24 @@ html_code = """<!DOCTYPE html>
                         </tr>
                       ) : (
                         filteredArrivals.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 font-mono font-bold text-white tracking-wide">{row.vehicleNo}</td>
-                            <td className="py-2 px-3 flex items-center space-x-2">
+                          <tr key={idx} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 font-mono font-bold text-white tracking-wide">{row.vehicleNo}</td>
+                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
                               <ClientBrandBadge name={row.client} />
-                              <span className="font-semibold text-slate-200">{row.client}</span>
+                              <span className="font-bold text-slate-100">{row.client}</span>
                             </td>
-                            <td className="py-2 px-3 text-slate-300">{row.staff}</td>
-                            <td className="py-2 px-3 font-mono text-[10px] text-wine-200/80">{row.route}</td>
-                            <td className="py-2 px-3">
+                            <td className="py-2.5 px-3.5 font-medium text-slate-200">{row.staff}</td>
+                            <td className="py-2.5 px-3.5 font-mono text-[10px] text-wine-200/90">{row.route}</td>
+                            <td className="py-2.5 px-3.5">
                               <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
                                 row.status.toLowerCase().includes('closed')
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
                               }`}>
                                 {row.status}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-wine-200/70 text-[10px] italic">{row.remarks}</td>
+                            <td className="py-2.5 px-3.5 text-wine-200/80 text-[10px] italic">{row.remarks}</td>
                           </tr>
                         ))
                       )}
@@ -1211,6 +1260,7 @@ html_code = """<!DOCTYPE html>
               </div>
             )}
 
+            {/* TAB 5: ONLY DELAY ARRIVAL EXCEPTIONS */}
             {activeTab === 'delay' && (
               <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1229,18 +1279,18 @@ html_code = """<!DOCTYPE html>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px]">
+                  <table className="w-full text-left text-[11px] grid-table">
                     <thead>
-                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                        <th className="py-2 px-3">Trip ID</th>
-                        <th className="py-2 px-3">Vehicle No</th>
-                        <th className="py-2 px-3">Client</th>
-                        <th className="py-2 px-3">Staff / Driver</th>
-                        <th className="py-2 px-3">Route</th>
-                        <th className="py-2 px-3 text-rose-400">Delay Reason / Remarks</th>
+                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                        <th className="py-2.5 px-3.5 font-black text-white">TRIP ID</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
+                        <th className="py-2.5 px-3.5 font-black text-white">ROUTE</th>
+                        <th className="py-2.5 px-3.5 font-black text-rose-400">DELAY REASON / REMARKS</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-wine-500/10">
+                    <tbody>
                       {delayedRecords.length === 0 ? (
                         <tr>
                           <td colSpan="6" className="py-8 text-center text-emerald-400 font-mono">
@@ -1249,17 +1299,17 @@ html_code = """<!DOCTYPE html>
                         </tr>
                       ) : (
                         delayedRecords.map((d, i) => (
-                          <tr key={i} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 font-mono text-wine-300/80">{d.id}</td>
-                            <td className="py-2 px-3 font-mono font-bold text-white">{d.vehicleNo}</td>
-                            <td className="py-2 px-3 flex items-center space-x-2">
+                          <tr key={i} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 font-mono text-wine-300/90">{d.id}</td>
+                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{d.vehicleNo}</td>
+                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
                               <ClientBrandBadge name={d.client} />
-                              <span className="font-semibold text-slate-200">{d.client}</span>
+                              <span className="font-bold text-slate-100">{d.client}</span>
                             </td>
-                            <td className="py-2 px-3 text-slate-300">{d.staff}</td>
-                            <td className="py-2 px-3 font-mono text-[10px] text-wine-200/80">{d.route}</td>
-                            <td className="py-2 px-3">
-                              <span className="inline-block px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10px]">
+                            <td className="py-2.5 px-3.5 font-medium text-slate-200">{d.staff}</td>
+                            <td className="py-2.5 px-3.5 font-mono text-[10px] text-wine-200/90">{d.route}</td>
+                            <td className="py-2.5 px-3.5">
+                              <span className="inline-block px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[10px] font-medium">
                                 {d.remarks}
                               </span>
                             </td>
@@ -1272,6 +1322,7 @@ html_code = """<!DOCTYPE html>
               </div>
             )}
 
+            {/* TAB 6: AI REVIEW */}
             {activeTab === 'ai_review' && (
               <div className="space-y-4">
                 
@@ -1370,32 +1421,32 @@ html_code = """<!DOCTYPE html>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
+                    <table className="w-full text-left text-[11px] grid-table">
                       <thead>
-                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
-                          <th className="py-2 px-3">Vehicle No</th>
-                          <th className="py-2 px-3">Client</th>
-                          <th className="py-2 px-3">Category</th>
-                          <th className="py-2 px-3">Delay Remarks</th>
-                          <th className="py-2 px-3 text-rose-300 font-bold">Action Required</th>
+                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
+                          <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">CATEGORY</th>
+                          <th className="py-2.5 px-3.5 font-black text-white">DELAY REMARKS</th>
+                          <th className="py-2.5 px-3.5 font-black text-rose-300">ACTION REQUIRED</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-wine-500/10">
+                      <tbody>
                         {filteredAiDelays.map((v, i) => (
-                          <tr key={i} className="hover:bg-wine-900/30 transition">
-                            <td className="py-2 px-3 font-mono font-bold text-white">{v.vehicleNo}</td>
-                            <td className="py-2 px-3 flex items-center space-x-2">
+                          <tr key={i} className="hover:bg-wine-900/40 transition">
+                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{v.vehicleNo}</td>
+                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
                               <ClientBrandBadge name={v.client} />
-                              <span className="font-semibold text-slate-200">{v.client}</span>
+                              <span className="font-bold text-slate-100">{v.client}</span>
                             </td>
-                            <td className="py-2 px-3">
+                            <td className="py-2.5 px-3.5">
                               <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
                                 {v.category}
                               </span>
                             </td>
-                            <td className="py-2 px-3 text-wine-200/70 text-[10px] italic">{v.remarks}</td>
-                            <td className="py-2 px-3">
-                              <span className="text-emerald-400 font-medium text-[10px] flex items-center space-x-1">
+                            <td className="py-2.5 px-3.5 text-wine-200/80 text-[10px] italic">{v.remarks}</td>
+                            <td className="py-2.5 px-3.5">
+                              <span className="text-emerald-400 font-bold text-[10px] flex items-center space-x-1">
                                 <i data-lucide="arrow-right" className="w-3 h-3 shrink-0"></i>
                                 <span>{v.actionRequired}</span>
                               </span>
