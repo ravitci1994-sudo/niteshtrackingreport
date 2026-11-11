@@ -7,7 +7,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Streamlit ke default margins aur header ko hide karne ke liye CSS
+# Streamlit default margins aur header hide karne ke liye
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -198,6 +198,7 @@ html_code = """<!DOCTYPE html>
 
     function App() {
       const [records, setRecords] = useState(INITIAL_RECORDS);
+      const [uploadedFileCount, setUploadedFileCount] = useState(0);
       const [activeTab, setActiveTab] = useState('overall');
       const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -216,74 +217,81 @@ html_code = """<!DOCTYPE html>
         if (window.lucide) {
           window.lucide.createIcons();
         }
-      }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput]);
+      }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput, records]);
 
-      const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+      // MULTIPLE FILES ASYNC HANDLER
+      const handleMultipleFileUpload = async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
+        let accumulated = [];
+
+        for (let fIdx = 0; fIdx < files.length; fIdx++) {
+          const file = files[fIdx];
           try {
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+            
+            // Loop through all sheets in the file
+            workbook.SheetNames.forEach((sheetName) => {
+              const sheet = workbook.Sheets[sheetName];
+              const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-            if (json.length === 0) {
-              alert('Sheet is empty');
-              return;
-            }
+              const mapped = json.map((row, idx) => {
+                const keys = Object.keys(row);
+                const findKey = (candidates) => {
+                  const found = keys.find(k => candidates.some(c => k.toLowerCase().includes(c)));
+                  return found ? row[found] : '';
+                };
 
-            const mapped = json.map((row, idx) => {
-              const keys = Object.keys(row);
-              const findKey = (candidates) => {
-                const found = keys.find(k => candidates.some(c => k.toLowerCase().includes(c)));
-                return found ? row[found] : '';
-              };
-
-              const rawDate = findKey(['arrival date', 'closing date', 'close date', 'trip date', 'date', 'arrival']);
-              let formattedDate = '2026-11-10';
-              if (rawDate) {
-                if (typeof rawDate === 'number') {
-                  const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
-                  formattedDate = d.toISOString().split('T')[0];
-                } else {
-                  const parsed = new Date(rawDate);
-                  if (!isNaN(parsed)) {
-                    formattedDate = parsed.toISOString().split('T')[0];
+                const rawDate = findKey(['arrival date', 'closing date', 'close date', 'trip date', 'date', 'arrival']);
+                let formattedDate = '2026-11-10';
+                if (rawDate) {
+                  if (typeof rawDate === 'number') {
+                    const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+                    formattedDate = d.toISOString().split('T')[0];
                   } else {
-                    formattedDate = String(rawDate).trim().slice(0, 10);
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed)) {
+                      formattedDate = parsed.toISOString().split('T')[0];
+                    } else {
+                      formattedDate = String(rawDate).trim().slice(0, 10);
+                    }
                   }
                 }
-              }
 
-              const statusVal = String(findKey(['status', 'trip status', 'arrival status']) || 'Trip Closed').trim();
-              const delayRemarks = String(findKey(['delay remarks', 'remarks', 'reason', 'delay reason', 'comment']) || '').trim();
+                const statusVal = String(findKey(['status', 'trip status', 'arrival status']) || 'Trip Closed').trim();
+                const delayRemarks = String(findKey(['delay remarks', 'remarks', 'reason', 'delay reason', 'comment']) || '').trim();
 
-              return {
-                id: String(findKey(['trip id', 'tripid', 'trip_id', 'id']) || `TRP-${9000 + idx}`),
-                date: formattedDate,
-                vehicleNo: String(findKey(['vehicle no', 'vehicleno', 'truck', 'vehicle']) || `DL-01-XX-${1000 + idx}`).toUpperCase(),
-                client: String(findKey(['client', 'client name', 'customer', 'account']) || 'General Client').trim(),
-                staff: String(findKey(['staff', 'driver', 'pilot', 'driver name', 'staff name']) || 'Fleet Driver').trim(),
-                route: String(findKey(['route', 'corridor', 'lane', 'source-dest']) || 'Origin → Destination').trim(),
-                status: statusVal,
-                remarks: delayRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement')
-              };
+                return {
+                  id: String(findKey(['trip id', 'tripid', 'trip_id', 'id']) || `TRP-F${fIdx + 1}-${idx + 1}`),
+                  date: formattedDate,
+                  vehicleNo: String(findKey(['vehicle no', 'vehicleno', 'truck', 'vehicle']) || `TRUCK-${idx + 1}`).toUpperCase(),
+                  client: String(findKey(['client', 'client name', 'customer', 'account']) || 'General Client').trim(),
+                  staff: String(findKey(['staff', 'driver', 'pilot', 'driver name', 'staff name']) || 'Fleet Driver').trim(),
+                  route: String(findKey(['route', 'corridor', 'lane', 'source-dest']) || 'Origin → Destination').trim(),
+                  status: statusVal,
+                  remarks: delayRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement')
+                };
+              });
+
+              accumulated = accumulated.concat(mapped);
             });
-
-            setRecords(mapped);
-            if (mapped.length > 0) {
-              setSelectedDate(mapped[0].date);
-            }
           } catch (err) {
-            console.error('Failed to parse Excel file', err);
-            alert('Error parsing Excel file. Please ensure valid format (.xlsx or .xls).');
+            console.error(`Error reading file ${file.name}:`, err);
           }
-        };
-        reader.readAsArrayBuffer(file);
+        }
+
+        if (accumulated.length > 0) {
+          setRecords(accumulated);
+          setUploadedFileCount(files.length);
+          setSelectedDate(accumulated[0].date);
+        } else {
+          alert('Could not parse valid trip records from the selected files.');
+        }
+
+        // Reset input value so same files can be re-selected if needed
+        e.target.value = '';
       };
 
       const metrics = useMemo(() => {
@@ -595,7 +603,10 @@ html_code = """<!DOCTYPE html>
               {activeTab === 'overall' && (
                 <div className="flex items-center space-x-2 shrink-0">
                   <button
-                    onClick={() => setRecords(INITIAL_RECORDS)}
+                    onClick={() => {
+                      setRecords(INITIAL_RECORDS);
+                      setUploadedFileCount(0);
+                    }}
                     className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-wine-900/80 hover:bg-wine-800 border border-wine-500/30 text-rose-200 text-xs font-semibold transition shadow-sm"
                   >
                     <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
@@ -603,12 +614,13 @@ html_code = """<!DOCTYPE html>
                   </button>
 
                   <label className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition">
-                    <i data-lucide="upload" className="w-3.5 h-3.5"></i>
-                    <span>Upload Excel File</span>
+                    <i data-lucide="files" className="w-3.5 h-3.5"></i>
+                    <span>{uploadedFileCount > 1 ? `${uploadedFileCount} Files Uploaded` : 'Upload Multiple Excel'}</span>
                     <input
                       type="file"
-                      accept=".xlsx, .xls"
-                      onChange={handleFileUpload}
+                      accept=".xlsx, .xls, .csv"
+                      multiple
+                      onChange={handleMultipleFileUpload}
                       className="hidden"
                     />
                   </label>
