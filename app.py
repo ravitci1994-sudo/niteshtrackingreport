@@ -8,123 +8,210 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- React 18 & Babel Standalone -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- Framer Motion Standalone -->
-  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
-
-  <!-- SheetJS (XLSX) for Dynamic Excel Parsing -->
+  <!-- SheetJS (xlsx parser) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- React 18 & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
+  <!-- Framer Motion -->
+  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            wine: {
+              950: '#080103',
+              900: '#140207',
+              850: '#1d030b',
+              800: '#2a0510',
+              750: '#3d0818',
+              700: '#540c21',
+              600: '#7e1333',
+              500: '#ab1c47',
+              400: '#e12d61',
+              300: '#f45b86',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
   <style>
     body {
-      background: radial-gradient(circle at 50% -15%, #3d0812 0%, #150307 45%, #080103 100%);
+      background: radial-gradient(circle at 15% 15%, #2a0510 0%, #0d0105 50%, #050002 100%);
+      color: #fce7ef;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
-      color: #ffffff;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow-x: hidden;
     }
-    .glass-panel {
-      background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-    }
-    .active-nav-pill {
-      background: linear-gradient(90deg, #e11d48 0%, #dc2626 100%);
-      box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.55);
-    }
-    /* Scrollbars */
+
+    /* Custom Slim Scrollbars */
     ::-webkit-scrollbar {
       width: 5px;
       height: 5px;
     }
     ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.25);
+      background: rgba(10, 2, 5, 0.6);
     }
     ::-webkit-scrollbar-thumb {
-      background: rgba(244, 63, 94, 0.3);
+      background: rgba(225, 45, 97, 0.25);
       border-radius: 9999px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(244, 63, 94, 0.6);
+      background: rgba(225, 45, 97, 0.5);
     }
-    .custom-scroll::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
+
+    .glass-panel {
+      background: linear-gradient(135deg, rgba(35, 4, 13, 0.72) 0%, rgba(16, 2, 7, 0.88) 100%);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(244, 91, 134, 0.12);
     }
-    .custom-scroll::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.02);
+
+    .glass-nav-active {
+      background: linear-gradient(90deg, #e12d61 0%, #b81444 100%);
+      box-shadow: 0 4px 20px rgba(225, 45, 97, 0.45);
     }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background: rgba(244, 63, 94, 0.4);
-      border-radius: 4px;
+
+    .glass-input {
+      background: rgba(20, 2, 8, 0.75);
+      border: 1px solid rgba(244, 91, 134, 0.2);
+    }
+    .glass-input:focus {
+      border-color: #f45b86;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(244, 91, 134, 0.25);
     }
   </style>
 </head>
-<body class="selection:bg-rose-500 selection:text-white">
+<body class="selection:bg-wine-500 selection:text-white antialiased">
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useMemo, useEffect, useRef } = React;
     const { motion, AnimatePresence } = window.Motion || window.framerMotion || {
       motion: {
-        div: "div",
-        button: "button",
-        tr: "tr",
-        span: "span",
-        label: "label"
+        div: (props) => <div {...props}>{props.children}</div>,
+        button: (props) => <button {...props}>{props.children}</button>,
       },
-      AnimatePresence: ({ children }) => children
+      AnimatePresence: ({ children }) => <>{children}</>
     };
 
+    // Client Brand Logo helper with official brand accents
+    const ClientBrandBadge = ({ name }) => {
+      const lower = (name || '').toLowerCase();
+      if (lower.includes('amazon')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#131921] border border-amber-500/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-[#FF9900] font-black text-[10px] leading-none font-sans">a</span>
+          </div>
+        );
+      }
+      if (lower.includes('flipkart')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#2874F0] border border-blue-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-[#FFE500] italic font-black text-[10px] leading-none">f</span>
+          </div>
+        );
+      }
+      if (lower.includes('reliance')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#C8102E] border border-red-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-white font-extrabold text-[10px] leading-none">R</span>
+          </div>
+        );
+      }
+      if (lower.includes('tata')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#0F4C81] border border-sky-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-white font-black text-[7px] tracking-tighter leading-none">TATA</span>
+          </div>
+        );
+      }
+      if (lower.includes('bluedart') || lower.includes('blue dart')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#001489] border border-blue-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-[#00B4D8] font-black text-[8px] tracking-tight leading-none">BD</span>
+          </div>
+        );
+      }
+      if (lower.includes('delhivery')) {
+        return (
+          <div className="w-5 h-5 rounded-md bg-[#B31942] border border-rose-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
+            <span className="text-white font-black text-[9px] leading-none">D</span>
+          </div>
+        );
+      }
+      // Fallback initial
+      const initial = (name || 'C').charAt(0).toUpperCase();
+      return (
+        <div className="w-5 h-5 rounded-md bg-wine-800 border border-wine-500/30 flex items-center justify-center shrink-0" title={name}>
+          <span className="text-wine-300 font-bold text-[9px]">{initial}</span>
+        </div>
+      );
+    };
+
+    // Default Sample Logistics Fleet Data
     const INITIAL_RECORDS = [
-      { id: "TRP-9021", date: "2026-11-10", vehicle: "DL-01-AB-1234", client: "Amazon India", staff: "Ramesh Kumar", route: "Delhi Hub ➔ Mumbai Port", status: "In-Transit", isDelay: false, remarks: "Shipment moving as scheduled" },
-      { id: "TRP-9022", date: "2026-11-09", vehicle: "MH-04-CD-5678", client: "Flipkart Wholesale", staff: "Suresh Patil", route: "Pune DC ➔ Bengaluru DC", status: "Trip Closed", isDelay: false, remarks: "Delivered on-time with clean POD" },
-      { id: "TRP-9023", date: "2026-11-08", vehicle: "HR-26-EE-9901", client: "Reliance Retail", staff: "Vikram Singh", route: "Gurugram ➔ Jaipur Depot", status: "Delay Closed", isDelay: true, remarks: "Heavy highway traffic jam and toll gridlock" },
-      { id: "TRP-9024", date: "2026-11-08", vehicle: "KA-05-FF-4321", client: "Amazon India", staff: "Anand Rao", route: "Bengaluru Hub ➔ Chennai Port", status: "Delay Closed", isDelay: true, remarks: "Single driver duty hours expired; rest required" },
-      { id: "TRP-9025", date: "2026-10-25", vehicle: "GJ-01-GG-7788", client: "Tata Consumer", staff: "Jignesh Patel", route: "Ahmedabad ➔ Surat Yard", status: "Trip Closed", isDelay: false, remarks: "Completed on-time" },
-      { id: "TRP-9026", date: "2026-10-22", vehicle: "UP-14-HH-3344", client: "Flipkart Wholesale", staff: "Mohan Verma", route: "Noida Plant ➔ Kanpur Depot", status: "Delay Closed", isDelay: true, remarks: "Breakdown: Clutch wire snapped on express route" },
-      { id: "TRP-9027", date: "2026-11-05", vehicle: "TN-02-JJ-6655", client: "Reliance Retail", staff: "Karthik Raja", route: "Chennai Hub ➔ Hyderabad", status: "In-Transit", isDelay: true, remarks: "Driver issue: medical emergency replacement requested" },
-      { id: "TRP-9028", date: "2026-09-18", vehicle: "WB-02-KK-1122", client: "Tata Consumer", staff: "Subhash Roy", route: "Kolkata Hub ➔ Patna Terminal", status: "Trip Closed", isDelay: false, remarks: "POD received" },
-      { id: "TRP-9029", date: "2026-11-09", vehicle: "MH-12-PQ-8899", client: "BlueDart Express", staff: "Sunil Verma", route: "Mumbai ➔ Ahmedabad", status: "Delay Closed", isDelay: true, remarks: "Client warehouse dock unloading congestion" },
-      { id: "TRP-9030", date: "2026-11-07", vehicle: "DL-04-RR-3344", client: "Delhivery Crossdock", staff: "Mohit Pandey", route: "Delhi Hub ➔ Lucknow", status: "Delay Closed", isDelay: true, remarks: "" }
+      { id: 'TRP-9021', date: '2026-11-10', vehicleNo: 'DL-01-AB-1234', client: 'Amazon India', staff: 'Ramesh Kumar', route: 'Delhi Hub → Mumbai Sort', status: 'Trip Closed', remarks: 'Delayed at NH48 toll barrier' },
+      { id: 'TRP-9022', date: '2026-11-09', vehicleNo: 'MH-04-CD-5678', client: 'Flipkart Wholesale', staff: 'Suresh Patil', route: 'Pune DC → Bengaluru WH', status: 'Trip Closed', remarks: 'Severe heavy rain & traffic jam' },
+      { id: 'TRP-9023', date: '2026-11-08', vehicleNo: 'HR-26-EE-9901', client: 'Reliance Retail', staff: 'Vikram Singh', route: 'Gurugram → Jaipur DC', status: 'Trip Closed', remarks: 'Vehicle tyre breakdown at Rewari' },
+      { id: 'TRP-9024', date: '2026-11-08', vehicleNo: 'KA-05-FF-4321', client: 'Amazon India', staff: 'Anand Rao', route: 'Bengaluru Hub → Chennai Yard', status: 'In-Transit', remarks: 'Single driver mandatory rest pause' },
+      { id: 'TRP-9025', date: '2026-10-25', vehicleNo: 'GJ-01-GG-7788', client: 'Tata Consumer', staff: 'Jignesh Patel', route: 'Ahmedabad → Surat Plant', status: 'Trip Closed', remarks: 'Delivered seamlessly on schedule' },
+      { id: 'TRP-9026', date: '2026-10-22', vehicleNo: 'UP-14-HH-3344', client: 'Flipkart Wholesale', staff: 'Mohan Verma', route: 'Noida Plant → Kanpur DC', status: 'Trip Closed', remarks: 'Mechanical radiator coolant leak' },
+      { id: 'TRP-9027', date: '2026-11-05', vehicleNo: 'TN-02-JJ-6655', client: 'Reliance Retail', staff: 'Karthik Raja', route: 'Chennai Hub → Madurai DC', status: 'Trip Closed', remarks: 'Driver sickness delay during haul' },
+      { id: 'TRP-9028', date: '2026-09-18', vehicleNo: 'WB-02-KK-1122', client: 'Tata Consumer', staff: 'Subhash Roy', route: 'Kolkata Hub → Patna Hub', status: 'Trip Closed', remarks: 'On schedule line haul handover' },
+      { id: 'TRP-9029', date: '2026-11-07', vehicleNo: 'DL-01-LM-9944', client: 'BlueDart Express', staff: 'Mohit Pandey', route: 'Delhi Hub → Lucknow Sorting', status: 'Trip Closed', remarks: 'Unloading dock traffic congestion' },
+      { id: 'TRP-9030', date: '2026-11-10', vehicleNo: 'HR-55-XY-8811', client: 'Delhivery Crossdock', staff: 'Kuldeep Gill', route: 'Sonipat DC → Ludhiana TC', status: 'Trip Closed', remarks: 'On time standard transit' },
     ];
 
-    function FleetDashboard() {
-      const [activeTab, setActiveTab] = useState("overall");
-      const [trips, setTrips] = useState(INITIAL_RECORDS);
+    function App() {
+      const [records, setRecords] = useState(INITIAL_RECORDS);
+      const [activeTab, setActiveTab] = useState('overall'); // overall, client, staff, arrival, delay, ai_review
+      const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-      // Filters for Day Wise Arrival
-      const [filterDate, setFilterDate] = useState("");
-      const [filterClient, setFilterClient] = useState("");
-      const [filterStaff, setFilterStaff] = useState("");
-
-      // Mobile sidebar toggle state
-      const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-      // Calendar popup states
-      const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+      // Arrival Filters
+      const [selectedDate, setSelectedDate] = useState('2026-11-10');
+      const [showCalendar, setShowCalendar] = useState(false);
+      const [selectedClientFilter, setSelectedClientFilter] = useState('');
+      const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
+      const [calMonth, setCalMonth] = useState(10); // 0-indexed: 10 = Nov
       const [calYear, setCalYear] = useState(2026);
-      const [calMonth, setCalMonth] = useState(10); // November
 
-      // AI Delay Category Filter
-      const [aiCategoryFilter, setAiCategoryFilter] = useState("all");
-      const [isAiGenerating, setIsAiGenerating] = useState(false);
-      const [aiPlanOutput, setAiPlanOutput] = useState("");
+      // AI Delay Review Filter
+      const [aiDelayCategory, setAiDelayCategory] = useState('ALL');
+      const [aiGenerating, setAiGenerating] = useState(false);
+      const [aiReportOutput, setAiReportOutput] = useState(null);
 
+      // Re-trigger Lucide icons when DOM / tab updates
       useEffect(() => {
         if (window.lucide) {
           window.lucide.createIcons();
         }
-      }, [activeTab, trips, isCalendarOpen, aiCategoryFilter, aiPlanOutput, isMobileMenuOpen]);
+      }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput]);
 
-      // Handle Excel Upload
+      // Parse uploaded Excel File
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -133,835 +220,518 @@
         reader.onload = (evt) => {
           try {
             const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: "array" });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-            const parsed = json.map((row, idx) => {
+            if (json.length === 0) {
+              alert('Sheet is empty');
+              return;
+            }
+
+            const mapped = json.map((row, idx) => {
               const keys = Object.keys(row);
-              const getVal = (pattern, fallback) => {
-                const found = keys.find(k => pattern.test(k));
-                return found !== undefined && row[found] !== "" ? String(row[found]).trim() : fallback;
+              const findKey = (candidates) => {
+                const found = keys.find(k => candidates.some(c => k.toLowerCase().includes(c)));
+                return found ? row[found] : '';
               };
 
-              let rawDate = getVal(/date|close|closing|dispatch|arrival/i, "2026-11-10");
-              if (typeof row["Closing Date"] === "number") {
-                const utcDays = Math.floor(row["Closing Date"] - 25569);
-                rawDate = new Date(utcDays * 86400 * 1000).toISOString().split("T")[0];
+              const rawDate = findKey(['arrival date', 'closing date', 'close date', 'trip date', 'date', 'arrival']);
+              let formattedDate = '2026-11-10';
+              if (rawDate) {
+                if (typeof rawDate === 'number') {
+                  const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+                  formattedDate = d.toISOString().split('T')[0];
+                } else {
+                  const parsed = new Date(rawDate);
+                  if (!isNaN(parsed)) {
+                    formattedDate = parsed.toISOString().split('T')[0];
+                  } else {
+                    formattedDate = String(rawDate).trim().slice(0, 10);
+                  }
+                }
               }
 
-              const status = getVal(/status|state|trip status/i, "Trip Closed");
-              const isDelay = /delay|late/i.test(status) || /yes|delay/i.test(getVal(/delay/i, ""));
-              const remarks = getVal(/remark|reason|comment|notes/i, "");
+              const statusVal = String(findKey(['status', 'trip status', 'arrival status']) || 'Trip Closed').trim();
+              const delayRemarks = String(findKey(['delay remarks', 'remarks', 'reason', 'delay reason', 'comment']) || '').trim();
 
               return {
-                id: getVal(/trip|id|lr/i, `TRP-${1000 + idx}`),
-                date: rawDate,
-                vehicle: getVal(/vehicle|truck|lorry/i, `VEH-${2000 + idx}`),
-                client: getVal(/client|customer|account|party/i, "General Client"),
-                staff: getVal(/staff|driver|pilot/i, "Assigned Staff"),
-                route: getVal(/route|corridor|from.*to/i, "Direct Corridor"),
-                status: status,
-                isDelay: isDelay,
-                remarks: remarks
+                id: String(findKey(['trip id', 'tripid', 'trip_id', 'id']) || `TRP-${9000 + idx}`),
+                date: formattedDate,
+                vehicleNo: String(findKey(['vehicle no', 'vehicleno', 'truck', 'vehicle']) || `DL-01-XX-${1000 + idx}`).toUpperCase(),
+                client: String(findKey(['client', 'client name', 'customer', 'account']) || 'General Client').trim(),
+                staff: String(findKey(['staff', 'driver', 'pilot', 'driver name', 'staff name']) || 'Fleet Driver').trim(),
+                route: String(findKey(['route', 'corridor', 'lane', 'source-dest']) || 'Origin → Destination').trim(),
+                status: statusVal,
+                remarks: delayRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement')
               };
             });
 
-            if (parsed.length > 0) {
-              setTrips(parsed);
+            setRecords(mapped);
+            if (mapped.length > 0) {
+              setSelectedDate(mapped[0].date);
             }
           } catch (err) {
-            console.error("Error reading Excel", err);
+            console.error('Failed to parse Excel file', err);
+            alert('Error parsing Excel file. Please ensure valid format (.xlsx or .xls).');
           }
         };
         reader.readAsArrayBuffer(file);
       };
 
-      // Metrics Counts
-      const totalTrips = trips.length;
-      const inTransitCount = trips.filter(t => t.status === "In-Transit").length;
-      const closedCount = trips.filter(t => t.status === "Trip Closed" && !t.isDelay).length;
-      const delayClosedCount = trips.filter(t => t.isDelay).length;
+      // Aggregated Metrics Calculations
+      const metrics = useMemo(() => {
+        const total = records.length;
+        const inTransit = records.filter(r => r.status.toLowerCase().includes('transit')).length;
+        
+        // Delay logic: has delay remarks or remarks not containing 'seamless' / 'on schedule' / 'on time'
+        const delayed = records.filter(r => {
+          const rem = (r.remarks || '').toLowerCase();
+          const st = (r.status || '').toLowerCase();
+          return st.includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion') || rem.includes('sickness');
+        }).length;
 
-      // Aggregations
+        const closed = records.filter(r => r.status.toLowerCase().includes('closed') && !r.status.toLowerCase().includes('delay')).length;
+
+        return { total, inTransit, closed, delayed };
+      }, [records]);
+
+      // Client Performance Aggregation
       const clientStats = useMemo(() => {
         const map = {};
-        trips.forEach(t => {
-          if (!map[t.client]) map[t.client] = { name: t.client, total: 0, closed: 0, delayed: 0 };
-          map[t.client].total += 1;
-          if (t.status === "Trip Closed" && !t.isDelay) map[t.client].closed += 1;
-          if (t.isDelay) map[t.client].delayed += 1;
-        });
-        return Object.values(map).map(c => ({
-          ...c,
-          sla: c.total ? Math.round(((c.total - c.delayed) / c.total) * 100) : 100
-        }));
-      }, [trips]);
-
-      const staffStats = useMemo(() => {
-        const map = {};
-        trips.forEach(t => {
-          if (!map[t.staff]) map[t.staff] = { name: t.staff, total: 0, closed: 0, delayed: 0 };
-          map[t.staff].total += 1;
-          if (t.status === "Trip Closed" && !t.isDelay) map[t.staff].closed += 1;
-          if (t.isDelay) map[t.staff].delayed += 1;
-        });
-        return Object.values(map).map(s => ({
-          ...s,
-          sla: s.total ? Math.round(((s.total - s.delayed) / s.total) * 100) : 100
-        }));
-      }, [trips]);
-
-      const routeStats = useMemo(() => {
-        const map = {};
-        trips.forEach(t => {
-          if (!map[t.route]) map[t.route] = { name: t.route, total: 0, closed: 0, delayed: 0 };
-          map[t.route].total += 1;
-          if (t.status === "Trip Closed" && !t.isDelay) map[t.route].closed += 1;
-          if (t.isDelay) map[t.route].delayed += 1;
-        });
-        return Object.values(map).map(r => ({
-          ...r,
-          sla: r.total ? Math.round(((r.total - r.delayed) / r.total) * 100) : 100
-        }));
-      }, [trips]);
-
-      // Day Wise Filtered Trips
-      const dayWiseTrips = useMemo(() => {
-        return trips.filter(t => {
-          if (filterDate && t.date !== filterDate) return false;
-          if (filterClient && t.client !== filterClient) return false;
-          if (filterStaff && t.staff !== filterStaff) return false;
-          return true;
-        });
-      }, [trips, filterDate, filterClient, filterStaff]);
-
-      // Only Delay Trips
-      const delayedTrips = useMemo(() => trips.filter(t => t.isDelay), [trips]);
-
-      // AI Delay Classifier Function
-      const classifyDelay = (remarks) => {
-        const text = (remarks || "").toLowerCase();
-        if (!text.trim()) {
-          return {
-            category: "Unexplained",
-            action: "Issue show-cause notice & demand driver explanation",
-            badgeColor: "bg-rose-500/15 text-rose-300 border-rose-500/30",
-            icon: "help-circle"
-          };
-        }
-        if (text.includes("breakdown") || text.includes("tyre") || text.includes("engine") || text.includes("puncture") || text.includes("clutch") || text.includes("repair")) {
-          return {
-            category: "Breakdown",
-            action: "Deploy nearest authorized roadside mechanic & tow assistance",
-            badgeColor: "bg-red-500/15 text-red-300 border-red-500/30",
-            icon: "wrench"
-          };
-        }
-        if (text.includes("driver") && (text.includes("issue") || text.includes("emergency") || text.includes("sick") || text.includes("leave") || text.includes("absent"))) {
-          return {
-            category: "Driver Issue",
-            action: "Mobilize backup relief driver from hub roster immediately",
-            badgeColor: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-            icon: "user-x"
-          };
-        }
-        if (text.includes("traffic") || text.includes("toll") || text.includes("jam") || text.includes("congestion") || text.includes("highway") || text.includes("route blocked")) {
-          return {
-            category: "Traffic Jam",
-            action: "Reroute via bypass corridor & alert destination dock supervisor",
-            badgeColor: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30",
-            icon: "navigation"
-          };
-        }
-        if (text.includes("single driver") || text.includes("rest") || text.includes("fatigue") || text.includes("hours") || text.includes("sleep")) {
-          return {
-            category: "Single Driver Fatigue",
-            action: "Verify mandatory 6-hr rest log; assign dual-driver protocol for trips >450km",
-            badgeColor: "bg-purple-500/15 text-purple-300 border-purple-500/30",
-            icon: "moon"
-          };
-        }
-        if (text.includes("dock") || text.includes("unloading") || text.includes("loading") || text.includes("warehouse") || text.includes("gate") || text.includes("holding")) {
-          return {
-            category: "Dock Jam",
-            action: "Escalate with client logistics team for priority dock bay allocation",
-            badgeColor: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-            icon: "anchor"
-          };
-        }
-        return {
-          category: "Operational Delay",
-          action: "Review telemetry log and audit transit timeline",
-          badgeColor: "bg-rose-500/10 text-rose-300 border-rose-500/20",
-          icon: "alert-triangle"
-        };
-      };
-
-      // Categorized AI review list
-      const aiDelayRecords = useMemo(() => {
-        return delayedTrips.map(trip => {
-          const classification = classifyDelay(trip.remarks);
-          return {
-            ...trip,
-            classification
-          };
-        });
-      }, [delayedTrips]);
-
-      // Category breakdown counts
-      const aiCategoryCounts = useMemo(() => {
-        const counts = {
-          Breakdown: 0,
-          "Driver Issue": 0,
-          "Traffic Jam": 0,
-          "Single Driver Fatigue": 0,
-          "Dock Jam": 0,
-          Unexplained: 0
-        };
-        aiDelayRecords.forEach(r => {
-          if (counts[r.classification.category] !== undefined) {
-            counts[r.classification.category]++;
+        records.forEach(r => {
+          const client = r.client || 'Unknown Client';
+          if (!map[client]) {
+            map[client] = { name: client, total: 0, closed: 0, delayed: 0 };
+          }
+          map[client].total += 1;
+          const rem = (r.remarks || '').toLowerCase();
+          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
+          if (isDelayed) {
+            map[client].delayed += 1;
+          } else if (r.status.toLowerCase().includes('closed')) {
+            map[client].closed += 1;
           }
         });
-        return counts;
-      }, [aiDelayRecords]);
 
-      const filteredAiRecords = useMemo(() => {
-        if (aiCategoryFilter === "all") return aiDelayRecords;
-        return aiDelayRecords.filter(r => r.classification.category === aiCategoryFilter);
-      }, [aiDelayRecords, aiCategoryFilter]);
+        return Object.values(map).map(c => {
+          const onTimeRate = c.total > 0 ? Math.round(((c.total - c.delayed) / c.total) * 100) : 100;
+          return {
+            ...c,
+            sla: Math.max(0, onTimeRate),
+            status: onTimeRate >= 85 ? 'Compliant' : onTimeRate >= 60 ? 'Moderate' : 'At Risk'
+          };
+        }).sort((a, b) => b.total - a.total);
+      }, [records]);
 
-      // Action Plan Generator simulation
-      const handleGenerateAiPlan = () => {
-        setIsAiGenerating(true);
-        setTimeout(() => {
-          const breakdownCount = aiCategoryCounts["Breakdown"] || 0;
-          const driverCount = aiCategoryCounts["Driver Issue"] || 0;
-          const trafficCount = aiCategoryCounts["Traffic Jam"] || 0;
-          const singleDriverCount = aiCategoryCounts["Single Driver Fatigue"] || 0;
-          const dockCount = aiCategoryCounts["Dock Jam"] || 0;
-          const unexplainedCount = aiCategoryCounts["Unexplained"] || 0;
+      // Staff Performance Aggregation
+      const staffStats = useMemo(() => {
+        const map = {};
+        records.forEach(r => {
+          const staff = r.staff || 'Unknown Staff';
+          if (!map[staff]) {
+            map[staff] = { name: staff, total: 0, closed: 0, delayed: 0 };
+          }
+          map[staff].total += 1;
+          const rem = (r.remarks || '').toLowerCase();
+          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
+          if (isDelayed) {
+            map[staff].delayed += 1;
+          } else if (r.status.toLowerCase().includes('closed')) {
+            map[staff].closed += 1;
+          }
+        });
 
-          const breakdownVehicles = aiDelayRecords
-            .filter(r => r.classification.category === 'Breakdown')
-            .map(r => r.vehicle)
-            .join(", ") || "No current units";
+        return Object.values(map).map(s => {
+          const onTimeRate = s.total > 0 ? Math.round(((s.total - s.delayed) / s.total) * 100) : 100;
+          return {
+            ...s,
+            sla: Math.max(0, onTimeRate),
+            status: onTimeRate >= 85 ? 'Top Pilot' : onTimeRate >= 60 ? 'Satisfactory' : 'Needs Review'
+          };
+        }).sort((a, b) => b.total - a.total);
+      }, [records]);
 
-          const planLines = [
-            "🚨 AUTOMATED AI DISPATCH DIRECTIVE | GENERATED FOR " + new Date().toLocaleTimeString(),
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            "1. MECHANICAL & ROAD REPAIRS (" + breakdownCount + " Vehicles)",
-            "   ➔ Priority: Immediate emergency dispatch to " + breakdownVehicles + ". Authorize highway roadside vendor PO.",
-            "",
-            "2. DRIVER ALLOCATION & FATIGUE (" + (driverCount + singleDriverCount) + " Vehicles)",
-            "   ➔ Action: Single-driver routes (>450km) show recurring rest stops. Mandate 2-driver staffing on Delhi-Mumbai & Pune-Bengaluru line-hauls.",
-            "",
-            "3. TRAFFIC & DOCK CONGESTION (" + (trafficCount + dockCount) + " Vehicles)",
-            "   ➔ Directive: Advance notification to client receivers (Amazon/Reliance) to reserve dock bays 2 hours before gate arrival.",
-            "",
-            "4. COMPLIANCE AUDIT (" + unexplainedCount + " Vehicles without remarks)",
-            "   ➔ Immediate action required: Mandatory incident reports demanded from drivers with 0 explanation tags."
-          ];
+      // Route Performance Aggregation
+      const routeStats = useMemo(() => {
+        const map = {};
+        records.forEach(r => {
+          const route = r.route || 'Unknown Corridor';
+          if (!map[route]) {
+            map[route] = { name: route, total: 0, closed: 0, delayed: 0 };
+          }
+          map[route].total += 1;
+          const rem = (r.remarks || '').toLowerCase();
+          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
+          if (isDelayed) {
+            map[route].delayed += 1;
+          } else if (r.status.toLowerCase().includes('closed')) {
+            map[route].closed += 1;
+          }
+        });
 
-          setAiPlanOutput(planLines.join("\n"));
-          setIsAiGenerating(false);
-        }, 500);
-      };
+        return Object.values(map).map(rt => {
+          const onTimeRate = rt.total > 0 ? Math.round(((rt.total - rt.delayed) / rt.total) * 100) : 100;
+          return {
+            ...rt,
+            sla: Math.max(0, onTimeRate),
+            status: onTimeRate >= 85 ? 'Optimal' : onTimeRate >= 60 ? 'Congested' : 'Bottleneck'
+          };
+        }).sort((a, b) => b.total - a.total);
+      }, [records]);
 
-      // Calendar helpers
-      const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ];
+      // Filtered records for Day Wise Arrival
+      const filteredArrivals = useMemo(() => {
+        return records.filter(r => {
+          const matchDate = !selectedDate || r.date === selectedDate;
+          const matchClient = !selectedClientFilter || r.client === selectedClientFilter;
+          const matchStaff = !selectedStaffFilter || r.staff === selectedStaffFilter;
+          return matchDate && matchClient && matchStaff;
+        });
+      }, [records, selectedDate, selectedClientFilter, selectedStaffFilter]);
+
+      // Only Delayed records
+      const delayedRecords = useMemo(() => {
+        return records.filter(r => {
+          const rem = (r.remarks || '').toLowerCase();
+          const st = (r.status || '').toLowerCase();
+          return st.includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion') || rem.includes('sickness');
+        });
+      }, [records]);
+
+      // Categorize Delayed vehicles for AI Review
+      const categorizedDelays = useMemo(() => {
+        return delayedRecords.map(r => {
+          const rem = (r.remarks || '').toLowerCase();
+          let category = 'Other Delay';
+          let actionRequired = 'Investigate corridor timeline with local supervisor';
+
+          if (rem.includes('breakdown') || rem.includes('leak') || rem.includes('tyre') || rem.includes('mechanical') || rem.includes('coolant')) {
+            category = 'Breakdown';
+            actionRequired = 'Deploy emergency mobile mechanic & arrange towing relief';
+          } else if (rem.includes('driver sickness') || rem.includes('driver issue') || rem.includes('driver absence')) {
+            category = 'Driver Issue';
+            actionRequired = 'Summon backup standby pilot & collect driver medical note';
+          } else if (rem.includes('traffic') || rem.includes('toll') || rem.includes('nh48') || rem.includes('jam') || rem.includes('rain')) {
+            category = 'Traffic Jam';
+            actionRequired = 'Issue bypass highway diversion GPS coordinates via control tower';
+          } else if (rem.includes('single driver') || rem.includes('rest') || rem.includes('fatigue')) {
+            category = 'Single Driver';
+            actionRequired = 'Enforce 45-min mandatory log & schedule twin-driver crew for >400km';
+          } else if (rem.includes('dock') || rem.includes('unloading') || rem.includes('congestion') || rem.includes('wh')) {
+            category = 'Dock Jam';
+            actionRequired = 'Escalate with client WH dock coordinator to authorize fast-track bay';
+          }
+
+          return { ...r, category, actionRequired };
+        });
+      }, [delayedRecords]);
+
+      const filteredAiDelays = useMemo(() => {
+        if (aiDelayCategory === 'ALL') return categorizedDelays;
+        return categorizedDelays.filter(d => d.category === aiDelayCategory);
+      }, [categorizedDelays, aiDelayCategory]);
+
+      // Available unique clients & staff for dropdown filters
+      const uniqueClients = useMemo(() => Array.from(new Set(records.map(r => r.client))).filter(Boolean), [records]);
+      const uniqueStaff = useMemo(() => Array.from(new Set(records.map(r => r.staff))).filter(Boolean), [records]);
+
+      // Calendar month days calculation
+      const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+      const firstDayOffset = (year, month) => new Date(year, month, 1).getDay(); // 0 = Sun
 
       const calendarDays = useMemo(() => {
-        const firstDay = new Date(calYear, calMonth, 1).getDay();
-        const totalDays = new Date(calYear, calMonth + 1, 0).getDate();
-        const startOffset = (firstDay + 6) % 7; // Mon start
         const days = [];
-        for (let i = 0; i < startOffset; i++) days.push(null);
+        const totalDays = daysInMonth(calYear, calMonth);
+        const offset = firstDayOffset(calYear, calMonth);
+        const adjustedOffset = offset === 0 ? 6 : offset - 1; // Mon = 0
+
+        for (let i = 0; i < adjustedOffset; i++) {
+          days.push(null);
+        }
         for (let d = 1; d <= totalDays; d++) {
-          const mStr = String(calMonth + 1).padStart(2, '0');
-          const dStr = String(d).padStart(2, '0');
-          const dateString = `${calYear}-${mStr}-${dStr}`;
-          const hasRecords = trips.some(t => t.date === dateString);
-          days.push({ day: d, dateString, hasRecords });
+          const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          days.push({ day: d, dateStr });
         }
         return days;
-      }, [calYear, calMonth, trips]);
+      }, [calYear, calMonth]);
 
-      // Company Logo Helper
-      const renderCompanyLogo = (clientName) => {
-        const name = (clientName || "").toLowerCase();
-        if (name.includes("amazon")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#131921] border border-amber-500/30 flex items-center justify-center shrink-0" title="Amazon India">
-              <span className="text-[10px] font-black text-amber-400">a</span>
-            </div>
-          );
-        }
-        if (name.includes("flipkart")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#2874f0] flex items-center justify-center shrink-0 shadow-sm" title="Flipkart Wholesale">
-              <span className="text-[10px] font-black text-[#ffe500] italic">f</span>
-            </div>
-          );
-        }
-        if (name.includes("reliance")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#d8232a] flex items-center justify-center shrink-0 shadow-sm" title="Reliance Retail">
-              <span className="text-[9px] font-black text-white">R</span>
-            </div>
-          );
-        }
-        if (name.includes("tata")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#0f2c59] border border-blue-400/40 flex items-center justify-center shrink-0" title="Tata Consumer">
-              <span className="text-[7px] font-extrabold text-blue-200 tracking-tighter">TATA</span>
-            </div>
-          );
-        }
-        if (name.includes("bluedart")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#002b66] border border-cyan-400/30 flex items-center justify-center shrink-0" title="BlueDart Express">
-              <span className="text-[8px] font-black text-cyan-300">BD</span>
-            </div>
-          );
-        }
-        if (name.includes("delhivery")) {
-          return (
-            <div className="w-5 h-5 rounded-md bg-[#b71c1c] flex items-center justify-center shrink-0" title="Delhivery Crossdock">
-              <span className="text-[9px] font-black text-white">D</span>
-            </div>
-          );
-        }
-        return (
-          <div className="w-5 h-5 rounded-md bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-300 shrink-0 text-[9px] font-bold">
-            {clientName.charAt(0) || "C"}
-          </div>
-        );
+      // Mock AI Action Generation
+      const handleGenerateAiReport = () => {
+        setAiGenerating(true);
+        setTimeout(() => {
+          setAiGenerating(false);
+          setAiReportOutput({
+            summary: `Automated analysis completed across ${delayedRecords.length} delayed operations. Critical friction identified in Rewari corridor and NH48 toll junction.`,
+            criticalFlags: [
+              'High frequency breakdown on Haryana/Rajasthan freight corridor (DL/HR vehicles). Recommend mandatory fleet radiator & tyre pressure inspections prior to departure.',
+              'Single Driver regulations breached on long hauls exceeding 500km (KA-05-FF-4321). Enforce dual-pilot rosters for all south-bound transit.',
+              'Flipkart & Reliance retail delivery docks experiencing 3.2 hr average handover turnarounds. Issue formal dock bay reservation notices to client hub managers.'
+            ],
+            immediateOrders: [
+              'Action Order #1: Route vehicle HR-26-EE-9901 to nearest authorized workshop for suspension check.',
+              'Action Order #2: Issue automated driver changeover alert for Bangalore-Chennai corridor.',
+              'Action Order #3: Apply contractual grace period waivers for NH48 toll choke points.'
+            ]
+          });
+        }, 800);
       };
 
-      const navItems = [
-        { id: "overall", label: "Over All Performance", icon: "activity" },
-        { id: "client", label: "Client Wise Performance", icon: "briefcase" },
-        { id: "staff", label: "Staff Wise Performance", icon: "user" },
-        { id: "daywise", label: "Day Wise Arrival Report", icon: "calendar" },
-        { id: "delay", label: "Only Delay Arrival Report", icon: "alert-triangle" },
-        { id: "ai_review", label: "AI Delay Review", icon: "bot" }
-      ];
-
       return (
-        <div className="min-h-screen flex flex-col md:flex-row antialiased overflow-x-hidden">
-
-          {/* ================= MOBILE HEADER (< md screens) ================= */}
-          <div className="md:hidden bg-[#120306]/95 border-b border-white/10 px-4 py-3 flex items-center justify-between sticky top-0 z-40 backdrop-blur-xl">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-600 to-red-600 flex items-center justify-center shadow-md shadow-rose-950/80 shrink-0">
+        <div className="flex flex-col md:flex-row min-h-screen text-slate-100">
+          
+          {/* MOBILE TOP BAR (< md) */}
+          <div className="md:hidden glass-panel border-b border-wine-500/20 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-wine-600 flex items-center justify-center shadow-lg shadow-rose-900/40">
                 <i data-lucide="shield" className="w-4 h-4 text-white"></i>
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-xs text-white tracking-tight">FLEET CONTROL</span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">V5</span>
+                <div className="flex items-center space-x-1.5">
+                  <span className="font-extrabold text-xs tracking-wider text-white">FLEET CONTROL</span>
+                  <span className="px-1.5 py-0.2 text-[8px] font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">V5</span>
                 </div>
-                <p className="text-[10px] text-white/40">Logistics Mobile Center</p>
+                <p className="text-[9px] text-wine-300/70 font-mono tracking-tight">Logistics Command Center</p>
               </div>
             </div>
 
             <button
-              type="button"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white flex items-center justify-center focus:outline-none"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 rounded-lg bg-wine-800/80 border border-wine-500/30 text-rose-300 hover:text-white"
             >
-              <i data-lucide={isMobileMenuOpen ? "x" : "menu"} className="w-4 h-4 text-rose-400"></i>
+              <i data-lucide={mobileMenuOpen ? "x" : "menu"} className="w-5 h-5"></i>
             </button>
           </div>
 
-          {/* Mobile Drawer Navigation */}
-          <AnimatePresence>
-            {isMobileMenuOpen && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="md:hidden bg-[#150307] border-b border-white/10 px-4 py-3 space-y-1.5 z-30"
-              >
-                {navItems.map((item) => {
+          {/* MOBILE EXPANDABLE DRAWER */}
+          {mobileMenuOpen && (
+            <div className="md:hidden fixed inset-x-0 top-14 bottom-0 bg-wine-950/95 backdrop-blur-xl z-40 p-4 flex flex-col space-y-2 border-b border-rose-500/20">
+              {[
+                { id: 'overall', label: 'Over All Performance', icon: 'activity' },
+                { id: 'client', label: 'Client Wise Performance', icon: 'briefcase' },
+                { id: 'staff', label: 'Staff Wise Performance', icon: 'user' },
+                { id: 'arrival', label: 'Day Wise Arrival Report', icon: 'calendar' },
+                { id: 'delay', label: 'Only Delay Arrival Report', icon: 'alert-triangle' },
+                { id: 'ai_review', label: 'AI Delay Review', icon: 'bot' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
+                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    activeTab === tab.id ? 'glass-nav-active text-white' : 'text-slate-300 hover:bg-wine-900/60'
+                  }`}
+                >
+                  <i data-lucide={tab.icon} className="w-4 h-4 shrink-0"></i>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* COMPACT DESKTOP SIDEBAR (w-56) */}
+          <aside className="hidden md:flex md:w-56 glass-panel border-r border-wine-500/20 p-3.5 flex-col shrink-0 justify-between">
+            <div className="space-y-5">
+              {/* BRAND HEADER */}
+              <div className="flex items-center space-x-2.5 px-1 py-1">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-wine-600 flex items-center justify-center shadow-lg shadow-rose-900/40">
+                  <i data-lucide="shield" className="w-4 h-4 text-white"></i>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="font-extrabold text-xs tracking-wider text-white">FLEET CONTROL</span>
+                    <span className="px-1 py-0.2 text-[8px] font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">V5</span>
+                  </div>
+                  <p className="text-[9px] text-wine-300/70 font-mono tracking-tight">Logistics Command Center</p>
+                </div>
+              </div>
+
+              {/* NAV ITEMS */}
+              <nav className="space-y-1">
+                {[
+                  { id: 'overall', label: 'Over All Performance', icon: 'activity' },
+                  { id: 'client', label: 'Client Wise Performance', icon: 'briefcase' },
+                  { id: 'staff', label: 'Staff Wise Performance', icon: 'user' },
+                  { id: 'arrival', label: 'Day Wise Arrival Report', icon: 'calendar' },
+                  { id: 'delay', label: 'Only Delay Arrival Report', icon: 'alert-triangle' },
+                  { id: 'ai_review', label: 'AI Delay Review', icon: 'bot' },
+                ].map((item) => {
                   const isActive = activeTab === item.id;
                   return (
                     <button
                       key={item.id}
-                      onClick={() => {
-                        setActiveTab(item.id);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                        isActive ? "bg-rose-600 text-white font-bold" : "text-white/70 hover:text-white hover:bg-white/5"
+                      onClick={() => setActiveTab(item.id)}
+                      className={`relative w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all ${
+                        isActive
+                          ? 'glass-nav-active text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-wine-900/60'
                       }`}
                     >
-                      <i data-lucide={item.icon} className={`w-4 h-4 ${isActive ? 'text-white' : 'text-rose-400'}`}></i>
-                      <span>{item.label}</span>
+                      <i data-lucide={item.icon} className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-rose-300/70'}`}></i>
+                      <span className="truncate">{item.label}</span>
+                      {isActive && (
+                        <span className="absolute right-2 w-1 h-3 rounded-full bg-white/90 shadow-sm" />
+                      )}
                     </button>
                   );
                 })}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Mobile Quick-Scroll Tab Strip */}
-          <div className="md:hidden bg-[#0d0104] px-3 py-2 border-b border-white/5 overflow-x-auto flex items-center gap-2 custom-scroll">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition shrink-0 ${
-                    isActive ? "bg-rose-600 text-white shadow-sm" : "bg-white/5 text-white/60 hover:text-white"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ================= COMPACT LAPTOP/DESKTOP SIDEBAR (w-56) ================= */}
-          <aside className="hidden md:flex md:w-56 bg-[#120306] border-r border-white/5 p-3.5 flex-col justify-between shrink-0 min-h-screen sticky top-0 h-screen">
-            <div className="space-y-4">
-
-              {/* Brand Header */}
-              <div className="flex items-center gap-2.5 px-1 pt-1">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-600 to-red-600 flex items-center justify-center shadow-md shadow-rose-950/80 shrink-0">
-                  <i data-lucide="shield" className="w-4 h-4 text-white"></i>
-                </div>
-                <div className="truncate">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-xs text-white tracking-tight">FLEET CONTROL</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">V5</span>
-                  </div>
-                  <p className="text-[10px] text-white/40 truncate">Logistics Command Center</p>
-                </div>
-              </div>
-
-              {/* Nav Navigation Items */}
-              <nav className="space-y-1.5 pt-2 relative">
-                {navItems.map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <motion.button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-150 relative z-10 ${
-                        isActive ? "text-white font-bold" : "text-white/60 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 truncate z-10">
-                        <i data-lucide={item.icon} className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-rose-400'}`}></i>
-                        <span className="truncate">{item.label}</span>
-                      </div>
-
-                      {isActive && (
-                        <>
-                          <motion.div
-                            layoutId="activeNavBackground"
-                            className="absolute inset-0 rounded-xl active-nav-pill -z-0"
-                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                          />
-                          <span className="w-1 h-3 bg-white rounded-full shadow-sm shrink-0 ml-1 z-10"></span>
-                        </>
-                      )}
-                    </motion.button>
-                  );
-                })}
               </nav>
-
             </div>
 
-            {/* Bottom Meta Status */}
-            <div className="pt-3 border-t border-white/5">
-              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center gap-2 text-[10px] text-white/50">
-                <i data-lucide="file-spreadsheet" className="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
-                <div className="overflow-hidden">
-                  <p className="text-[9px] uppercase font-bold text-white/30 tracking-wider">Live Telemetry</p>
-                  <p className="text-white/80 font-mono text-[10px] truncate">{trips.length} Dispatches Synced</p>
-                </div>
-              </div>
+            {/* SIDEBAR FOOTER */}
+            <div className="pt-3 border-t border-wine-500/20 text-[10px] text-wine-300/60 font-mono flex items-center justify-between px-1">
+              <span>ACTIVE SYSTEM</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span className="text-emerald-400 font-semibold">LIVE</span>
+              </span>
             </div>
           </aside>
 
-          {/* ================= RIGHT WORKSPACE ================= */}
-          <main className="flex-1 p-3.5 sm:p-5 md:p-7 overflow-y-auto space-y-4 sm:space-y-5">
-
-            {/* BORDERLESS TOP BAR (NO CARD CONTAINER FOR TITLE) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
+          {/* MAIN WORKSPACE CONTENT */}
+          <main className="flex-1 p-3 md:p-6 space-y-4 max-w-7xl mx-auto w-full">
+            
+            {/* CLEAN BORDERLESS TOP BAR (NO CARD) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-wine-500/20">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white capitalize">
-                  {navItems.find(i => i.id === activeTab)?.label}
-                </h2>
-                <p className="text-[11px] sm:text-xs text-white/40 mt-0.5">Live operational telemetry & dispatch management</p>
+                <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
+                  {activeTab === 'overall' && 'Over All Performance'}
+                  {activeTab === 'client' && 'Client Wise Performance Report'}
+                  {activeTab === 'staff' && 'Staff Wise Performance Report'}
+                  {activeTab === 'arrival' && 'Day Wise Arrival Chronology'}
+                  {activeTab === 'delay' && 'Only Delay Arrival Exceptions'}
+                  {activeTab === 'ai_review' && 'AI Operational Delay Review'}
+                </h1>
+                <p className="text-[11px] text-wine-200/60 font-mono">
+                  Real-time operational telemetry, SLA compliance, and dispatch management
+                </p>
               </div>
 
-              {/* Upload & Sample buttons ONLY visible on Over All Performance */}
-              {activeTab === "overall" && (
-                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap sm:flex-nowrap">
-                  <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      setTrips(INITIAL_RECORDS);
-                      setFilterDate("");
-                      setFilterClient("");
-                      setFilterStaff("");
-                    }}
-                    className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition"
+              {/* FILE UPLOAD CONTROLS (Over All Performance only) */}
+              {activeTab === 'overall' && (
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    onClick={() => setRecords(INITIAL_RECORDS)}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-wine-900/80 hover:bg-wine-800 border border-wine-500/30 text-rose-200 text-xs font-semibold transition shadow-sm"
                   >
-                    <i data-lucide="sparkles" className="w-3.5 h-3.5 text-amber-400"></i>
+                    <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
                     <span>Load Sample</span>
-                  </motion.button>
+                  </button>
 
-                  <motion.label
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="cursor-pointer px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-rose-950/80 transition"
-                  >
-                    <i data-lucide="upload-cloud" className="w-3.5 h-3.5 text-white"></i>
+                  <label className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition">
+                    <i data-lucide="upload" className="w-3.5 h-3.5"></i>
                     <span>Upload Excel File</span>
-                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
-                  </motion.label>
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               )}
             </div>
 
-            {/* Content Views */}
-            <AnimatePresence mode="wait">
+            {/* HORIZONTAL INLINE METRICS (NO CARDS - ONLY NUMBERS & LABELS) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-2 px-1">
+              <div className="flex items-baseline space-x-2 border-l-2 border-white/20 pl-3">
+                <span className="text-2xl md:text-3xl font-black text-white font-mono">{metrics.total}</span>
+                <div>
+                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Total Fleet Trips</div>
+                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Total active recorded dispatches</div>
+                </div>
+              </div>
 
-              {/* TAB 1: OVER ALL PERFORMANCE */}
-              {activeTab === "overall" && (
-                <motion.div
-                  key="overall-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4 sm:space-y-5"
-                >
-                  {/* SLEEK STATS: 2x2 ON MOBILE, INLINE ROW ON LAPTOP/DESKTOP */}
-                  <div className="grid grid-cols-2 md:flex md:flex-wrap md:items-center md:justify-between gap-3 sm:gap-4 py-2 px-1 border-b border-white/5">
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
-                      <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">{totalTrips}</span>
-                      <div>
-                        <p className="text-[10px] sm:text-[11px] font-bold text-white/70 uppercase tracking-wider">Total Fleet Trips</p>
-                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Total active recorded dispatches</p>
-                      </div>
-                    </div>
+              <div className="flex items-baseline space-x-2 border-l-2 border-blue-500/40 pl-3">
+                <span className="text-2xl md:text-3xl font-black text-blue-400 font-mono">{metrics.inTransit}</span>
+                <div>
+                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">In-Transit Vehicle</div>
+                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Active line-haul movements</div>
+                </div>
+              </div>
 
-                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
+              <div className="flex items-baseline space-x-2 border-l-2 border-emerald-500/40 pl-3">
+                <span className="text-2xl md:text-3xl font-black text-emerald-400 font-mono">{metrics.closed}</span>
+                <div>
+                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Trip Closed</div>
+                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Completed on-time dispatches</div>
+                </div>
+              </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
-                      <span className="text-2xl sm:text-3xl font-black text-blue-400 tracking-tight">{inTransitCount}</span>
-                      <div>
-                        <p className="text-[10px] sm:text-[11px] font-bold text-blue-400/90 uppercase tracking-wider">In-Transit Vehicle</p>
-                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Active line-haul movements</p>
-                      </div>
-                    </div>
+              <div className="flex items-baseline space-x-2 border-l-2 border-rose-500/40 pl-3">
+                <span className="text-2xl md:text-3xl font-black text-rose-400 font-mono">{metrics.delayed}</span>
+                <div>
+                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Delay Closed</div>
+                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Delayed exception completions</div>
+                </div>
+              </div>
+            </div>
 
-                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
-                      <span className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">{closedCount}</span>
-                      <div>
-                        <p className="text-[10px] sm:text-[11px] font-bold text-emerald-400/90 uppercase tracking-wider">Trip Closed</p>
-                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Completed on-time dispatches</p>
-                      </div>
-                    </div>
-
-                    <div className="hidden md:block h-8 w-px bg-white/10"></div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 p-2 sm:p-0 bg-white/[0.02] sm:bg-transparent rounded-xl border border-white/5 sm:border-0">
-                      <span className="text-2xl sm:text-3xl font-black text-rose-400 tracking-tight">{delayClosedCount}</span>
-                      <div>
-                        <p className="text-[10px] sm:text-[11px] font-bold text-rose-400/90 uppercase tracking-wider">Delay Closed</p>
-                        <p className="text-[9px] sm:text-[10px] text-white/40 hidden sm:block">Delayed exception completions</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1. Client Wise Performance Report (NO In-Transit Column) */}
-                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <i data-lucide="briefcase" className="w-3.5 h-3.5 text-rose-400"></i>
-                        <span>Client Wise Performance Report</span>
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
-                        {clientStats.length} Accounts Active
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto custom-scroll">
-                      <table className="w-full text-left text-[11px] whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                            <th className="py-2 px-3">Client Name</th>
-                            <th className="py-2 px-3 text-center">Total Trips</th>
-                            <th className="py-2 px-3 text-center">Trip Closed</th>
-                            <th className="py-2 px-3 text-center">Delay Closed</th>
-                            <th className="py-2 px-3">On-Time SLA %</th>
-                            <th className="py-2 px-3 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {clientStats.map((c, idx) => (
-                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
-                                {renderCompanyLogo(c.name)}
-                                <span>{c.name}</span>
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{c.total}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{c.closed}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{c.delayed}</td>
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <div
-                                      style={{ width: `${c.sla}%` }}
-                                      className={`h-full rounded-full ${
-                                        c.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
-                                        c.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
-                                        'bg-gradient-to-r from-rose-600 to-red-500'
-                                      }`}
-                                    />
-                                  </div>
-                                  <span className={`font-mono font-bold text-[10px] ${
-                                    c.sla >= 90 ? 'text-emerald-400' :
-                                    c.sla >= 60 ? 'text-amber-400' :
-                                    'text-rose-400'
-                                  }`}>
-                                    {c.sla}%
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-right">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
-                                  c.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                  c.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                }`}>
-                                  {c.sla >= 90 ? 'Compliant' : c.sla >= 60 ? 'Moderate' : 'At Risk'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* 2. Staff Wise Performance Report (NO In-Transit Column) */}
-                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <i data-lucide="user" className="w-3.5 h-3.5 text-rose-400"></i>
-                        <span>Staff Wise Performance Report</span>
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
-                        {staffStats.length} Personnel
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto custom-scroll">
-                      <table className="w-full text-left text-[11px] whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                            <th className="py-2 px-3">Staff / Driver</th>
-                            <th className="py-2 px-3 text-center">Total Assigned</th>
-                            <th className="py-2 px-3 text-center">Trip Closed</th>
-                            <th className="py-2 px-3 text-center">Delay Closed</th>
-                            <th className="py-2 px-3">On-Time SLA %</th>
-                            <th className="py-2 px-3 text-right">Rating</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {staffStats.map((s, idx) => (
-                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-                                  <i data-lucide="user" className="w-3 h-3"></i>
-                                </div>
-                                <span>{s.name}</span>
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{s.total}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{s.closed}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{s.delayed}</td>
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <div
-                                      style={{ width: `${s.sla}%` }}
-                                      className={`h-full rounded-full ${
-                                        s.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
-                                        s.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
-                                        'bg-gradient-to-r from-rose-600 to-red-500'
-                                      }`}
-                                    />
-                                  </div>
-                                  <span className={`font-mono font-bold text-[10px] ${
-                                    s.sla >= 90 ? 'text-emerald-400' :
-                                    s.sla >= 60 ? 'text-amber-400' :
-                                    'text-rose-400'
-                                  }`}>
-                                    {s.sla}%
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-right">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
-                                  s.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                  s.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                }`}>
-                                  {s.sla >= 90 ? 'Top Pilot' : s.sla >= 60 ? 'Satisfactory' : 'Needs Review'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* 3. Route Wise Performance Report (NO In-Transit Column) */}
-                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <i data-lucide="map-pin" className="w-3.5 h-3.5 text-rose-400"></i>
-                        <span>Route Wise Performance Report</span>
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono font-semibold">
-                        {routeStats.length} Corridors
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto custom-scroll">
-                      <table className="w-full text-left text-[11px] whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                            <th className="py-2 px-3">Route / Corridor</th>
-                            <th className="py-2 px-3 text-center">Total Dispatches</th>
-                            <th className="py-2 px-3 text-center">Trip Closed</th>
-                            <th className="py-2 px-3 text-center">Delay Closed</th>
-                            <th className="py-2 px-3">Corridor SLA %</th>
-                            <th className="py-2 px-3 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {routeStats.map((r, idx) => (
-                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="py-2 px-3 font-semibold text-white flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-                                  <i data-lucide="corner-down-right" className="w-3 h-3"></i>
-                                </div>
-                                <span>{r.name}</span>
-                              </td>
-                              <td className="py-2 px-3 text-center font-bold text-white font-mono">{r.total}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-emerald-400 font-mono">{r.closed}</td>
-                              <td className="py-2 px-3 text-center font-semibold text-rose-400 font-mono">{r.delayed}</td>
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-16 sm:w-24 bg-white/10 h-1.5 rounded-full overflow-hidden">
-                                    <div
-                                      style={{ width: `${r.sla}%` }}
-                                      className={`h-full rounded-full ${
-                                        r.sla >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' :
-                                        r.sla >= 60 ? 'bg-gradient-to-r from-amber-500 to-orange-400' :
-                                        'bg-gradient-to-r from-rose-600 to-red-500'
-                                      }`}
-                                    />
-                                  </div>
-                                  <span className={`font-mono font-bold text-[10px] ${
-                                    r.sla >= 90 ? 'text-emerald-400' :
-                                    r.sla >= 60 ? 'text-amber-400' :
-                                    'text-rose-400'
-                                  }`}>
-                                    {r.sla}%
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-right">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${
-                                  r.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                  r.sla >= 60 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                  'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                                }`}>
-                                  {r.sla >= 90 ? 'Optimal' : r.sla >= 60 ? 'Congested' : 'Bottleneck'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                </motion.div>
-              )}
-
-              {/* TAB 2: CLIENT WISE PERFORMANCE */}
-              {activeTab === "client" && (
-                <motion.div
-                  key="client-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
-                >
+            {/* TAB 1: OVER ALL PERFORMANCE */}
+            {activeTab === 'overall' && (
+              <div className="space-y-4">
+                
+                {/* 1. Client Wise Performance Table */}
+                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Client Portfolio Compliance</h3>
-                      <p className="text-[11px] sm:text-xs text-white/40">Detailed accounts breakdown, SLA compliance, and closed shipment volume</p>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                        <i data-lucide="briefcase" className="w-3.5 h-3.5"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA compliance</p>
+                      </div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono">
-                      {clientStats.length} Accounts
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
+                      {clientStats.length} Accounts Active
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto custom-scroll">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
                       <thead>
-                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                          <th className="py-2.5 px-3">Client</th>
-                          <th className="py-2.5 px-3 text-center">Total Trips</th>
-                          <th className="py-2.5 px-3 text-center">Trip Closed</th>
-                          <th className="py-2.5 px-3 text-center">Delay Closed</th>
-                          <th className="py-2.5 px-3">SLA Compliance</th>
-                          <th className="py-2.5 px-3 text-right">Status</th>
+                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                          <th className="py-2 px-3">Client Name</th>
+                          <th className="py-2 px-3 text-center">Total Trips</th>
+                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
+                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
+                          <th className="py-2 px-3">On-Time SLA %</th>
+                          <th className="py-2 px-3 text-right">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {clientStats.map((c, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02]">
-                            <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-2">
-                              {renderCompanyLogo(c.name)}
-                              <span>{c.name}</span>
+                      <tbody className="divide-y divide-wine-500/10">
+                        {clientStats.map((c, i) => (
+                          <tr key={i} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 flex items-center space-x-2">
+                              <ClientBrandBadge name={c.name} />
+                              <span className="font-semibold text-white">{c.name}</span>
                             </td>
-                            <td className="py-2.5 px-3 text-center font-bold text-white font-mono">{c.total}</td>
-                            <td className="py-2.5 px-3 text-center font-semibold text-emerald-400 font-mono">{c.closed}</td>
-                            <td className="py-2.5 px-3 text-center font-semibold text-rose-400 font-mono">{c.delayed}</td>
-                            <td className="py-2.5 px-3">
-                              <span className="font-bold text-rose-400 font-mono">{c.sla}% SLA</span>
+                            <td className="py-2 px-3 text-center font-mono font-bold">{c.total}</td>
+                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
+                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${c.sla}%` }}
+                                  ></div>
+                                </div>
+                                <span className="font-mono text-[10px] text-slate-300">{c.sla}%</span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                c.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                            <td className="py-2 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                c.status === 'Compliant'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : c.status === 'Moderate'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                               }`}>
-                                {c.sla >= 90 ? 'Compliant' : 'Needs Review'}
+                                {c.status}
                               </span>
                             </td>
                           </tr>
@@ -969,60 +739,66 @@
                       </tbody>
                     </table>
                   </div>
-                </motion.div>
-              )}
+                </div>
 
-              {/* TAB 3: STAFF WISE PERFORMANCE */}
-              {activeTab === "staff" && (
-                <motion.div
-                  key="staff-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
-                >
+                {/* 2. Staff Wise Performance Table */}
+                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Staff / Driver Operational Ledger</h3>
-                      <p className="text-[11px] sm:text-xs text-white/40">Assignment volumes, closed clean shipments, and driver compliance</p>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                        <i data-lucide="user" className="w-3.5 h-3.5"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, trip closures, delay flags, and rating</p>
+                      </div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/20 font-mono">
-                      {staffStats.length} Drivers
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
+                      {staffStats.length} Drivers Recorded
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto custom-scroll">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
                       <thead>
-                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                          <th className="py-2.5 px-3">Staff / Driver</th>
-                          <th className="py-2.5 px-3 text-center">Total Assigned</th>
-                          <th className="py-2.5 px-3 text-center">Trip Closed</th>
-                          <th className="py-2.5 px-3 text-center">Delay Closed</th>
-                          <th className="py-2.5 px-3">Driver SLA %</th>
-                          <th className="py-2.5 px-3 text-right">Rating</th>
+                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                          <th className="py-2 px-3">Staff / Driver</th>
+                          <th className="py-2 px-3 text-center">Total Assigned</th>
+                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
+                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
+                          <th className="py-2 px-3">On-Time SLA %</th>
+                          <th className="py-2 px-3 text-right">Rating</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {staffStats.map((s, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02]">
-                            <td className="py-2.5 px-3 font-semibold text-white flex items-center gap-2">
-                              <i data-lucide="user" className="w-3.5 h-3.5 text-rose-400"></i>
-                              <span>{s.name}</span>
+                      <tbody className="divide-y divide-wine-500/10">
+                        {staffStats.map((s, i) => (
+                          <tr key={i} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 font-semibold text-white">{s.name}</td>
+                            <td className="py-2 px-3 text-center font-mono font-bold">{s.total}</td>
+                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
+                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${s.sla}%` }}
+                                  ></div>
+                                </div>
+                                <span className="font-mono text-[10px] text-slate-300">{s.sla}%</span>
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 text-center font-bold text-white font-mono">{s.total}</td>
-                            <td className="py-2.5 px-3 text-center font-semibold text-emerald-400 font-mono">{s.closed}</td>
-                            <td className="py-2.5 px-3 text-center font-semibold text-rose-400 font-mono">{s.delayed}</td>
-                            <td className="py-2.5 px-3">
-                              <span className="font-bold text-rose-400 font-mono">{s.sla}% SLA</span>
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                s.sla >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                                'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            <td className="py-2 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                s.status === 'Top Pilot'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : s.status === 'Satisfactory'
+                                  ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                               }`}>
-                                {s.sla >= 90 ? 'Top Pilot' : 'Satisfactory'}
+                                {s.status}
                               </span>
                             </td>
                           </tr>
@@ -1030,452 +806,632 @@
                       </tbody>
                     </table>
                   </div>
-                </motion.div>
-              )}
+                </div>
 
-              {/* TAB 4: DAY WISE ARRIVAL REPORT */}
-              {activeTab === "daywise" && (
-                <motion.div
-                  key="daywise-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                {/* 3. Route Wise Performance Table */}
+                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                        <i data-lucide="map-pin" className="w-3.5 h-3.5"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-bold text-white tracking-wide">Route Wise Performance Report</h2>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Transit corridor dispatches, choke points, and throughput</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
+                      {routeStats.length} Corridors
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead>
+                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                          <th className="py-2 px-3">Route / Corridor</th>
+                          <th className="py-2 px-3 text-center">Total Dispatches</th>
+                          <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
+                          <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
+                          <th className="py-2 px-3">Corridor SLA %</th>
+                          <th className="py-2 px-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-wine-500/10">
+                        {routeStats.map((r, i) => (
+                          <tr key={i} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 font-semibold text-white font-mono">{r.name}</td>
+                            <td className="py-2 px-3 text-center font-mono font-bold">{r.total}</td>
+                            <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{r.closed}</td>
+                            <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{r.delayed}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      r.sla >= 80 ? 'bg-emerald-400' : r.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${r.sla}%` }}
+                                  ></div>
+                                </div>
+                                <span className="font-mono text-[10px] text-slate-300">{r.sla}%</span>
+                              </div>
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                r.status === 'Optimal'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : r.status === 'Congested'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: CLIENT WISE PERFORMANCE (DEDICATED) */}
+            {activeTab === 'client' && (
+              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                      <i data-lucide="briefcase" className="w-3.5 h-3.5"></i>
+                    </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">Day Wise Arrival Chronology</h3>
-                      <p className="text-[11px] sm:text-xs text-white/40">Chronological vehicle arrivals with calendar date, client, and staff selectors</p>
+                      <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA compliance</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
+                    {clientStats.length} Accounts
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                        <th className="py-2 px-3">Client Name</th>
+                        <th className="py-2 px-3 text-center">Total Trips</th>
+                        <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
+                        <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
+                        <th className="py-2 px-3">On-Time SLA %</th>
+                        <th className="py-2 px-3 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-wine-500/10">
+                      {clientStats.map((c, i) => (
+                        <tr key={i} className="hover:bg-wine-900/30 transition">
+                          <td className="py-2 px-3 flex items-center space-x-2">
+                            <ClientBrandBadge name={c.name} />
+                            <span className="font-semibold text-white">{c.name}</span>
+                          </td>
+                          <td className="py-2 px-3 text-center font-mono font-bold">{c.total}</td>
+                          <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
+                          <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${c.sla}%` }}
+                                ></div>
+                              </div>
+                              <span className="font-mono text-[10px] text-slate-300">{c.sla}%</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                              c.status === 'Compliant'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : c.status === 'Moderate'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
+                              {c.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: STAFF WISE PERFORMANCE (DEDICATED) */}
+            {activeTab === 'staff' && (
+              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                      <i data-lucide="user" className="w-3.5 h-3.5"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, completions, delays, and performance rating</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
+                    {staffStats.length} Staff
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                        <th className="py-2 px-3">Staff / Driver</th>
+                        <th className="py-2 px-3 text-center">Total Assigned</th>
+                        <th className="py-2 px-3 text-center text-emerald-400">Trip Closed</th>
+                        <th className="py-2 px-3 text-center text-rose-400">Delay Closed</th>
+                        <th className="py-2 px-3">On-Time SLA %</th>
+                        <th className="py-2 px-3 text-right">Rating</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-wine-500/10">
+                      {staffStats.map((s, i) => (
+                        <tr key={i} className="hover:bg-wine-900/30 transition">
+                          <td className="py-2 px-3 font-semibold text-white">{s.name}</td>
+                          <td className="py-2 px-3 text-center font-mono font-bold">{s.total}</td>
+                          <td className="py-2 px-3 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
+                          <td className="py-2 px-3 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
+                          <td className="py-2 px-3">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-20 bg-wine-950 rounded-full h-1 overflow-hidden border border-wine-500/20">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+                                  }`}
+                                  style={{ width: `${s.sla}%` }}
+                                ></div>
+                              </div>
+                              <span className="font-mono text-[10px] text-slate-300">{s.sla}%</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                              s.status === 'Top Pilot'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : s.status === 'Satisfactory'
+                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
+                              {s.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: DAY WISE ARRIVAL REPORT */}
+            {activeTab === 'arrival' && (
+              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-4">
+                
+                {/* FILTERS TOOLBAR */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-wine-500/20">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
+                      <i data-lucide="calendar" className="w-3.5 h-3.5"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-xs font-bold text-white tracking-wide">Day Wise Arrival Chronology</h2>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Daily arrival logs with interactive calendar and entity filters</p>
+                    </div>
+                  </div>
+
+                  {/* FILTER CONTROLS */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    
+                    {/* CLIENT FILTER BUTTON */}
+                    <div className="relative">
+                      <select
+                        value={selectedClientFilter}
+                        onChange={(e) => setSelectedClientFilter(e.target.value)}
+                        className="glass-input text-[11px] font-semibold text-rose-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                      >
+                        <option value="" className="bg-wine-950 text-slate-300">All Clients</option>
+                        {uniqueClients.map((cl, idx) => (
+                          <option key={idx} value={cl} className="bg-wine-950 text-slate-200">{cl}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Filter Controls Row */}
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* STAFF FILTER BUTTON */}
+                    <div className="relative">
+                      <select
+                        value={selectedStaffFilter}
+                        onChange={(e) => setSelectedStaffFilter(e.target.value)}
+                        className="glass-input text-[11px] font-semibold text-rose-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                      >
+                        <option value="" className="bg-wine-950 text-slate-300">All Staff / Drivers</option>
+                        {uniqueStaff.map((st, idx) => (
+                          <option key={idx} value={st} className="bg-wine-950 text-slate-200">{st}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                      {/* 1. Compact Interactive Calendar Pop-up */}
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition shadow-md ${
-                            filterDate
-                              ? "bg-rose-500/20 border-rose-500 text-rose-200"
-                              : "bg-[#1f050b] hover:bg-[#28070e] border-rose-500/30 text-white"
-                          }`}
-                        >
-                          <i data-lucide="calendar" className="w-3.5 h-3.5 text-rose-400"></i>
-                          <span>{filterDate || "Select Date"}</span>
-                          <i data-lucide={isCalendarOpen ? "chevron-up" : "chevron-down"} className="w-3 h-3 text-white/50"></i>
-                        </button>
+                    {/* COMPACT CALENDAR TRIGGER BUTTON */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCalendar(!showCalendar)}
+                        className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-wine-900/90 border border-wine-500/30 text-rose-200 text-xs font-mono font-semibold hover:border-rose-400 transition"
+                      >
+                        <i data-lucide="calendar" className="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>{selectedDate || 'Select Date'}</span>
+                        <i data-lucide="chevron-down" className="w-3 h-3 text-wine-300"></i>
+                      </button>
 
-                        {/* Dropdown Calendar (w-60 compact, touch friendly) */}
-                        <AnimatePresence>
-                          {isCalendarOpen && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                              transition={{ duration: 0.15 }}
-                              className="absolute left-0 sm:left-auto sm:right-0 top-10 z-50 w-60 p-3 rounded-2xl bg-[#190308]/98 backdrop-blur-2xl border border-rose-500/30 shadow-2xl shadow-black/95 space-y-2"
+                      {/* COMPACT POP-UP CALENDAR */}
+                      {showCalendar && (
+                        <div className="absolute right-0 mt-2 z-50 w-60 glass-panel rounded-xl p-3 border border-rose-500/30 shadow-2xl space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-white">
+                            <button
+                              onClick={() => {
+                                if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
+                                else { setCalMonth(calMonth - 1); }
+                              }}
+                              className="p-1 rounded hover:bg-wine-800 text-wine-300 hover:text-white"
                             >
-                              {/* Month Nav */}
-                              <div className="flex items-center justify-between">
+                              <i data-lucide="chevron-left" className="w-3.5 h-3.5"></i>
+                            </button>
+                            <span className="font-mono text-[11px]">
+                              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][calMonth]} {calYear}
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); }
+                                else { setCalMonth(calMonth + 1); }
+                              }}
+                              className="p-1 rounded hover:bg-wine-800 text-wine-300 hover:text-white"
+                            >
+                              <i data-lucide="chevron-right" className="w-3.5 h-3.5"></i>
+                            </button>
+                          </div>
+
+                          {/* WEEKDAYS */}
+                          <div className="grid grid-cols-7 text-center text-[9px] font-bold text-wine-300/60 font-mono">
+                            <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
+                          </div>
+
+                          {/* DAYS GRID */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {calendarDays.map((item, idx) => {
+                              if (!item) return <div key={idx} className="h-6 w-6"></div>;
+                              const isSelected = selectedDate === item.dateStr;
+                              return (
                                 <button
-                                  type="button"
+                                  key={idx}
                                   onClick={() => {
-                                    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
-                                    else { setCalMonth(m => m - 1); }
+                                    setSelectedDate(item.dateStr);
+                                    setShowCalendar(false);
                                   }}
-                                  className="w-5 h-5 rounded bg-white/5 hover:bg-rose-500/20 text-white flex items-center justify-center transition"
+                                  className={`h-6 w-6 rounded text-[10px] font-mono flex items-center justify-center transition ${
+                                    isSelected
+                                      ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-900/50'
+                                      : 'hover:bg-wine-800 text-slate-300'
+                                  }`}
                                 >
-                                  <i data-lucide="chevron-left" className="w-3 h-3"></i>
+                                  {item.day}
                                 </button>
-                                <span className="text-[11px] font-bold text-white">
-                                  {monthNames[calMonth]} {calYear}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
-                                    else { setCalMonth(m => m + 1); }
-                                  }}
-                                  className="w-5 h-5 rounded bg-white/5 hover:bg-rose-500/20 text-white flex items-center justify-center transition"
-                                >
-                                  <i data-lucide="chevron-right" className="w-3 h-3"></i>
-                                </button>
-                              </div>
+                              );
+                            })}
+                          </div>
 
-                              {/* Days Header */}
-                              <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-rose-300/60 uppercase">
-                                <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
-                              </div>
-
-                              {/* Days Grid */}
-                              <div className="grid grid-cols-7 gap-0.5 text-center">
-                                {calendarDays.map((item, idx) => {
-                                  if (!item) return <div key={`empty-${idx}`} className="h-5 w-5"></div>;
-                                  const isSelected = filterDate === item.dateString;
-                                  return (
-                                    <button
-                                      key={item.dateString}
-                                      type="button"
-                                      onClick={() => {
-                                        setFilterDate(item.dateString);
-                                        setIsCalendarOpen(false);
-                                      }}
-                                      className={`h-5 w-5 mx-auto rounded text-[10px] font-medium flex items-center justify-center transition ${
-                                        isSelected
-                                          ? "bg-rose-600 text-white font-bold"
-                                          : item.hasRecords
-                                          ? "bg-rose-500/15 text-rose-200 hover:bg-rose-500/30 font-semibold"
-                                          : "text-white/40 hover:text-white"
-                                      }`}
-                                    >
-                                      {item.day}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Clear / Close Bottom Buttons */}
-                              <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px]">
-                                <button
-                                  type="button"
-                                  onClick={() => { setFilterDate(""); setIsCalendarOpen(false); }}
-                                  className="text-white/40 hover:text-rose-400 transition"
-                                >
-                                  Clear Date
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsCalendarOpen(false)}
-                                  className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white font-semibold transition"
-                                >
-                                  Close
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-
-                      {/* 2. Client Filter Dropdown Button */}
-                      <div className="relative">
-                        <select
-                          value={filterClient}
-                          onChange={(e) => setFilterClient(e.target.value)}
-                          className="bg-[#1f050b] hover:bg-[#28070e] border border-rose-500/30 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl outline-none transition cursor-pointer max-w-[130px] sm:max-w-none truncate"
-                        >
-                          <option value="">All Clients</option>
-                          {clientStats.map(c => (
-                            <option key={c.name} value={c.name}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 3. Staff Filter Dropdown Button */}
-                      <div className="relative">
-                        <select
-                          value={filterStaff}
-                          onChange={(e) => setFilterStaff(e.target.value)}
-                          className="bg-[#1f050b] hover:bg-[#28070e] border border-rose-500/30 text-white text-xs font-semibold px-2.5 py-1.5 rounded-xl outline-none transition cursor-pointer max-w-[130px] sm:max-w-none truncate"
-                        >
-                          <option value="">All Staff / Drivers</option>
-                          {staffStats.map(s => (
-                            <option key={s.name} value={s.name}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Reset All Filters Button */}
-                      {(filterDate || filterClient || filterStaff) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilterDate("");
-                            setFilterClient("");
-                            setFilterStaff("");
-                          }}
-                          className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-semibold flex items-center gap-1 transition"
-                        >
-                          <i data-lucide="rotate-ccw" className="w-3 h-3"></i>
-                          <span>Reset</span>
-                        </button>
+                          {/* FOOTER ACTIONS */}
+                          <div className="pt-2 border-t border-wine-500/20 flex items-center justify-between text-[10px]">
+                            <button
+                              onClick={() => { setSelectedDate(''); setShowCalendar(false); }}
+                              className="text-rose-300 hover:text-white font-mono"
+                            >
+                              Clear Date
+                            </button>
+                            <button
+                              onClick={() => setShowCalendar(false)}
+                              className="text-slate-400 hover:text-white font-mono"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
                       )}
-
                     </div>
-                  </div>
 
-                  {/* Clean Arrival Table with NO Arrival Date Column */}
-                  <div className="overflow-x-auto custom-scroll">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
-                      <thead>
-                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                          <th className="py-2.5 px-3">Vehicle No</th>
-                          <th className="py-2.5 px-3">Client</th>
-                          <th className="py-2.5 px-3">Staff / Driver</th>
-                          <th className="py-2.5 px-3">Route</th>
-                          <th className="py-2.5 px-3">Arrival Status</th>
-                          <th className="py-2.5 px-3">Remarks</th>
+                    {/* RESET FILTERS BUTTON */}
+                    {(selectedDate || selectedClientFilter || selectedStaffFilter) && (
+                      <button
+                        onClick={() => {
+                          setSelectedDate('');
+                          setSelectedClientFilter('');
+                          setSelectedStaffFilter('');
+                        }}
+                        className="p-1.5 rounded-lg bg-wine-800/60 hover:bg-wine-700 text-rose-300 hover:text-white transition"
+                        title="Reset Filters"
+                      >
+                        <i data-lucide="x" className="w-3.5 h-3.5"></i>
+                      </button>
+                    )}
+
+                  </div>
+                </div>
+
+                {/* TABLE (NO ARRIVAL DATE COLUMN) */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                        <th className="py-2 px-3">Vehicle No</th>
+                        <th className="py-2 px-3">Client</th>
+                        <th className="py-2 px-3">Staff / Driver</th>
+                        <th className="py-2 px-3">Route</th>
+                        <th className="py-2 px-3">Arrival Status</th>
+                        <th className="py-2 px-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-wine-500/10">
+                      {filteredArrivals.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="py-8 text-center text-wine-300/60 font-mono">
+                            No vehicles matching the selected filters.
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {dayWiseTrips.map((t, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02]">
-                            <td className="py-2.5 px-3 font-mono font-bold text-white">{t.vehicle}</td>
-                            <td className="py-2.5 px-3 font-semibold text-white/90 flex items-center gap-2">
-                              {renderCompanyLogo(t.client)}
-                              <span>{t.client}</span>
+                      ) : (
+                        filteredArrivals.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 font-mono font-bold text-white tracking-wide">{row.vehicleNo}</td>
+                            <td className="py-2 px-3 flex items-center space-x-2">
+                              <ClientBrandBadge name={row.client} />
+                              <span className="font-semibold text-slate-200">{row.client}</span>
                             </td>
-                            <td className="py-2.5 px-3 text-white/75">{t.staff}</td>
-                            <td className="py-2.5 px-3 text-white/80">{t.route}</td>
-                            <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                t.status === "In-Transit" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                                t.isDelay ? "bg-rose-500/10 text-rose-400 border-rose-500/20" :
-                                "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            <td className="py-2 px-3 text-slate-300">{row.staff}</td>
+                            <td className="py-2 px-3 font-mono text-[10px] text-wine-200/80">{row.route}</td>
+                            <td className="py-2 px-3">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                row.status.toLowerCase().includes('closed')
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                               }`}>
-                                {t.status}
+                                {row.status}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-white/60">
-                              {t.remarks || <span className="text-white/20 italic">None</span>}
-                            </td>
+                            <td className="py-2 px-3 text-wine-200/70 text-[10px] italic">{row.remarks}</td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </motion.div>
-              )}
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* TAB 5: ONLY DELAY ARRIVAL REPORT */}
-              {activeTab === "delay" && (
-                <motion.div
-                  key="delay-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="glass-panel p-3.5 sm:p-5 rounded-2xl space-y-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <i data-lucide="alert-triangle" className="w-3.5 h-3.5 text-rose-400"></i>
-                        <span>Only Delay Arrival Exception Report</span>
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-white/40">Isolates delayed dispatches and highlights unexplained delays without remarks</p>
+              </div>
+            )}
+
+            {/* TAB 5: ONLY DELAY ARRIVAL REPORT */}
+            {activeTab === 'delay' && (
+              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                      <i data-lucide="alert-triangle" className="w-3.5 h-3.5"></i>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold font-mono">
-                      {delayedTrips.length} Delayed Units
-                    </span>
+                    <div>
+                      <h2 className="text-xs font-bold text-white tracking-wide">Only Delay Arrival Exceptions</h2>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Isolated trip delays requiring operational remediation</p>
+                    </div>
                   </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
+                    {delayedRecords.length} Exceptions
+                  </span>
+                </div>
 
-                  <div className="overflow-x-auto custom-scroll">
-                    <table className="w-full text-left text-xs whitespace-nowrap">
-                      <thead>
-                        <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                          <th className="py-2.5 px-3">Vehicle No</th>
-                          <th className="py-2.5 px-3">Client</th>
-                          <th className="py-2.5 px-3">Staff / Driver</th>
-                          <th className="py-2.5 px-3">Corridor</th>
-                          <th className="py-2.5 px-3">Status</th>
-                          <th className="py-2.5 px-3">Delay Justification</th>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px]">
+                    <thead>
+                      <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                        <th className="py-2 px-3">Trip ID</th>
+                        <th className="py-2 px-3">Vehicle No</th>
+                        <th className="py-2 px-3">Client</th>
+                        <th className="py-2 px-3">Staff / Driver</th>
+                        <th className="py-2 px-3">Route</th>
+                        <th className="py-2 px-3 text-rose-400">Delay Reason / Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-wine-500/10">
+                      {delayedRecords.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="py-8 text-center text-emerald-400 font-mono">
+                            Zero delays reported. All fleet dispatches are running on schedule.
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {delayedTrips.map((t, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02]">
-                            <td className="py-2.5 px-3 font-mono font-bold text-rose-400">{t.vehicle}</td>
-                            <td className="py-2.5 px-3 text-white/90 flex items-center gap-2">
-                              {renderCompanyLogo(t.client)}
-                              <span>{t.client}</span>
+                      ) : (
+                        delayedRecords.map((d, i) => (
+                          <tr key={i} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 font-mono text-wine-300/80">{d.id}</td>
+                            <td className="py-2 px-3 font-mono font-bold text-white">{d.vehicleNo}</td>
+                            <td className="py-2 px-3 flex items-center space-x-2">
+                              <ClientBrandBadge name={d.client} />
+                              <span className="font-semibold text-slate-200">{d.client}</span>
                             </td>
-                            <td className="py-2.5 px-3 text-white/75">{t.staff}</td>
-                            <td className="py-2.5 px-3 text-white/80">{t.route}</td>
-                            <td className="py-2.5 px-3">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                {t.status}
+                            <td className="py-2 px-3 text-slate-300">{d.staff}</td>
+                            <td className="py-2 px-3 font-mono text-[10px] text-wine-200/80">{d.route}</td>
+                            <td className="py-2 px-3">
+                              <span className="inline-block px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[10px]">
+                                {d.remarks}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3">
-                              {t.remarks ? (
-                                <span className="text-white/80">{t.remarks}</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">
-                                  <i data-lucide="alert-circle" className="w-3 h-3 text-rose-400"></i>
-                                  Delay w/o Remarks ⚠️
-                                </span>
-                              )}
-                            </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </motion.div>
-              )}
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
-              {/* TAB 6: AI DELAY REVIEW (DIRECT OPERATIONAL ACTION DIRECTIVES) */}
-              {activeTab === "ai_review" && (
-                <motion.div
-                  key="ai-review-tab"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4"
-                >
-                  {/* AI Review Header with Generate Action Plan Button */}
-                  <div className="glass-panel p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <i data-lucide="bot" className="w-4 h-4 text-rose-400"></i>
-                        <span>AI Delay Review & Action Intelligence</span>
-                      </h3>
-                      <p className="text-[11px] sm:text-xs text-white/40">Analyzes delay remarks and generates immediate operational interventions</p>
+            {/* TAB 6: AI DELAY REVIEW & ROOT CAUSE ACTION PLAN */}
+            {activeTab === 'ai_review' && (
+              <div className="space-y-4">
+                
+                {/* CATEGORY FILTER CHIPS */}
+                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-300">
+                        <i data-lucide="bot" className="w-3.5 h-3.5"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-bold text-white tracking-wide">Root Cause Delay Categorization</h2>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Remediation directives based on mechanical, driver, and highway issues</p>
+                      </div>
                     </div>
 
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={handleGenerateAiPlan}
-                      disabled={isAiGenerating}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-rose-950/80 transition shrink-0"
+                    <button
+                      onClick={handleGenerateAiReport}
+                      disabled={aiGenerating}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition shrink-0"
                     >
-                      <i data-lucide="sparkles" className={`w-3.5 h-3.5 ${isAiGenerating ? 'animate-spin' : 'text-amber-300'}`}></i>
-                      <span>{isAiGenerating ? "Synthesizing Directives..." : "Generate AI Action Plan"}</span>
-                    </motion.button>
+                      <i data-lucide={aiGenerating ? "loader" : "sparkles"} className={`w-3.5 h-3.5 ${aiGenerating ? 'animate-spin' : ''}`}></i>
+                      <span>{aiGenerating ? 'Analyzing Remarks...' : 'Generate AI Action Plan'}</span>
+                    </button>
                   </div>
 
-                  {/* AI Generated Action Plan Output Box (if generated) */}
-                  {aiPlanOutput && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-rose-950/60 to-black/80 border border-rose-500/40 shadow-xl space-y-2 font-mono text-xs text-rose-100"
-                    >
-                      <div className="flex items-center justify-between border-b border-rose-500/30 pb-2">
-                        <span className="font-bold flex items-center gap-1.5 text-white text-[11px] sm:text-xs">
-                          <i data-lucide="check-circle" className="w-3.5 h-3.5 text-emerald-400"></i>
-                          Operational Response Plan Ready
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setAiPlanOutput("")}
-                          className="text-white/40 hover:text-white"
-                        >
-                          <i data-lucide="x" className="w-3.5 h-3.5"></i>
-                        </button>
-                      </div>
-                      <pre className="whitespace-pre-wrap leading-relaxed text-[10px] sm:text-[11px] text-white/90 custom-scroll overflow-x-auto">
-                        {aiPlanOutput}
-                      </pre>
-                    </motion.div>
-                  )}
-
-                  {/* Root Cause Category Filters */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {/* PILL FILTERS */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2">
                     {[
-                      { key: "Breakdown", label: "Breakdowns", count: aiCategoryCounts["Breakdown"], icon: "wrench", color: "text-red-400" },
-                      { key: "Driver Issue", label: "Driver Issues", count: aiCategoryCounts["Driver Issue"], icon: "user-x", color: "text-amber-400" },
-                      { key: "Traffic Jam", label: "Traffic Jams", count: aiCategoryCounts["Traffic Jam"], icon: "navigation", color: "text-yellow-400" },
-                      { key: "Single Driver Fatigue", label: "Driver Rest", count: aiCategoryCounts["Single Driver Fatigue"], icon: "moon", color: "text-purple-400" },
-                      { key: "Dock Jam", label: "Dock Holds", count: aiCategoryCounts["Dock Jam"], icon: "anchor", color: "text-blue-400" },
-                      { key: "Unexplained", label: "No Remarks", count: aiCategoryCounts["Unexplained"], icon: "help-circle", color: "text-rose-400" }
+                      { id: 'ALL', label: 'All Delays' },
+                      { id: 'Breakdown', label: 'Breakdown / Mechanical' },
+                      { id: 'Driver Issue', label: 'Driver Issue / Absence' },
+                      { id: 'Traffic Jam', label: 'Traffic Jam / Highway' },
+                      { id: 'Single Driver', label: 'Single Driver Fatigue' },
+                      { id: 'Dock Jam', label: 'Dock Congestion' },
                     ].map(cat => {
-                      const isSelected = aiCategoryFilter === cat.key;
+                      const count = cat.id === 'ALL'
+                        ? categorizedDelays.length
+                        : categorizedDelays.filter(c => c.category === cat.id).length;
+                      const isActive = aiDelayCategory === cat.id;
                       return (
                         <button
-                          key={cat.key}
-                          type="button"
-                          onClick={() => setAiCategoryFilter(isSelected ? "all" : cat.key)}
-                          className={`p-2.5 rounded-xl border text-left transition ${
-                            isSelected
-                              ? "bg-rose-500/25 border-rose-500 shadow-md shadow-rose-950/60"
-                              : "bg-white/[0.02] border-white/5 hover:border-white/20"
+                          key={cat.id}
+                          onClick={() => setAiDelayCategory(cat.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition flex items-center space-x-1.5 ${
+                            isActive
+                              ? 'bg-rose-500 text-white shadow-sm'
+                              : 'bg-wine-900/70 text-slate-300 hover:text-white border border-wine-500/20'
                           }`}
                         >
-                          <div className="flex items-center justify-between text-white/40 text-[10px]">
-                            <span className="truncate font-semibold">{cat.label}</span>
-                            <i data-lucide={cat.icon} className={`w-3 h-3 ${cat.color}`}></i>
-                          </div>
-                          <div className="text-base sm:text-lg font-black text-white mt-1">{cat.count}</div>
+                          <span>{cat.label}</span>
+                          <span className={`px-1 rounded text-[9px] font-mono ${isActive ? 'bg-white/20' : 'bg-wine-800'}`}>
+                            {count}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
+                </div>
 
-                  {/* AI Classified Action Items Table */}
-                  <div className="glass-panel p-3 sm:p-4 rounded-2xl space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">Actionable Intervention Matrix</span>
-                        {aiCategoryFilter !== "all" && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
-                            Filtered: {aiCategoryFilter}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-white/40">
-                        {filteredAiRecords.length} vehicles requiring operational action
-                      </span>
+                {/* AI EXECUTIVE BRIEFING (GENERATED) */}
+                {aiReportOutput && (
+                  <div className="glass-panel rounded-2xl p-4 border border-rose-500/40 bg-gradient-to-br from-rose-950/40 via-wine-950/80 to-black space-y-3">
+                    <div className="flex items-center space-x-2 text-rose-300 text-xs font-bold">
+                      <i data-lucide="zap" className="w-4 h-4 text-amber-400"></i>
+                      <span>AI Operational Directive & Immediate Orders</span>
                     </div>
 
-                    <div className="overflow-x-auto custom-scroll">
-                      <table className="w-full text-left text-xs whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-white/10 text-white/40 uppercase tracking-wider text-[10px]">
-                            <th className="py-2.5 px-3">Vehicle No</th>
-                            <th className="py-2.5 px-3">Client</th>
-                            <th className="py-2.5 px-3">Driver / Staff</th>
-                            <th className="py-2.5 px-3">Identified Root Cause</th>
-                            <th className="py-2.5 px-3">Delay Remarks</th>
-                            <th className="py-2.5 px-3">Prescribed Action / Directive</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {filteredAiRecords.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-white/[0.02]">
-                              <td className="py-2.5 px-3 font-mono font-bold text-rose-400">{item.vehicle}</td>
-                              <td className="py-2.5 px-3 font-semibold text-white/90 flex items-center gap-1.5">
-                                {renderCompanyLogo(item.client)}
-                                <span>{item.client}</span>
-                              </td>
-                              <td className="py-2.5 px-3 text-white/80">{item.staff}</td>
-                              <td className="py-2.5 px-3">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${item.classification.badgeColor}`}>
-                                  {item.classification.category}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 text-white/70 max-w-xs truncate">
-                                {item.remarks ? item.remarks : <span className="text-rose-400 font-bold italic">Missing Remarks ⚠️</span>}
-                              </td>
-                              <td className="py-2.5 px-3 text-emerald-300 font-medium">
-                                <div className="flex items-center gap-1.5">
-                                  <i data-lucide="arrow-right-circle" className="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
-                                  <span>{item.classification.action}</span>
-                                </div>
-                              </td>
-                            </tr>
+                    <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                      {aiReportOutput.summary}
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                      <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-wine-500/20">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Operational Bottlenecks</div>
+                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
+                          {aiReportOutput.criticalFlags.map((flag, idx) => (
+                            <li key={idx} className="leading-snug">{flag}</li>
                           ))}
-                        </tbody>
-                      </table>
+                        </ul>
+                      </div>
+
+                      <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-emerald-500/20">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Immediate Action Dispatches</div>
+                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
+                          {aiReportOutput.immediateOrders.map((ord, idx) => (
+                            <li key={idx} className="leading-snug">{ord}</li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                </motion.div>
-              )}
+                {/* ACTION REQUIRED TABLE */}
+                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-white tracking-wide">Vehicle Delay Remediations</h3>
+                    <span className="text-[10px] font-mono text-wine-300/60">Showing {filteredAiDelays.length} vehicles</span>
+                  </div>
 
-            </AnimatePresence>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                      <thead>
+                        <tr className="border-b border-wine-500/20 text-[10px] text-wine-200/60 uppercase tracking-wider">
+                          <th className="py-2 px-3">Vehicle No</th>
+                          <th className="py-2 px-3">Client</th>
+                          <th className="py-2 px-3">Category</th>
+                          <th className="py-2 px-3">Delay Remarks</th>
+                          <th className="py-2 px-3 text-rose-300 font-bold">Action Required</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-wine-500/10">
+                        {filteredAiDelays.map((v, i) => (
+                          <tr key={i} className="hover:bg-wine-900/30 transition">
+                            <td className="py-2 px-3 font-mono font-bold text-white">{v.vehicleNo}</td>
+                            <td className="py-2 px-3 flex items-center space-x-2">
+                              <ClientBrandBadge name={v.client} />
+                              <span className="font-semibold text-slate-200">{v.client}</span>
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                {v.category}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-wine-200/70 text-[10px] italic">{v.remarks}</td>
+                            <td className="py-2 px-3">
+                              <span className="text-emerald-400 font-medium text-[10px] flex items-center space-x-1">
+                                <i data-lucide="arrow-right" className="w-3 h-3 shrink-0"></i>
+                                <span>{v.actionRequired}</span>
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
 
           </main>
         </div>
       );
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<FleetDashboard />);
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
