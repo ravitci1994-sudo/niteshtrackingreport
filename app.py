@@ -7,7 +7,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Streamlit default margins aur header hide karne ke liye
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -42,9 +41,6 @@ html_code = """<!DOCTYPE html>
 
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-
-  <!-- Framer Motion -->
-  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -219,7 +215,7 @@ html_code = """<!DOCTYPE html>
         }
       }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput, records]);
 
-      // MULTIPLE FILES ASYNC HANDLER
+      // ROBUST EXCEL PARSER WITH FLEXIBLE HEADER DETECTION
       const handleMultipleFileUpload = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
@@ -230,55 +226,74 @@ html_code = """<!DOCTYPE html>
           const file = files[fIdx];
           try {
             const buffer = await file.arrayBuffer();
-            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true });
             
-            // Loop through all sheets in the file
             workbook.SheetNames.forEach((sheetName) => {
               const sheet = workbook.Sheets[sheetName];
-              const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+              if (!sheet || !sheet['!ref']) return;
 
-              const mapped = json.map((row, idx) => {
-                const keys = Object.keys(row);
-                const findKey = (candidates) => {
-                  const found = keys.find(k => candidates.some(c => k.toLowerCase().includes(c)));
-                  return found ? row[found] : '';
+              // Read sheet as objects
+              const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+              if (!Array.isArray(json) || json.length === 0) return;
+
+              json.forEach((row, idx) => {
+                const keys = Object.keys(row).map(k => String(k).trim());
+                if (keys.length === 0) return;
+
+                const getValue = (candidateKeywords) => {
+                  const matchedKey = keys.find(k => {
+                    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return candidateKeywords.some(c => norm.includes(c));
+                  });
+                  return matchedKey ? String(row[matchedKey]).trim() : '';
                 };
 
-                const rawDate = findKey(['arrival date', 'closing date', 'close date', 'trip date', 'date', 'arrival']);
+                // Detection keywords
+                const rawVehicle = getValue(['vehicleno', 'vehicle', 'truck', 'regno', 'vehicle_num', 'lorry', 'truckno', 'rcno']);
+                const rawClient = getValue(['client', 'customer', 'account', 'party', 'consignor', 'consignee', 'branch', 'hub']);
+                const rawStaff = getValue(['staff', 'driver', 'pilot', 'drivername', 'operator', 'executive']);
+                const rawRoute = getValue(['route', 'corridor', 'lane', 'source', 'dest', 'from', 'to', 'trip']);
+                const rawStatus = getValue(['status', 'tripstatus', 'arrivalstatus', 'currentstatus']);
+                const rawRemarks = getValue(['remark', 'reason', 'delay', 'comment', 'cause', 'issue']);
+                const rawTripId = getValue(['tripid', 'trip', 'id', 'challan', 'docket', 'cnno', 'lrno']);
+                const rawDate = getValue(['date', 'arrival', 'closing', 'closed', 'dispatch', 'start']);
+
+                // Ignore rows that don't have vehicle or client or route
+                if (!rawVehicle && !rawClient && !rawRoute && !rawTripId) {
+                  return;
+                }
+
+                // Normalizing Date
                 let formattedDate = '2026-11-10';
                 if (rawDate) {
-                  if (typeof rawDate === 'number') {
-                    const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
-                    formattedDate = d.toISOString().split('T')[0];
+                  const parsed = new Date(rawDate);
+                  if (!isNaN(parsed.getTime())) {
+                    formattedDate = parsed.toISOString().split('T')[0];
                   } else {
-                    const parsed = new Date(rawDate);
-                    if (!isNaN(parsed)) {
-                      formattedDate = parsed.toISOString().split('T')[0];
-                    } else {
-                      formattedDate = String(rawDate).trim().slice(0, 10);
+                    const matchedStr = String(rawDate).match(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/) || String(rawDate).match(/\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/);
+                    if (matchedStr) {
+                      formattedDate = matchedStr[0].replace(/\//g, '-').replace(/\./g, '-');
                     }
                   }
                 }
 
-                const statusVal = String(findKey(['status', 'trip status', 'arrival status']) || 'Trip Closed').trim();
-                const delayRemarks = String(findKey(['delay remarks', 'remarks', 'reason', 'delay reason', 'comment']) || '').trim();
+                const statusVal = rawStatus || 'Trip Closed';
+                const remarksVal = rawRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement');
 
-                return {
-                  id: String(findKey(['trip id', 'tripid', 'trip_id', 'id']) || `TRP-F${fIdx + 1}-${idx + 1}`),
+                accumulated.push({
+                  id: rawTripId || `TRP-${fIdx + 1}-${idx + 1}`,
                   date: formattedDate,
-                  vehicleNo: String(findKey(['vehicle no', 'vehicleno', 'truck', 'vehicle']) || `TRUCK-${idx + 1}`).toUpperCase(),
-                  client: String(findKey(['client', 'client name', 'customer', 'account']) || 'General Client').trim(),
-                  staff: String(findKey(['staff', 'driver', 'pilot', 'driver name', 'staff name']) || 'Fleet Driver').trim(),
-                  route: String(findKey(['route', 'corridor', 'lane', 'source-dest']) || 'Origin → Destination').trim(),
+                  vehicleNo: (rawVehicle || `VEHICLE-${idx + 1}`).toUpperCase(),
+                  client: rawClient || 'Default Account',
+                  staff: rawStaff || 'Assigned Driver',
+                  route: rawRoute || 'Origin → Destination Hub',
                   status: statusVal,
-                  remarks: delayRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement')
-                };
+                  remarks: remarksVal
+                });
               });
-
-              accumulated = accumulated.concat(mapped);
             });
           } catch (err) {
-            console.error(`Error reading file ${file.name}:`, err);
+            console.error(`Error processing file ${file.name}:`, err);
           }
         }
 
@@ -287,10 +302,9 @@ html_code = """<!DOCTYPE html>
           setUploadedFileCount(files.length);
           setSelectedDate(accumulated[0].date);
         } else {
-          alert('Could not parse valid trip records from the selected files.');
+          alert('Excel me se data read nahi ho paya. Kripya check karein ki Excel sheet khali na ho aur usme Vehicle No ya Client ka column maujood ho.');
         }
 
-        // Reset input value so same files can be re-selected if needed
         e.target.value = '';
       };
 
@@ -615,7 +629,7 @@ html_code = """<!DOCTYPE html>
 
                   <label className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition">
                     <i data-lucide="files" className="w-3.5 h-3.5"></i>
-                    <span>{uploadedFileCount > 1 ? `${uploadedFileCount} Files Uploaded` : 'Upload Multiple Excel'}</span>
+                    <span>{uploadedFileCount > 0 ? `${uploadedFileCount} File(s) Uploaded` : 'Upload Multiple Excel'}</span>
                     <input
                       type="file"
                       accept=".xlsx, .xls, .csv"
