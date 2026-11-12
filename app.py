@@ -66,21 +66,13 @@ def get_sample_data():
     return pd.DataFrame([
         {
             "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
-            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "1st In Time": "09/11/2026 12:00",
-            "1st Out Time": "09/11/2026 15:00", "1st Hours": "25h", "2nd Touching": "-",
-            "2nd In Time": "-", "2nd Out Time": "-", "2nd Hours": "-",
-            "Reported": "10/11/2026 14:00", "Total Touching Hrs.": "28h",
-            "Hrs. Taken with touching": "52h", "Hrs. Taken without touching (Dly.)": "48h", "Late Hrs": "0",
-            "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar", "Foreman Name": "Rajesh"
+            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "Reported": "10/11/2026 14:00",
+            "Total Touching Hrs.": "28h", "Late Hrs": "0", "Controlling Staff Name": "Amit Kumar"
         },
         {
-            "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES LOGISTICS SOLUTIONS PRIVATE LIMITED",
-            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "1st In Time": "09/11/2026 10:00",
-            "1st Out Time": "09/11/2026 14:00", "1st Hours": "26h", "2nd Touching": "-",
-            "2nd In Time": "-", "2nd Out Time": "-", "2nd Hours": "-",
-            "Reported": "", "Total Touching Hrs.": "-",
-            "Hrs. Taken with touching": "-", "Hrs. Taken without touching (Dly.)": "-", "Late Hrs": "2.5",
-            "Tracking Remark": "", "Controlling Staff Name": "Nitesh", "Foreman Name": "Suresh"
+            "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES",
+            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "Reported": "",
+            "Total Touching Hrs.": "-", "Late Hrs": "2.5", "Controlling Staff Name": "Nitesh"
         }
     ])
 
@@ -112,22 +104,7 @@ def process_data(df):
             if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
                 val = normalize_party(val)
             
-            if "1st" in clean_col and "report" in clean_col.lower():
-                new_row["1st In Time"] = val
-            elif "1st" in clean_col and "deliver" in clean_col.lower():
-                new_row["1st Out Time"] = val
-            elif "1st" in clean_col and "hrs" in clean_col.lower():
-                new_row["1st Hours"] = val
-            elif "2nd" in clean_col and "report" in clean_col.lower():
-                new_row["2nd In Time"] = val
-            elif "2nd" in clean_col and "deliver" in clean_col.lower():
-                new_row["2nd Out Time"] = val
-            elif "2nd" in clean_col and "hrs" in clean_col.lower():
-                new_row["2nd Hours"] = val
-            elif any(k in clean_col.lower() for k in ["final touching reporting", "reporting date", "reported"]):
-                new_row["Reported"] = val
-            else:
-                new_row[clean_col] = val
+            new_row[clean_col] = val
         processed.append(new_row)
     return pd.DataFrame(processed)
 
@@ -152,25 +129,19 @@ if uploaded_files:
 df = st.session_state.saved_data
 st.sidebar.info(f"Loaded: {st.session_state.source_name}")
 
-required_cols = [
-    "Lorry No.", "Veh.Type", "From", "Destination", "Party", 
-    "Desp. Date & Time", "1st Touching", "1st In Time", 
-    "1st Out Time", "1st Hours", "2nd Touching", 
-    "2nd In Time", "2nd Out Time", "2nd Hours", "Reported", "Total Touching Hrs.", 
-    "Hrs. Taken with touching", "Hrs. Taken without touching (Dly.)", "Late Hrs", 
-    "Tracking Remark", "Controlling Staff Name", "Foreman Name"
-]
-
-existing_cols = [c for c in required_cols if c in df.columns]
-
 # Calculate Metrics (Trip Closed vs In-Transit vs Delay Closed)
 trip_closed = 0
 in_transit = 0
 delay_closed = 0
 
 for _, row in df.iterrows():
-    rep_val = row.get("Reported", "")
-    late_val = row.get("Late Hrs", 0)
+    # Find reported column flexibly
+    rep_cols = [c for c in df.columns if 'report' in c.lower()]
+    rep_val = row.get(rep_cols[0], "") if rep_cols else ""
+    
+    late_cols = [c for c in df.columns if 'late' in c.lower() or 'delay' in c.lower()]
+    late_val = row.get(late_cols[0], 0) if late_cols else 0
+    
     is_closed = not is_blank(rep_val)
     
     if is_closed:
@@ -192,12 +163,21 @@ with col3:
 st.markdown("---")
 
 # ================= 7 ADVANCED FILTERS TOOLBAR =================
-st.subheader("🔍 Advanced 7-Button Filters Toolbar")
+st.subheader("🔍 Advanced Filters Toolbar")
 
-dates_set = sorted(list({str(str(v)[:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v)}))
-months_set = sorted(list({str(str(v)[3:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v) and len(str(v)) >= 10}))
-staff_set = sorted(list({str(v).strip() for v in df.get("Controlling Staff Name", []) if not is_blank(v)}))
-client_set = sorted(list({str(v).strip() for v in df.get("Party", []) if not is_blank(v)}))
+desp_cols = [c for c in df.columns if 'desp' in c.lower() or 'date' in c.lower()]
+desp_col = desp_cols[0] if desp_cols else None
+
+staff_cols = [c for c in df.columns if 'staff' in c.lower() or 'controlling' in c.lower()]
+staff_col = staff_cols[0] if staff_cols else None
+
+client_cols = [c for c in df.columns if 'party' in c.lower() or 'client' in c.lower() or 'vendor' in c.lower()]
+client_col = client_cols[0] if client_cols else None
+
+dates_set = sorted(list({str(str(v)[:10]) for v in df.get(desp_col, []) if desp_col and not is_blank(v)}))
+months_set = sorted(list({str(str(v)[3:10]) for v in df.get(desp_col, []) if desp_col and not is_blank(v) and len(str(v)) >= 10}))
+staff_set = sorted(list({str(v).strip() for v in df.get(staff_col, []) if staff_col and not is_blank(v)}))
+client_set = sorted(list({str(v).strip() for v in df.get(client_col, []) if client_col and not is_blank(v)}))
 
 fcol1, fcol2, fcol3, fcol4, fcol5, fcol6, fcol7 = st.columns(7)
 
@@ -214,7 +194,7 @@ with fcol5:
 with fcol6:
     sel_delay = st.selectbox("Delay Range", ["ALL", "< 1 Hour", "< 30 Mins", "< 10 Mins"])
 with fcol7:
-    sel_remarks = st.selectbox("Remarks", ["ALL", "With Remarks", "Without Remarks", "Delay + Without Remarks"])
+    sel_remarks = st.selectbox("Remarks", ["ALL", "With Remarks", "Without Remarks"])
 
 # Trip Type Filter (Reported vs In-Transit)
 trip_type_filter = st.radio(
@@ -223,33 +203,34 @@ trip_type_filter = st.radio(
     horizontal=True
 )
 
-search_query = st.text_input("🔎 Search Lorry No, Destination, Party...", "")
+search_query = st.text_input("🔎 Search in records...", "")
 
 # Apply Filters Logic
 filtered_df = df.copy()
 
-# Filter by Trip Type (Reported vs In-Transit)
-if trip_type_filter == "Trip Closed (Reported Mentioned)":
-    filtered_df = filtered_df[filtered_df["Reported"].apply(lambda x: not is_blank(x))]
-elif trip_type_filter == "In-Transit (Reported Not Mentioned)":
-    filtered_df = filtered_df[filtered_df["Reported"].apply(lambda x: is_blank(x))]
+rep_col_name = rep_cols[0] if rep_cols else None
+if trip_type_filter == "Trip Closed (Reported Mentioned)" and rep_col_name:
+    filtered_df = filtered_df[filtered_df[rep_col_name].apply(lambda x: not is_blank(x))]
+elif trip_type_filter == "In-Transit (Reported Not Mentioned)" and rep_col_name:
+    filtered_df = filtered_df[filtered_df[rep_col_name].apply(lambda x: is_blank(x))]
 
-if sel_date != "ALL":
-    filtered_df = filtered_df[filtered_df["Desp. Date & Time"].astype(str).str.startswith(sel_date)]
-if sel_month != "ALL":
-    filtered_df = filtered_df[filtered_df["Desp. Date & Time"].astype(str).str.contains(sel_month)]
-if sel_staff != "ALL":
-    filtered_df = filtered_df[filtered_df["Controlling Staff Name"].astype(str).str.strip() == sel_staff]
-if sel_client != "ALL":
-    filtered_df = filtered_df[filtered_df["Party"].astype(str).str.strip() == sel_client]
+if sel_date != "ALL" and desp_col:
+    filtered_df = filtered_df[filtered_df[desp_col].astype(str).str.startswith(sel_date)]
+if sel_month != "ALL" and desp_col:
+    filtered_df = filtered_df[filtered_df[desp_col].astype(str).str.contains(sel_month)]
+if sel_staff != "ALL" and staff_col:
+    filtered_df = filtered_df[filtered_df[staff_col].astype(str).str.strip() == sel_staff]
+if sel_client != "ALL" and client_col:
+    filtered_df = filtered_df[filtered_df[client_col].astype(str).str.strip() == sel_client]
 
-if sel_status != "ALL":
+late_col_name = late_cols[0] if late_cols else None
+if sel_status != "ALL" and late_col_name:
     if sel_status == "Delay":
-        filtered_df = filtered_df[filtered_df["Late Hrs"].apply(lambda x: not is_zero_late(x))]
+        filtered_df = filtered_df[filtered_df[late_col_name].apply(lambda x: not is_zero_late(x))]
     else:
-        filtered_df = filtered_df[filtered_df["Late Hrs"].apply(lambda x: is_zero_late(x))]
+        filtered_df = filtered_df[filtered_df[late_col_name].apply(lambda x: is_zero_late(x))]
 
-if sel_delay != "ALL":
+if sel_delay != "ALL" and late_col_name:
     def check_delay_range(val):
         try:
             hrs = float(val)
@@ -263,104 +244,95 @@ if sel_delay != "ALL":
         except:
             return False
         return False
-    filtered_df = filtered_df[filtered_df["Late Hrs"].apply(check_delay_range)]
-
-if sel_remarks != "ALL":
-    def check_remarks(row):
-        rem = str(row.get("Tracking Remark", ""))
-        has_rem = not is_blank(rem)
-        is_late = not is_zero_late(row.get("Late Hrs", 0))
-        if sel_remarks == "With Remarks":
-            return has_rem
-        elif sel_remarks == "Without Remarks":
-            return not has_rem
-        elif sel_remarks == "Delay + Without Remarks":
-            return is_late and not has_rem
-        return True
-    filtered_df = filtered_df[filtered_df.apply(check_remarks, axis=1)]
+    filtered_df = filtered_df[filtered_df[late_col_name].apply(check_delay_range)]
 
 if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# Display Main Table
+# Display Main Table Safely
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
-st.dataframe(filtered_df[existing_cols] if existing_cols else filtered_df, use_container_width=True)
+st.dataframe(filtered_df, use_container_width=True)
 
 st.markdown("---")
 
 # ================= CLIENT-WISE PERFORMANCE REPORT =================
 st.subheader("📊 Client-wise Performance Report")
-client_filter = st.selectbox("Filter Client", ["ALL"] + client_set, key="client_perf_select")
+if client_col:
+    client_filter = st.selectbox("Filter Client", ["ALL"] + client_set, key="client_perf_select")
 
-client_stats = []
-for client in client_set:
-    if client_filter != "ALL" and client != client_filter:
-        continue
-    client_rows = df[df["Party"].astype(str).str.strip() == client]
-    total = len(client_rows)
-    closed = sum(1 for _, r in client_rows.iterrows() if not is_blank(r.get("Reported", "")))
-    on_time = sum(1 for _, r in client_rows.iterrows() if not is_blank(r.get("Reported", "")) and is_zero_late(r.get("Late Hrs", 0)))
-    delay = closed - on_time
-    pct = round((on_time / closed * 100), 1) if closed > 0 else 0.0
-    
-    client_stats.append({
-        "Client Name": client,
-        "Total Trips": total,
-        "Closed Trips": closed,
-        "On-Time Trips": on_time,
-        "Delay Trips": delay,
-        "On-Time %": f"{pct}%"
-    })
+    client_stats = []
+    for client in client_set:
+        if client_filter != "ALL" and client != client_filter:
+            continue
+        client_rows = df[df[client_col].astype(str).str.strip() == client]
+        total = len(client_rows)
+        closed = sum(1 for _, r in client_rows.iterrows() if rep_col_name and not is_blank(r.get(rep_col_name, "")))
+        on_time = sum(1 for _, r in client_rows.iterrows() if rep_col_name and not is_blank(r.get(rep_col_name, "")) and late_col_name and is_zero_late(r.get(late_col_name, 0)))
+        delay = closed - on_time
+        pct = round((on_time / closed * 100), 1) if closed > 0 else 0.0
+        
+        client_stats.append({
+            "Client Name": client,
+            "Total Trips": total,
+            "Closed Trips": closed,
+            "On-Time Trips": on_time,
+            "Delay Trips": delay,
+            "On-Time %": f"{pct}%"
+        })
 
-if client_stats:
-    st.dataframe(pd.DataFrame(client_stats), use_container_width=True)
+    if client_stats:
+        st.dataframe(pd.DataFrame(client_stats), use_container_width=True)
 
 st.markdown("---")
 
 # ================= ROUTE-WISE PERFORMANCE REPORT =================
 st.subheader("🗺️ Route-wise Performance Report")
-rcol1, rcol2 = st.columns(2)
-with rcol1:
-    route_staff = st.selectbox("Filter by Controlling Staff", ["ALL"] + staff_set)
-with rcol2:
-    route_client = st.selectbox("Filter by Client", ["ALL"] + client_set, key="route_client_select")
+from_cols = [c for c in df.columns if c.strip().lower() == 'from']
+dest_cols = [c for c in df.columns if 'destination' in c.lower()]
 
-route_stats = {}
-for _, row in df.iterrows():
-    staff = str(row.get("Controlling Staff Name", "")).strip()
-    client = str(row.get("Party", "")).strip()
-    
-    if route_staff != "ALL" and staff != route_staff:
-        continue
-    if route_client != "ALL" and client != route_client:
-        continue
+if from_cols and dest_cols:
+    rcol1, rcol2 = st.columns(2)
+    with rcol1:
+        route_staff = st.selectbox("Filter by Controlling Staff", ["ALL"] + staff_set)
+    with rcol2:
+        route_client = st.selectbox("Filter by Client", ["ALL"] + client_set, key="route_client_select")
+
+    route_stats = {}
+    for _, row in df.iterrows():
+        staff = str(row.get(staff_col, "")).strip() if staff_col else ""
+        client = str(row.get(client_col, "")).strip() if client_col else ""
         
-    frm = row.get("From", "Unknown")
-    dest = row.get("Destination", "Unknown")
-    route = f"{frm} → {dest}"
-    
-    if route not in route_stats:
-        route_stats[route] = {"total": 0, "on_time": 0, "delay": 0}
+        if route_staff != "ALL" and staff != route_staff:
+            continue
+        if route_client != "ALL" and client != route_client:
+            continue
+            
+        frm = row.get(from_cols[0], "Unknown")
+        dest = row.get(dest_cols[0], "Unknown")
+        route = f"{frm} → {dest}"
         
-    route_stats[route]["total"] += 1
-    if is_zero_late(row.get("Late Hrs", 0)):
-        route_stats[route]["on_time"] += 1
+        if route not in route_stats:
+            route_stats[route] = {"total": 0, "on_time": 0, "delay": 0}
+            
+        route_stats[route]["total"] += 1
+        if late_col_name and is_zero_late(row.get(late_col_name, 0)):
+            route_stats[route]["on_time"] += 1
+        else:
+            route_stats[route]["delay"] += 1
+
+    route_data = []
+    for route, stats in route_stats.items():
+        rate = round((stats["on_time"] / stats["total"] * 100), 1) if stats["total"] > 0 else 0.0
+        route_data.append({
+            "Route": route,
+            "Total Trips": stats["total"],
+            "On-Time Trips": stats["on_time"],
+            "Delay Trips": stats["delay"],
+            "Success Rate": f"{rate}%"
+        })
+
+    if route_data:
+        st.dataframe(pd.DataFrame(route_data), use_container_width=True)
     else:
-        route_stats[route]["delay"] += 1
-
-route_data = []
-for route, stats in route_stats.items():
-    rate = round((stats["on_time"] / stats["total"] * 100), 1) if stats["total"] > 0 else 0.0
-    route_data.append({
-        "Route": route,
-        "Total Trips": stats["total"],
-        "On-Time Trips": stats["on_time"],
-        "Delay Trips": stats["delay"],
-        "Success Rate": f"{rate}%"
-    })
-
-if route_data:
-    st.dataframe(pd.DataFrame(route_data), use_container_width=True)
-else:
-    st.info("No route data available for the selected filters.")
+        st.info("No route data available for the selected filters.")
