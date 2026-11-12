@@ -1,1368 +1,494 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.set_page_config(
-    page_title="Fleet Operations Command Center",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-st.markdown("""
-<style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .block-container {
-        padding: 0rem !important;
-        max-width: 100% !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-html_code = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fleet Operations Command Center</title>
-
-  <!-- Tailwind CSS CDN -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code XR - Dynamic Data Dashboard</title>
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- SheetJS (xlsx parser) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-  <!-- React 18 & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-
-  <!-- Babel Standalone for JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-            mono: ['"JetBrains Mono"', 'monospace'],
-          },
-          colors: {
-            wine: {
-              950: '#080103',
-              900: '#140207',
-              850: '#1d030b',
-              800: '#2a0510',
-              750: '#3d0818',
-              700: '#540c21',
-              600: '#7e1333',
-              500: '#ab1c47',
-              400: '#e12d61',
-              300: '#f45b86',
-            }
-          }
-        }
-      }
-    };
-  </script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- SheetJS for Excel (.xlsx, .xls) parsing -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     body {
-      background: radial-gradient(circle at 15% 15%, #2a0510 0%, #0d0105 50%, #050002 100%);
-      color: #fce7ef;
       font-family: 'Plus Jakarta Sans', sans-serif;
-      min-height: 100vh;
-      overflow-x: hidden;
     }
-
-    ::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
-    ::-webkit-scrollbar-track {
-      background: rgba(10, 2, 5, 0.6);
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(225, 45, 97, 0.25);
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
       border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(225, 45, 97, 0.5);
-    }
-
-    .glass-panel {
-      background: linear-gradient(135deg, rgba(35, 4, 13, 0.72) 0%, rgba(16, 2, 7, 0.88) 100%);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(244, 91, 134, 0.15);
-    }
-
-    .glass-nav-active {
-      background: linear-gradient(90deg, #e12d61 0%, #b81444 100%);
-      box-shadow: 0 4px 20px rgba(225, 45, 97, 0.45);
-    }
-
-    .glass-input {
-      background: rgba(20, 2, 8, 0.75);
-      border: 1px solid rgba(244, 91, 134, 0.25);
-    }
-    .glass-input:focus {
-      border-color: #f45b86;
-      outline: none;
-      box-shadow: 0 0 0 2px rgba(244, 91, 134, 0.25);
-    }
-
-    .grid-table {
-      border: 1px solid rgba(244, 91, 134, 0.25);
-      border-collapse: separate;
-      border-spacing: 0;
-      border-radius: 0.75rem;
-      overflow: hidden;
-    }
-    .grid-table th {
-      border-bottom: 2px solid rgba(244, 91, 134, 0.35);
-      border-right: 1px solid rgba(244, 91, 134, 0.15);
-      background: rgba(26, 3, 10, 0.85);
-    }
-    .grid-table th:last-child {
-      border-right: none;
-    }
-    .grid-table td {
-      border-bottom: 1px solid rgba(244, 91, 134, 0.15);
-      border-right: 1px solid rgba(244, 91, 134, 0.15);
-    }
-    .grid-table td:last-child {
-      border-right: none;
-    }
-    .grid-table tr:last-child td {
-      border-bottom: none;
     }
   </style>
 </head>
-<body class="selection:bg-wine-500 selection:text-white antialiased">
-  <div id="root"></div>
+<body class="bg-[#F4F7FE] text-slate-800 antialiased min-h-screen">
 
-  <script type="text/babel">
-    const { useState, useMemo, useEffect } = React;
+  <!-- Global Shared File Input for both upload buttons -->
+  <input type="file" id="globalCsvFileInput" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
 
-    const ClientBrandBadge = ({ name }) => {
-      const lower = (name || '').toLowerCase();
-      if (lower.includes('amazon')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#131921] border border-amber-500/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-[#FF9900] font-black text-[10px] leading-none font-sans">a</span>
+  <div class="flex min-h-screen">
+    
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="w-64 bg-white border-r border-slate-200/80 p-5 flex flex-col justify-between hidden lg:flex shrink-0">
+      <div>
+        <div class="flex items-center gap-2.5 px-2 mb-8">
+          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+            <i data-lucide="layers" class="w-5 h-5"></i>
           </div>
-        );
-      }
-      if (lower.includes('flipkart')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#2874F0] border border-blue-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-[#FFE500] italic font-black text-[10px] leading-none">f</span>
-          </div>
-        );
-      }
-      if (lower.includes('reliance')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#C8102E] border border-red-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-white font-extrabold text-[10px] leading-none">R</span>
-          </div>
-        );
-      }
-      if (lower.includes('tata')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#0F4C81] border border-sky-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-white font-black text-[7px] tracking-tighter leading-none">TATA</span>
-          </div>
-        );
-      }
-      if (lower.includes('bluedart') || lower.includes('blue dart')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#001489] border border-blue-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-[#00B4D8] font-black text-[8px] tracking-tight leading-none">BD</span>
-          </div>
-        );
-      }
-      if (lower.includes('delhivery')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#B31942] border border-rose-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-white font-black text-[9px] leading-none">D</span>
-          </div>
-        );
-      }
-      if (lower.includes('trackon')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#990000] border border-rose-400/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-white font-black text-[8px] leading-none">T</span>
-          </div>
-        );
-      }
-      if (lower.includes('dhl')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#FFCC00] border border-red-600/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-[#D40511] font-black text-[8px] leading-none">DHL</span>
-          </div>
-        );
-      }
-      if (lower.includes('busybees') || lower.includes('shadowfax')) {
-        return (
-          <div className="w-5 h-5 rounded-md bg-[#FF6F00] border border-amber-300/40 flex items-center justify-center shrink-0 shadow-sm" title={name}>
-            <span className="text-white font-black text-[8px] leading-none">B</span>
-          </div>
-        );
-      }
-      const initial = (name || 'C').charAt(0).toUpperCase();
-      return (
-        <div className="w-5 h-5 rounded-md bg-wine-800 border border-wine-500/30 flex items-center justify-center shrink-0" title={name}>
-          <span className="text-wine-300 font-bold text-[9px]">{initial}</span>
+          <span class="text-xl font-bold tracking-tight text-slate-900">Code XR</span>
         </div>
-      );
-    };
 
-    const INITIAL_RECORDS = [
-      { id: 'TRP-9021', date: '2026-11-10', vehicleNo: 'DL-01-AB-1234', client: 'Amazon India', staff: 'Ramesh Kumar', route: 'Delhi Hub → Mumbai Sort', status: 'Trip Closed', remarks: 'Delayed at NH48 toll barrier' },
-      { id: 'TRP-9022', date: '2026-11-09', vehicleNo: 'MH-04-CD-5678', client: 'Flipkart Wholesale', staff: 'Suresh Patil', route: 'Pune DC → Bengaluru WH', status: 'Trip Closed', remarks: 'Severe heavy rain & traffic jam' },
-      { id: 'TRP-9023', date: '2026-11-08', vehicleNo: 'HR-26-EE-9901', client: 'Reliance Retail', staff: 'Vikram Singh', route: 'Gurugram → Jaipur DC', status: 'Trip Closed', remarks: 'Vehicle tyre breakdown at Rewari' },
-      { id: 'TRP-9024', date: '2026-11-08', vehicleNo: 'KA-05-FF-4321', client: 'Amazon India', staff: 'Anand Rao', route: 'Bengaluru Hub → Chennai Yard', status: 'In-Transit', remarks: 'Single driver mandatory rest pause' },
-      { id: 'TRP-9025', date: '2026-10-25', vehicleNo: 'GJ-01-GG-7788', client: 'Tata Consumer', staff: 'Jignesh Patel', route: 'Ahmedabad → Surat Plant', status: 'Trip Closed', remarks: 'Delivered seamlessly on schedule' },
-      { id: 'TRP-9026', date: '2026-10-22', vehicleNo: 'UP-14-HH-3344', client: 'Flipkart Wholesale', staff: 'Mohan Verma', route: 'Noida Plant → Kanpur DC', status: 'Trip Closed', remarks: 'Mechanical radiator coolant leak' },
-      { id: 'TRP-9027', date: '2026-11-05', vehicleNo: 'TN-02-JJ-6655', client: 'Reliance Retail', staff: 'Karthik Raja', route: 'Chennai Hub → Madurai DC', status: 'Trip Closed', remarks: 'Driver sickness delay during haul' },
-      { id: 'TRP-9028', date: '2026-09-18', vehicleNo: 'WB-02-KK-1122', client: 'Tata Consumer', staff: 'Subhash Roy', route: 'Kolkata Hub → Patna Hub', status: 'Trip Closed', remarks: 'On schedule line haul handover' },
-      { id: 'TRP-9029', date: '2026-11-07', vehicleNo: 'DL-01-LM-9944', client: 'BlueDart Express', staff: 'Mohit Pandey', route: 'Delhi Hub → Lucknow Sorting', status: 'Trip Closed', remarks: 'Unloading dock traffic congestion' },
-      { id: 'TRP-9030', date: '2026-11-10', vehicleNo: 'HR-55-XY-8811', client: 'Delhivery Crossdock', staff: 'Kuldeep Gill', route: 'Sonipat DC → Ludhiana TC', status: 'Trip Closed', remarks: 'On time standard transit' },
-    ];
+        <nav class="space-y-1">
+          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-600 transition-all">
+            <i data-lucide="layout-grid" class="w-4 h-4"></i> Overview
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
+            <i data-lucide="database" class="w-4 h-4"></i> Data Table
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
+            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
+          </a>
+          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
+            <i data-lucide="settings" class="w-4 h-4"></i> Settings
+          </a>
+        </nav>
+      </div>
 
-    function App() {
-      const [records, setRecords] = useState(INITIAL_RECORDS);
-      const [uploadedFileCount, setUploadedFileCount] = useState(0);
-      const [activeTab, setActiveTab] = useState('overall');
-      const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+      <!-- Quick Upload Widget in Sidebar -->
+      <div class="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-200/60 rounded-2xl p-4 text-center">
+        <div class="w-10 h-10 mx-auto rounded-xl bg-blue-600 text-white flex items-center justify-center mb-2 shadow-sm">
+          <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+        </div>
+        <h4 class="text-xs font-bold text-slate-800">Custom Dataset</h4>
+        <p class="text-[11px] text-slate-500 mt-1 mb-3">Upload your CSV or Excel file.</p>
+        <button onclick="triggerFileInput()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i> Select File
+        </button>
+      </div>
+    </aside>
 
-      const [selectedDate, setSelectedDate] = useState('2026-11-10');
-      const [showCalendar, setShowCalendar] = useState(false);
-      const [selectedClientFilter, setSelectedClientFilter] = useState('');
-      const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
-      const [calMonth, setCalMonth] = useState(10);
-      const [calYear, setCalYear] = useState(2026);
+    <!-- ================= MAIN CONTENT ================= -->
+    <main class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
 
-      const [aiDelayCategory, setAiDelayCategory] = useState('ALL');
-      const [aiGenerating, setAiGenerating] = useState(false);
-      const [aiReportOutput, setAiReportOutput] = useState(null);
+      <!-- Header with Upload & File Name -->
+      <header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-200/80 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h1 class="text-lg font-bold text-slate-900">Live Data Analytics</h1>
+          <p class="text-xs text-slate-400" id="fileStatusLabel">Loaded: Default Sample Dataset</p>
+        </div>
 
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      }, [activeTab, selectedDate, showCalendar, mobileMenuOpen, aiDelayCategory, aiReportOutput, records]);
-
-      const handleMultipleFileUpload = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (files.length === 0) return;
-
-        let accumulated = [];
-
-        for (let fIdx = 0; fIdx < files.length; fIdx++) {
-          const file = files[fIdx];
-          try {
-            const buffer = await file.arrayBuffer();
-            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates: true });
-            
-            workbook.SheetNames.forEach((sheetName) => {
-              const sheet = workbook.Sheets[sheetName];
-              if (!sheet || !sheet['!ref']) return;
-
-              const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-              if (!Array.isArray(json) || json.length === 0) return;
-
-              json.forEach((row, idx) => {
-                const keys = Object.keys(row).map(k => String(k).trim());
-                if (keys.length === 0) return;
-
-                const getValue = (candidateKeywords) => {
-                  const matchedKey = keys.find(k => {
-                    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return candidateKeywords.some(c => norm.includes(c));
-                  });
-                  return matchedKey ? String(row[matchedKey]).trim() : '';
-                };
-
-                const rawVehicle = getValue(['vehicleno', 'vehicle', 'truck', 'regno', 'vehicle_num', 'lorry', 'truckno', 'rcno']);
-                const rawClient = getValue(['client', 'customer', 'account', 'party', 'consignor', 'consignee', 'branch', 'hub']);
-                const rawStaff = getValue(['staff', 'driver', 'pilot', 'drivername', 'operator', 'executive']);
-                const rawRoute = getValue(['route', 'corridor', 'lane', 'source', 'dest', 'from', 'to', 'trip']);
-                const rawStatus = getValue(['status', 'tripstatus', 'arrivalstatus', 'currentstatus']);
-                const rawRemarks = getValue(['remark', 'reason', 'delay', 'comment', 'cause', 'issue']);
-                const rawTripId = getValue(['tripid', 'trip', 'id', 'challan', 'docket', 'cnno', 'lrno']);
-                const rawDate = getValue(['date', 'arrival', 'closing', 'closed', 'dispatch', 'start']);
-
-                if (!rawVehicle && !rawClient && !rawRoute && !rawTripId) {
-                  return;
-                }
-
-                let formattedDate = '2026-11-10';
-                if (rawDate) {
-                  const parsed = new Date(rawDate);
-                  if (!isNaN(parsed.getTime())) {
-                    formattedDate = parsed.toISOString().split('T')[0];
-                  } else {
-                    const matchedStr = String(rawDate).match(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/) || String(rawDate).match(/\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}/);
-                    if (matchedStr) {
-                      formattedDate = matchedStr[0].replace(/\//g, '-').replace(/\./g, '-');
-                    }
-                  }
-                }
-
-                const statusVal = rawStatus || 'Trip Closed';
-                const remarksVal = rawRemarks || (statusVal.toLowerCase().includes('delay') ? 'Delayed arrival recorded' : 'On-time movement');
-
-                accumulated.push({
-                  id: rawTripId || `TRP-${fIdx + 1}-${idx + 1}`,
-                  date: formattedDate,
-                  vehicleNo: (rawVehicle || `VEHICLE-${idx + 1}`).toUpperCase(),
-                  client: rawClient || 'Default Account',
-                  staff: rawStaff || 'Assigned Driver',
-                  route: rawRoute || 'Origin → Destination Hub',
-                  status: statusVal,
-                  remarks: remarksVal
-                });
-              });
-            });
-          } catch (err) {
-            console.error(`Error processing file ${file.name}:`, err);
-          }
-        }
-
-        if (accumulated.length > 0) {
-          setRecords(accumulated);
-          setUploadedFileCount(files.length);
-          setSelectedDate(accumulated[0].date);
-        } else {
-          alert('Excel me se data read nahi ho paya. Kripya check karein ki Excel sheet khali na ho aur usme Vehicle No ya Client ka column maujood ho.');
-        }
-
-        e.target.value = '';
-      };
-
-      const metrics = useMemo(() => {
-        const total = records.length;
-        const inTransit = records.filter(r => r.status.toLowerCase().includes('transit')).length;
-        const delayed = records.filter(r => {
-          const rem = (r.remarks || '').toLowerCase();
-          const st = (r.status || '').toLowerCase();
-          return st.includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion') || rem.includes('sickness');
-        }).length;
-        const closed = records.filter(r => r.status.toLowerCase().includes('closed') && !r.status.toLowerCase().includes('delay')).length;
-
-        return { total, inTransit, closed, delayed };
-      }, [records]);
-
-      const clientStats = useMemo(() => {
-        const map = {};
-        records.forEach(r => {
-          const client = r.client || 'Unknown Client';
-          if (!map[client]) {
-            map[client] = { name: client, total: 0, closed: 0, delayed: 0 };
-          }
-          map[client].total += 1;
-          const rem = (r.remarks || '').toLowerCase();
-          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
-          if (isDelayed) {
-            map[client].delayed += 1;
-          } else if (r.status.toLowerCase().includes('closed')) {
-            map[client].closed += 1;
-          }
-        });
-
-        return Object.values(map).map(c => {
-          const onTimeRate = c.total > 0 ? Math.round(((c.total - c.delayed) / c.total) * 100) : 100;
-          return {
-            ...c,
-            sla: Math.max(0, onTimeRate)
-          };
-        }).sort((a, b) => b.total - a.total);
-      }, [records]);
-
-      const staffStats = useMemo(() => {
-        const map = {};
-        records.forEach(r => {
-          const staff = r.staff || 'Unknown Staff';
-          if (!map[staff]) {
-            map[staff] = { name: staff, total: 0, closed: 0, delayed: 0 };
-          }
-          map[staff].total += 1;
-          const rem = (r.remarks || '').toLowerCase();
-          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
-          if (isDelayed) {
-            map[staff].delayed += 1;
-          } else if (r.status.toLowerCase().includes('closed')) {
-            map[staff].closed += 1;
-          }
-        });
-
-        return Object.values(map).map(s => {
-          const onTimeRate = s.total > 0 ? Math.round(((s.total - s.delayed) / s.total) * 100) : 100;
-          return {
-            ...s,
-            sla: Math.max(0, onTimeRate)
-          };
-        }).sort((a, b) => b.total - a.total);
-      }, [records]);
-
-      const routeStats = useMemo(() => {
-        const map = {};
-        records.forEach(r => {
-          const route = r.route || 'Unknown Corridor';
-          if (!map[route]) {
-            map[route] = { name: route, total: 0, closed: 0, delayed: 0 };
-          }
-          map[route].total += 1;
-          const rem = (r.remarks || '').toLowerCase();
-          const isDelayed = r.status.toLowerCase().includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion');
-          if (isDelayed) {
-            map[route].delayed += 1;
-          } else if (r.status.toLowerCase().includes('closed')) {
-            map[route].closed += 1;
-          }
-        });
-
-        return Object.values(map).map(rt => {
-          const onTimeRate = rt.total > 0 ? Math.round(((rt.total - rt.delayed) / rt.total) * 100) : 100;
-          return {
-            ...rt,
-            sla: Math.max(0, onTimeRate)
-          };
-        }).sort((a, b) => b.total - a.total);
-      }, [records]);
-
-      const filteredArrivals = useMemo(() => {
-        return records.filter(r => {
-          const matchDate = !selectedDate || r.date === selectedDate;
-          const matchClient = !selectedClientFilter || r.client === selectedClientFilter;
-          const matchStaff = !selectedStaffFilter || r.staff === selectedStaffFilter;
-          return matchDate && matchClient && matchStaff;
-        });
-      }, [records, selectedDate, selectedClientFilter, selectedStaffFilter]);
-
-      const delayedRecords = useMemo(() => {
-        return records.filter(r => {
-          const rem = (r.remarks || '').toLowerCase();
-          const st = (r.status || '').toLowerCase();
-          return st.includes('delay') || rem.includes('delay') || rem.includes('breakdown') || rem.includes('jam') || rem.includes('leak') || rem.includes('rest') || rem.includes('congestion') || rem.includes('sickness');
-        });
-      }, [records]);
-
-      const categorizedDelays = useMemo(() => {
-        return delayedRecords.map(r => {
-          const rem = (r.remarks || '').toLowerCase();
-          let category = 'Other Delay';
-          let actionRequired = 'Investigate corridor timeline with local supervisor';
-
-          if (rem.includes('breakdown') || rem.includes('leak') || rem.includes('tyre') || rem.includes('mechanical') || rem.includes('coolant')) {
-            category = 'Breakdown';
-            actionRequired = 'Deploy emergency mobile mechanic & arrange towing relief';
-          } else if (rem.includes('driver sickness') || rem.includes('driver issue') || rem.includes('driver absence')) {
-            category = 'Driver Issue';
-            actionRequired = 'Summon backup standby pilot & collect driver medical note';
-          } else if (rem.includes('traffic') || rem.includes('toll') || rem.includes('nh48') || rem.includes('jam') || rem.includes('rain')) {
-            category = 'Traffic Jam';
-            actionRequired = 'Issue bypass highway diversion GPS coordinates via control tower';
-          } else if (rem.includes('single driver') || rem.includes('rest') || rem.includes('fatigue')) {
-            category = 'Single Driver';
-            actionRequired = 'Enforce 45-min mandatory log & schedule twin-driver crew for >400km';
-          } else if (rem.includes('dock') || rem.includes('unloading') || rem.includes('congestion') || rem.includes('wh')) {
-            category = 'Dock Jam';
-            actionRequired = 'Escalate with client WH dock coordinator to authorize fast-track bay';
-          }
-
-          return { ...r, category, actionRequired };
-        });
-      }, [delayedRecords]);
-
-      const filteredAiDelays = useMemo(() => {
-        if (aiDelayCategory === 'ALL') return categorizedDelays;
-        return categorizedDelays.filter(d => d.category === aiDelayCategory);
-      }, [categorizedDelays, aiDelayCategory]);
-
-      const uniqueClients = useMemo(() => Array.from(new Set(records.map(r => r.client))).filter(Boolean), [records]);
-      const uniqueStaff = useMemo(() => Array.from(new Set(records.map(r => r.staff))).filter(Boolean), [records]);
-
-      const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-      const firstDayOffset = (year, month) => new Date(year, month, 1).getDay();
-
-      const calendarDays = useMemo(() => {
-        const days = [];
-        const totalDays = daysInMonth(calYear, calMonth);
-        const offset = firstDayOffset(calYear, calMonth);
-        const adjustedOffset = offset === 0 ? 6 : offset - 1;
-
-        for (let i = 0; i < adjustedOffset; i++) {
-          days.push(null);
-        }
-        for (let d = 1; d <= totalDays; d++) {
-          const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          days.push({ day: d, dateStr });
-        }
-        return days;
-      }, [calYear, calMonth]);
-
-      const handleGenerateAiReport = () => {
-        setAiGenerating(true);
-        setTimeout(() => {
-          setAiGenerating(false);
-          setAiReportOutput({
-            summary: `Automated analysis completed across ${delayedRecords.length} delayed operations. Critical friction identified in Rewari corridor and NH48 toll junction.`,
-            criticalFlags: [
-              'High frequency breakdown on Haryana/Rajasthan freight corridor (DL/HR vehicles). Recommend mandatory fleet radiator & tyre pressure inspections prior to departure.',
-              'Single Driver regulations breached on long hauls exceeding 500km (KA-05-FF-4321). Enforce dual-pilot rosters for all south-bound transit.',
-              'Flipkart & Reliance retail delivery docks experiencing 3.2 hr average handover turnarounds. Issue formal dock bay reservation notices to client hub managers.'
-            ],
-            immediateOrders: [
-              'Action Order #1: Route vehicle HR-26-EE-9901 to nearest authorized workshop for suspension check.',
-              'Action Order #2: Issue automated driver changeover alert for Bangalore-Chennai corridor.',
-              'Action Order #3: Apply contractual grace period waivers for NH48 toll choke points.'
-            ]
-          });
-        }, 800);
-      };
-
-      const renderSlaColor = (sla) => {
-        if (sla >= 80) return 'text-emerald-400';
-        if (sla >= 50) return 'text-amber-400';
-        return 'text-rose-400';
-      };
-
-      return (
-        <div className="flex flex-col md:flex-row min-h-screen text-slate-100">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+          <!-- Top Upload Button -->
+          <button onclick="triggerFileInput()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload File (.CSV / .XLSX)
+          </button>
           
-          <div className="md:hidden glass-panel border-b border-wine-500/20 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-wine-600 flex items-center justify-center shadow-lg shadow-rose-900/40">
-                <i data-lucide="shield" className="w-4 h-4 text-white"></i>
-              </div>
-              <div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="font-extrabold text-xs tracking-wider text-white">FLEET CONTROL</span>
-                  <span className="px-1.5 py-0.2 text-[8px] font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">V5</span>
-                </div>
-                <p className="text-[9px] text-wine-300/70 font-mono tracking-tight">Logistics Command Center</p>
-              </div>
-            </div>
+          <button onclick="resetDefaultData()" class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl transition-all cursor-pointer">
+            Reset
+          </button>
+        </div>
+      </header>
 
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 rounded-lg bg-wine-800/80 border border-wine-500/30 text-rose-300 hover:text-white"
-            >
-              <i data-lucide={mobileMenuOpen ? "x" : "menu"} className="w-5 h-5"></i>
-            </button>
-          </div>
+      <!-- Dashboard Body -->
+      <div class="p-6 space-y-6 max-w-7xl mx-auto w-full">
 
-          {mobileMenuOpen && (
-            <div className="md:hidden fixed inset-x-0 top-14 bottom-0 bg-wine-950/95 backdrop-blur-xl z-40 p-4 flex flex-col space-y-2 border-b border-rose-500/20">
-              {[
-                { id: 'overall', label: 'Over All Performance', icon: 'activity' },
-                { id: 'client', label: 'Client Wise Performance', icon: 'briefcase' },
-                { id: 'staff', label: 'Staff Wise Performance', icon: 'user' },
-                { id: 'arrival', label: 'Day Wise Arrival Report', icon: 'calendar' },
-                { id: 'delay', label: 'Only Delay Arrival Report', icon: 'alert-triangle' },
-                { id: 'ai_review', label: 'AI Delay Review', icon: 'bot' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); setMobileMenuOpen(false); }}
-                  className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === tab.id ? 'glass-nav-active text-white' : 'text-slate-300 hover:bg-wine-900/60'
-                  }`}
-                >
-                  <i data-lucide={tab.icon} className="w-4 h-4 shrink-0"></i>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <aside className="hidden md:flex md:w-56 glass-panel border-r border-wine-500/20 p-3.5 flex-col shrink-0 justify-between">
-            <div className="space-y-5">
-              <div className="flex items-center space-x-2.5 px-1 py-1">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-wine-600 flex items-center justify-center shadow-lg shadow-rose-900/40">
-                  <i data-lucide="shield" className="w-4 h-4 text-white"></i>
-                </div>
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="font-extrabold text-xs tracking-wider text-white">FLEET CONTROL</span>
-                    <span className="px-1 py-0.2 text-[8px] font-bold rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">V5</span>
-                  </div>
-                  <p className="text-[9px] text-wine-300/70 font-mono tracking-tight">Logistics Command Center</p>
-                </div>
-              </div>
-
-              <nav className="space-y-1">
-                {[
-                  { id: 'overall', label: 'Over All Performance', icon: 'activity' },
-                  { id: 'client', label: 'Client Wise Performance', icon: 'briefcase' },
-                  { id: 'staff', label: 'Staff Wise Performance', icon: 'user' },
-                  { id: 'arrival', label: 'Day Wise Arrival Report', icon: 'calendar' },
-                  { id: 'delay', label: 'Only Delay Arrival Report', icon: 'alert-triangle' },
-                  { id: 'ai_review', label: 'AI Delay Review', icon: 'bot' },
-                ].map((item) => {
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`relative w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all ${
-                        isActive
-                          ? 'glass-nav-active text-white'
-                          : 'text-slate-300 hover:text-white hover:bg-wine-900/60'
-                      }`}
-                    >
-                      <i data-lucide={item.icon} className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-rose-300/70'}`}></i>
-                      <span className="truncate">{item.label}</span>
-                      {isActive && (
-                        <span className="absolute right-2 w-1 h-3 rounded-full bg-white/90 shadow-sm" />
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-
-            <div className="pt-3 border-t border-wine-500/20 text-[10px] text-wine-300/60 font-mono flex items-center justify-between px-1">
-              <span>ACTIVE SYSTEM</span>
-              <span className="flex items-center space-x-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span className="text-emerald-400 font-semibold">LIVE</span>
+        <!-- Dynamic Stat Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Entries</span>
+              <span class="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <i data-lucide="layers" class="w-4 h-4"></i>
               </span>
             </div>
-          </aside>
+            <h3 class="text-2xl font-extrabold text-slate-900" id="cardTotalRows">0</h3>
+            <p class="text-[11px] text-slate-400 mt-1">Filtered from uploaded records</p>
+          </div>
 
-          <main className="flex-1 p-3 md:p-6 space-y-4 max-w-7xl mx-auto w-full">
-            
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-wine-500/20">
-              <div>
-                <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
-                  {activeTab === 'overall' && 'Over All Performance'}
-                  {activeTab === 'client' && 'Client Wise Performance Report'}
-                  {activeTab === 'staff' && 'Staff Wise Performance Report'}
-                  {activeTab === 'arrival' && 'Day Wise Arrival Chronology'}
-                  {activeTab === 'delay' && 'Only Delay Arrival Exceptions'}
-                  {activeTab === 'ai_review' && 'AI Operational Delay Review'}
-                </h1>
-                <p className="text-[11px] text-wine-200/60 font-mono">
-                  Real-time operational telemetry, SLA compliance, and dispatch management
-                </p>
-              </div>
-
-              {activeTab === 'overall' && (
-                <div className="flex items-center space-x-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      setRecords(INITIAL_RECORDS);
-                      setUploadedFileCount(0);
-                    }}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-wine-900/80 hover:bg-wine-800 border border-wine-500/30 text-rose-200 text-xs font-semibold transition shadow-sm"
-                  >
-                    <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>
-                    <span>Load Sample</span>
-                  </button>
-
-                  <label className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition">
-                    <i data-lucide="files" className="w-3.5 h-3.5"></i>
-                    <span>{uploadedFileCount > 0 ? `${uploadedFileCount} File(s) Uploaded` : 'Upload Multiple Excel'}</span>
-                    <input
-                      type="file"
-                      accept=".xlsx, .xls, .csv"
-                      multiple
-                      onChange={handleMultipleFileUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Value / Revenue</span>
+              <span class="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+              </span>
             </div>
+            <h3 class="text-2xl font-extrabold text-slate-900" id="cardTotalAmount">$0</h3>
+            <p class="text-[11px] text-emerald-600 mt-1 font-semibold" id="cardTotalSub">Sum of filtered amounts</p>
+          </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-2 px-1">
-              <div className="flex items-baseline space-x-2 border-l-2 border-white/20 pl-3">
-                <span className="text-2xl md:text-3xl font-black text-white font-mono">{metrics.total}</span>
-                <div>
-                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Total Fleet Trips</div>
-                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Total active recorded dispatches</div>
-                </div>
-              </div>
-
-              <div className="flex items-baseline space-x-2 border-l-2 border-blue-500/40 pl-3">
-                <span className="text-2xl md:text-3xl font-black text-blue-400 font-mono">{metrics.inTransit}</span>
-                <div>
-                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">In-Transit Vehicle</div>
-                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Active line-haul movements</div>
-                </div>
-              </div>
-
-              <div className="flex items-baseline space-x-2 border-l-2 border-emerald-500/40 pl-3">
-                <span className="text-2xl md:text-3xl font-black text-emerald-400 font-mono">{metrics.closed}</span>
-                <div>
-                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Trip Closed</div>
-                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Completed on-time dispatches</div>
-                </div>
-              </div>
-
-              <div className="flex items-baseline space-x-2 border-l-2 border-rose-500/40 pl-3">
-                <span className="text-2xl md:text-3xl font-black text-rose-400 font-mono">{metrics.delayed}</span>
-                <div>
-                  <div className="text-[10px] md:text-xs font-bold text-slate-300 uppercase tracking-wider">Delay Closed</div>
-                  <div className="text-[9px] text-wine-200/50 hidden sm:block">Delayed exception completions</div>
-                </div>
-              </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Average Transaction</span>
+              <span class="p-2 bg-violet-50 text-violet-600 rounded-xl">
+                <i data-lucide="trending-up" class="w-4 h-4"></i>
+              </span>
             </div>
+            <h3 class="text-2xl font-extrabold text-slate-900" id="cardAvgAmount">$0</h3>
+            <p class="text-[11px] text-slate-400 mt-1">Mean per transaction</p>
+          </div>
 
-            {activeTab === 'overall' && (
-              <div className="space-y-4">
-                
-                {/* 1. CLIENT WISE REPORT (NO RATING COLUMN, NO SLA PROGRESS LINE) */}
-                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                        <i data-lucide="briefcase" className="w-3.5 h-3.5"></i>
-                      </div>
-                      <div>
-                        <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA percentage</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
-                      {clientStats.length} Accounts Active
-                    </span>
-                  </div>
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Categories</span>
+              <span class="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                <i data-lucide="pie-chart" class="w-4 h-4"></i>
+              </span>
+            </div>
+            <h3 class="text-2xl font-extrabold text-slate-900" id="cardCategoryCount">0</h3>
+            <p class="text-[11px] text-slate-400 mt-1">Unique segments</p>
+          </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] grid-table">
-                      <thead>
-                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                          <th className="py-2.5 px-3.5 font-black text-white">CLIENT NAME</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {clientStats.map((c, i) => (
-                          <tr key={i} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
-                              <ClientBrandBadge name={c.name} />
-                              <span className="font-bold text-white tracking-tight">{c.name}</span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                            <td className="py-2.5 px-3.5 text-center">
-                              <span className={`font-mono text-xs font-black ${renderSlaColor(c.sla)}`}>{c.sla}%</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* 2. STAFF WISE REPORT (NO RATING COLUMN, NO SLA PROGRESS LINE) */}
-                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                        <i data-lucide="user" className="w-3.5 h-3.5"></i>
-                      </div>
-                      <div>
-                        <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, trip closures, delay flags, and SLA percentage</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
-                      {staffStats.length} Drivers Recorded
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] grid-table">
-                      <thead>
-                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                          <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {staffStats.map((s, i) => (
-                          <tr key={i} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 font-bold text-white tracking-wide">{s.name}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                            <td className="py-2.5 px-3.5 text-center">
-                              <span className={`font-mono text-xs font-black ${renderSlaColor(s.sla)}`}>{s.sla}%</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* 3. ROUTE WISE REPORT (NO RATING/STATUS COLUMN, NO SLA PROGRESS LINE) */}
-                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                        <i data-lucide="map-pin" className="w-3.5 h-3.5"></i>
-                      </div>
-                      <div>
-                        <h2 className="text-xs font-bold text-white tracking-wide">Route Wise Performance Report</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Transit corridor dispatches, choke points, and throughput</p>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
-                      {routeStats.length} Corridors
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] grid-table">
-                      <thead>
-                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                          <th className="py-2.5 px-3.5 font-black text-white">ROUTE / CORRIDOR</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL DISPATCHES</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">CORRIDOR SLA %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {routeStats.map((r, i) => (
-                          <tr key={i} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{r.name}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{r.total}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{r.closed}</td>
-                            <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{r.delayed}</td>
-                            <td className="py-2.5 px-3.5 text-center">
-                              <span className={`font-mono text-xs font-black ${renderSlaColor(r.sla)}`}>{r.sla}%</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-            {/* TAB 2: CLIENT WISE REPORT (DEDICATED) */}
-            {activeTab === 'client' && (
-              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                      <i data-lucide="briefcase" className="w-3.5 h-3.5"></i>
-                    </div>
-                    <div>
-                      <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA percentage</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
-                    {clientStats.length} Accounts
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px] grid-table">
-                    <thead>
-                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT NAME</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {clientStats.map((c, i) => (
-                        <tr key={i} className="hover:bg-wine-900/40 transition">
-                          <td className="py-2.5 px-3.5 flex items-center space-x-2">
-                            <ClientBrandBadge name={c.name} />
-                            <span className="font-bold text-white tracking-tight">{c.name}</span>
-                          </td>
-                          <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
-                          <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
-                          <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                          <td className="py-2.5 px-3.5 text-center">
-                            <span className={`font-mono text-xs font-black ${renderSlaColor(c.sla)}`}>{c.sla}%</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: STAFF WISE REPORT (DEDICATED) */}
-            {activeTab === 'staff' && (
-              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                      <i data-lucide="user" className="w-3.5 h-3.5"></i>
-                    </div>
-                    <div>
-                      <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, completions, delays, and SLA percentage</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
-                    {staffStats.length} Staff
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px] grid-table">
-                    <thead>
-                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staffStats.map((s, i) => (
-                        <tr key={i} className="hover:bg-wine-900/40 transition">
-                          <td className="py-2.5 px-3.5 font-bold text-white tracking-wide">{s.name}</td>
-                          <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
-                          <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
-                          <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                          <td className="py-2.5 px-3.5 text-center">
-                            <span className={`font-mono text-xs font-black ${renderSlaColor(s.sla)}`}>{s.sla}%</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: DAY WISE ARRIVAL REPORT */}
-            {activeTab === 'arrival' && (
-              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-4">
-                
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-wine-500/20">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-lg bg-wine-800/80 border border-wine-500/30 flex items-center justify-center text-rose-300">
-                      <i data-lucide="calendar" className="w-3.5 h-3.5"></i>
-                    </div>
-                    <div>
-                      <h2 className="text-xs font-bold text-white tracking-wide">Day Wise Arrival Chronology</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Daily arrival logs with interactive calendar and entity filters</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    
-                    <div className="relative">
-                      <select
-                        value={selectedClientFilter}
-                        onChange={(e) => setSelectedClientFilter(e.target.value)}
-                        className="glass-input text-[11px] font-semibold text-rose-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                      >
-                        <option value="" className="bg-wine-950 text-slate-300">All Clients</option>
-                        {uniqueClients.map((cl, idx) => (
-                          <option key={idx} value={cl} className="bg-wine-950 text-slate-200">{cl}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="relative">
-                      <select
-                        value={selectedStaffFilter}
-                        onChange={(e) => setSelectedStaffFilter(e.target.value)}
-                        className="glass-input text-[11px] font-semibold text-rose-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                      >
-                        <option value="" className="bg-wine-950 text-slate-300">All Staff / Drivers</option>
-                        {uniqueStaff.map((st, idx) => (
-                          <option key={idx} value={st} className="bg-wine-950 text-slate-200">{st}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowCalendar(!showCalendar)}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-wine-900/90 border border-wine-500/30 text-rose-200 text-xs font-mono font-semibold hover:border-rose-400 transition"
-                      >
-                        <i data-lucide="calendar" className="w-3.5 h-3.5 text-rose-400"></i>
-                        <span>{selectedDate || 'Select Date'}</span>
-                        <i data-lucide="chevron-down" className="w-3 h-3 text-wine-300"></i>
-                      </button>
-
-                      {showCalendar && (
-                        <div className="absolute right-0 mt-2 z-50 w-60 glass-panel rounded-xl p-3 border border-rose-500/30 shadow-2xl space-y-2">
-                          <div className="flex items-center justify-between text-xs font-bold text-white">
-                            <button
-                              onClick={() => {
-                                if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
-                                else { setCalMonth(calMonth - 1); }
-                              }}
-                              className="p-1 rounded hover:bg-wine-800 text-wine-300 hover:text-white"
-                            >
-                              <i data-lucide="chevron-left" className="w-3.5 h-3.5"></i>
-                            </button>
-                            <span className="font-mono text-[11px]">
-                              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][calMonth]} {calYear}
-                            </span>
-                            <button
-                              onClick={() => {
-                                if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); }
-                                else { setCalMonth(calMonth + 1); }
-                              }}
-                              className="p-1 rounded hover:bg-wine-800 text-wine-300 hover:text-white"
-                            >
-                              <i data-lucide="chevron-right" className="w-3.5 h-3.5"></i>
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-7 text-center text-[9px] font-bold text-wine-300/60 font-mono">
-                            <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-1">
-                            {calendarDays.map((item, idx) => {
-                              if (!item) return <div key={idx} className="h-6 w-6"></div>;
-                              const isSelected = selectedDate === item.dateStr;
-                              return (
-                                <button
-                                  key={idx}
-                                  onClick={() => {
-                                    setSelectedDate(item.dateStr);
-                                    setShowCalendar(false);
-                                  }}
-                                  className={`h-6 w-6 rounded text-[10px] font-mono flex items-center justify-center transition ${
-                                    isSelected
-                                      ? 'bg-rose-500 text-white font-bold shadow-md shadow-rose-900/50'
-                                      : 'hover:bg-wine-800 text-slate-300'
-                                  }`}
-                                >
-                                  {item.day}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          <div className="pt-2 border-t border-wine-500/20 flex items-center justify-between text-[10px]">
-                            <button
-                              onClick={() => { setSelectedDate(''); setShowCalendar(false); }}
-                              className="text-rose-300 hover:text-white font-mono"
-                            >
-                              Clear Date
-                            </button>
-                            <button
-                              onClick={() => setShowCalendar(false)}
-                              className="text-slate-400 hover:text-white font-mono"
-                            >
-                              Close
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {(selectedDate || selectedClientFilter || selectedStaffFilter) && (
-                      <button
-                        onClick={() => {
-                          setSelectedDate('');
-                          setSelectedClientFilter('');
-                          setSelectedStaffFilter('');
-                        }}
-                        className="p-1.5 rounded-lg bg-wine-800/60 hover:bg-wine-700 text-rose-300 hover:text-white transition"
-                        title="Reset Filters"
-                      >
-                        <i data-lucide="x" className="w-3.5 h-3.5"></i>
-                      </button>
-                    )}
-
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px] grid-table">
-                    <thead>
-                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                        <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">ROUTE</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">ARRIVAL STATUS</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">REMARKS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredArrivals.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="py-8 text-center text-wine-300/60 font-mono">
-                            No vehicles matching the selected filters.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredArrivals.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 font-mono font-bold text-white tracking-wide">{row.vehicleNo}</td>
-                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
-                              <ClientBrandBadge name={row.client} />
-                              <span className="font-bold text-slate-100">{row.client}</span>
-                            </td>
-                            <td className="py-2.5 px-3.5 font-medium text-slate-200">{row.staff}</td>
-                            <td className="py-2.5 px-3.5 font-mono text-[10px] text-wine-200/90">{row.route}</td>
-                            <td className="py-2.5 px-3.5">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                                row.status.toLowerCase().includes('closed')
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                              }`}>
-                                {row.status}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-wine-200/80 text-[10px] italic">{row.remarks}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-              </div>
-            )}
-
-            {/* TAB 5: ONLY DELAY ARRIVAL EXCEPTIONS */}
-            {activeTab === 'delay' && (
-              <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-                      <i data-lucide="alert-triangle" className="w-3.5 h-3.5"></i>
-                    </div>
-                    <div>
-                      <h2 className="text-xs font-bold text-white tracking-wide">Only Delay Arrival Exceptions</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Isolated trip delays requiring operational remediation</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
-                    {delayedRecords.length} Exceptions
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px] grid-table">
-                    <thead>
-                      <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                        <th className="py-2.5 px-3.5 font-black text-white">TRIP ID</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">STAFF / DRIVER</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">ROUTE</th>
-                        <th className="py-2.5 px-3.5 font-black text-rose-400">DELAY REASON / REMARKS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {delayedRecords.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="py-8 text-center text-emerald-400 font-mono">
-                            Zero delays reported. All fleet dispatches are running on schedule.
-                          </td>
-                        </tr>
-                      ) : (
-                        delayedRecords.map((d, i) => (
-                          <tr key={i} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 font-mono text-wine-300/90">{d.id}</td>
-                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{d.vehicleNo}</td>
-                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
-                              <ClientBrandBadge name={d.client} />
-                              <span className="font-bold text-slate-100">{d.client}</span>
-                            </td>
-                            <td className="py-2.5 px-3.5 font-medium text-slate-200">{d.staff}</td>
-                            <td className="py-2.5 px-3.5 font-mono text-[10px] text-wine-200/90">{d.route}</td>
-                            <td className="py-2.5 px-3.5">
-                              <span className="inline-block px-2 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[10px] font-medium">
-                                {d.remarks}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 6: AI REVIEW */}
-            {activeTab === 'ai_review' && (
-              <div className="space-y-4">
-                
-                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-300">
-                        <i data-lucide="bot" className="w-3.5 h-3.5"></i>
-                      </div>
-                      <div>
-                        <h2 className="text-xs font-bold text-white tracking-wide">Root Cause Delay Categorization</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Remediation directives based on mechanical, driver, and highway issues</p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleGenerateAiReport}
-                      disabled={aiGenerating}
-                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-500 to-wine-600 hover:from-rose-400 hover:to-wine-500 text-white text-xs font-bold shadow-md shadow-rose-900/30 cursor-pointer transition shrink-0"
-                    >
-                      <i data-lucide={aiGenerating ? "loader" : "sparkles"} className={`w-3.5 h-3.5 ${aiGenerating ? 'animate-spin' : ''}`}></i>
-                      <span>{aiGenerating ? 'Analyzing Remarks...' : 'Generate AI Action Plan'}</span>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                    {[
-                      { id: 'ALL', label: 'All Delays' },
-                      { id: 'Breakdown', label: 'Breakdown / Mechanical' },
-                      { id: 'Driver Issue', label: 'Driver Issue / Absence' },
-                      { id: 'Traffic Jam', label: 'Traffic Jam / Highway' },
-                      { id: 'Single Driver', label: 'Single Driver Fatigue' },
-                      { id: 'Dock Jam', label: 'Dock Congestion' },
-                    ].map(cat => {
-                      const count = cat.id === 'ALL'
-                        ? categorizedDelays.length
-                        : categorizedDelays.filter(c => c.category === cat.id).length;
-                      const isActive = aiDelayCategory === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => setAiDelayCategory(cat.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition flex items-center space-x-1.5 ${
-                            isActive
-                              ? 'bg-rose-500 text-white shadow-sm'
-                              : 'bg-wine-900/70 text-slate-300 hover:text-white border border-wine-500/20'
-                          }`}
-                        >
-                          <span>{cat.label}</span>
-                          <span className={`px-1 rounded text-[9px] font-mono ${isActive ? 'bg-white/20' : 'bg-wine-800'}`}>
-                            {count}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {aiReportOutput && (
-                  <div className="glass-panel rounded-2xl p-4 border border-rose-500/40 bg-gradient-to-br from-rose-950/40 via-wine-950/80 to-black space-y-3">
-                    <div className="flex items-center space-x-2 text-rose-300 text-xs font-bold">
-                      <i data-lucide="zap" className="w-4 h-4 text-amber-400"></i>
-                      <span>AI Operational Directive & Immediate Orders</span>
-                    </div>
-
-                    <p className="text-xs text-slate-200 leading-relaxed font-sans">
-                      {aiReportOutput.summary}
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                      <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-wine-500/20">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Operational Bottlenecks</div>
-                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                          {aiReportOutput.criticalFlags.map((flag, idx) => (
-                            <li key={idx} className="leading-snug">{flag}</li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-emerald-500/20">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Immediate Action Dispatches</div>
-                        <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
-                          {aiReportOutput.immediateOrders.map((ord, idx) => (
-                            <li key={idx} className="leading-snug">{ord}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-white tracking-wide">Vehicle Delay Remediations</h3>
-                    <span className="text-[10px] font-mono text-wine-300/60">Showing {filteredAiDelays.length} vehicles</span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] grid-table">
-                      <thead>
-                        <tr className="text-[11px] text-white uppercase tracking-wider font-black">
-                          <th className="py-2.5 px-3.5 font-black text-white">VEHICLE NO</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">CLIENT</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">CATEGORY</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">DELAY REMARKS</th>
-                          <th className="py-2.5 px-3.5 font-black text-rose-300">ACTION REQUIRED</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAiDelays.map((v, i) => (
-                          <tr key={i} className="hover:bg-wine-900/40 transition">
-                            <td className="py-2.5 px-3.5 font-mono font-bold text-white">{v.vehicleNo}</td>
-                            <td className="py-2.5 px-3.5 flex items-center space-x-2">
-                              <ClientBrandBadge name={v.client} />
-                              <span className="font-bold text-slate-100">{v.client}</span>
-                            </td>
-                            <td className="py-2.5 px-3.5">
-                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                {v.category}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-wine-200/80 text-[10px] italic">{v.remarks}</td>
-                            <td className="py-2.5 px-3.5">
-                              <span className="text-emerald-400 font-bold text-[10px] flex items-center space-x-1">
-                                <i data-lucide="arrow-right" className="w-3 h-3 shrink-0"></i>
-                                <span>{v.actionRequired}</span>
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-          </main>
         </div>
-      );
+
+        <!-- Dynamic Chart Area -->
+        <div class="bg-white rounded-3xl p-6 border border-slate-200/70 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Category Breakdown</h3>
+              <p class="text-xs text-slate-400">Auto-calculated from your uploaded file</p>
+            </div>
+          </div>
+          <div class="h-64 w-full">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Data Filter & Table Container -->
+        <div class="bg-white rounded-3xl p-6 border border-slate-200/70 shadow-sm space-y-4">
+          
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Data Records</h3>
+              <p class="text-xs text-slate-400">Search and filter rows instantly</p>
+            </div>
+
+            <!-- Filters Toolbar -->
+            <div class="flex flex-wrap items-center gap-2">
+              
+              <!-- Search Input -->
+              <div class="relative w-48 sm:w-64">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search all fields..." class="w-full pl-9 pr-3 py-2 bg-slate-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 border border-transparent">
+              </div>
+
+              <!-- Category Dropdown Filter -->
+              <select id="categoryFilter" onchange="applyFilters()" class="px-3 py-2 bg-slate-100 text-xs font-semibold rounded-xl text-slate-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                <option value="ALL">All Categories</option>
+              </select>
+
+              <!-- Status Dropdown Filter -->
+              <select id="statusFilter" onchange="applyFilters()" class="px-3 py-2 bg-slate-100 text-xs font-semibold rounded-xl text-slate-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                <option value="ALL">All Status</option>
+              </select>
+
+            </div>
+          </div>
+
+          <!-- Responsive Table -->
+          <div class="overflow-x-auto custom-scrollbar max-h-96">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-slate-50 sticky top-0 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
+                <tr id="tableHeaders">
+                  <!-- Headers inserted dynamically -->
+                </tr>
+              </thead>
+              <tbody id="tableBody" class="divide-y divide-slate-100 text-slate-700">
+                <!-- Rows inserted dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex items-center justify-between pt-3 text-xs text-slate-500">
+            <span id="recordCountLabel">Showing 0 entries</span>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    const sampleData = [
+      { ID: "TX1001", Name: "Sofia Taylor", Category: "Subscription", Amount: 240, Status: "Completed", Date: "2026-03-01" },
+      { ID: "TX1002", Name: "Alex Murphy", Category: "Cloud Hosting", Amount: 1250, Status: "Completed", Date: "2026-03-02" },
+      { ID: "TX1003", Name: "John Doe", Category: "Marketing", Amount: 620, Status: "Pending", Date: "2026-03-03" },
+      { ID: "TX1004", Name: "Elena Rostova", Category: "Design Assets", Amount: 180, Status: "Completed", Date: "2026-03-04" },
+      { ID: "TX1005", Name: "Liam Smith", Category: "Marketing", Amount: 950, Status: "Failed", Date: "2026-03-05" },
+      { ID: "TX1006", Name: "Emma Watson", Category: "Cloud Hosting", Amount: 2100, Status: "Completed", Date: "2026-03-06" },
+      { ID: "TX1007", Name: "Lucas Gray", Category: "Consulting", Amount: 3400, Status: "Completed", Date: "2026-03-07" },
+      { ID: "TX1008", Name: "Zoe Chen", Category: "Subscription", Amount: 490, Status: "Pending", Date: "2026-03-08" }
+    ];
+
+    let currentDataset = [...sampleData];
+    let chartInstance = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initChart();
+      loadData(sampleData, "Default Sample Dataset");
+    });
+
+    // Trigger global file picker
+    function triggerFileInput() {
+      document.getElementById('globalCsvFileInput').click();
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    // Universal File Upload Handler (CSV & Excel)
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith('.csv')) {
+        Papa.parse(file, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            if (results.data && results.data.length > 0) {
+              loadData(results.data, file.name);
+            } else {
+              alert("Uploaded CSV file me data nahi mila.");
+            }
+          },
+          error: function(err) {
+            alert("CSV Error: " + err.message);
+          }
+        });
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonResult = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            if (jsonResult && jsonResult.length > 0) {
+              loadData(jsonResult, file.name);
+            } else {
+              alert("Excel file empty hai ya format support nahi kar raha.");
+            }
+          } catch (err) {
+            alert("Excel Error: " + err.message);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert("Kripya sirf valid .csv, .xlsx ya .xls file select karein.");
+      }
+    }
+
+    function resetDefaultData() {
+      loadData(sampleData, "Default Sample Dataset");
+      document.getElementById('globalCsvFileInput').value = "";
+    }
+
+    function loadData(data, sourceName) {
+      currentDataset = data;
+      document.getElementById('fileStatusLabel').innerText = "Loaded: " + sourceName;
+      populateDropdownFilters();
+      applyFilters();
+    }
+
+    function populateDropdownFilters() {
+      const categorySelect = document.getElementById('categoryFilter');
+      const statusSelect = document.getElementById('statusFilter');
+
+      categorySelect.innerHTML = '<option value="ALL">All Categories</option>';
+      statusSelect.innerHTML = '<option value="ALL">All Status</option>';
+
+      const categories = new Set();
+      const statuses = new Set();
+
+      currentDataset.forEach(row => {
+        const cat = row.Category || row.category || row.Department || row.Type;
+        const st = row.Status || row.status || row.State;
+        if (cat) categories.add(cat);
+        if (st) statuses.add(st);
+      });
+
+      categories.forEach(c => {
+        categorySelect.innerHTML += `<option value="${c}">${c}</option>`;
+      });
+
+      statuses.forEach(s => {
+        statusSelect.innerHTML += `<option value="${s}">${s}</option>`;
+      });
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const selectedCategory = document.getElementById('categoryFilter').value;
+      const selectedStatus = document.getElementById('statusFilter').value;
+
+      const filtered = currentDataset.filter(row => {
+        const rowCategory = row.Category || row.category || row.Department || row.Type || "";
+        if (selectedCategory !== "ALL" && String(rowCategory) !== selectedCategory) {
+          return false;
+        }
+
+        const rowStatus = row.Status || row.status || row.State || "";
+        if (selectedStatus !== "ALL" && String(rowStatus) !== selectedStatus) {
+          return false;
+        }
+
+        if (query) {
+          return Object.values(row).some(val => 
+            val !== null && val !== undefined && String(val).toLowerCase().includes(query)
+          );
+        }
+
+        return true;
+      });
+
+      renderTable(filtered);
+      renderCards(filtered);
+      updateChart(filtered);
+    }
+
+    function renderTable(data) {
+      const headersContainer = document.getElementById('tableHeaders');
+      const bodyContainer = document.getElementById('tableBody');
+      const recordCountLabel = document.getElementById('recordCountLabel');
+
+      headersContainer.innerHTML = '';
+      bodyContainer.innerHTML = '';
+
+      if (data.length === 0) {
+        bodyContainer.innerHTML = `<tr><td colspan="100%" class="text-center py-8 text-slate-400">No matching records found.</td></tr>`;
+        recordCountLabel.innerText = "Showing 0 entries";
+        return;
+      }
+
+      const keys = Object.keys(data[0]);
+      keys.forEach(k => {
+        headersContainer.innerHTML += `<th class="px-4 py-3">${k}</th>`;
+      });
+
+      data.forEach(row => {
+        let tr = `<tr class="hover:bg-slate-50/80 transition-colors">`;
+        keys.forEach(k => {
+          let val = row[k] ?? "-";
+          
+          if (k.toLowerCase() === 'status') {
+            let badgeClass = "bg-slate-100 text-slate-700";
+            const lower = String(val).toLowerCase();
+            if (lower === 'completed' || lower === 'active' || lower === 'paid') badgeClass = "bg-emerald-50 text-emerald-600";
+            else if (lower === 'pending') badgeClass = "bg-amber-50 text-amber-600";
+            else if (lower === 'failed' || lower === 'cancelled') badgeClass = "bg-rose-50 text-rose-600";
+            
+            val = `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${badgeClass}">${val}</span>`;
+          } else if (k.toLowerCase() === 'amount' || k.toLowerCase() === 'price' || k.toLowerCase() === 'revenue') {
+            const num = parseFloat(val);
+            if (!isNaN(num)) val = `<span class="font-bold text-slate-900">$${num.toLocaleString()}</span>`;
+          }
+
+          tr += `<td class="px-4 py-3">${val}</td>`;
+        });
+        tr += `</tr>`;
+        bodyContainer.innerHTML += tr;
+      });
+
+      recordCountLabel.innerText = `Showing ${data.length} of ${currentDataset.length} entries`;
+    }
+
+    function renderCards(data) {
+      document.getElementById('cardTotalRows').innerText = data.length.toLocaleString();
+
+      let totalAmount = 0;
+      let validAmountCount = 0;
+      const categoriesSet = new Set();
+
+      data.forEach(row => {
+        const amountKey = Object.keys(row).find(k => /amount|price|revenue|total|cost|val/i.test(k));
+        if (amountKey) {
+          const num = parseFloat(row[amountKey]);
+          if (!isNaN(num)) {
+            totalAmount += num;
+            validAmountCount++;
+          }
+        }
+
+        const cat = row.Category || row.category || row.Department || row.Type;
+        if (cat) categoriesSet.add(cat);
+      });
+
+      const avgAmount = validAmountCount > 0 ? (totalAmount / validAmountCount) : 0;
+
+      document.getElementById('cardTotalAmount').innerText = '$' + totalAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      document.getElementById('cardAvgAmount').innerText = '$' + avgAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      document.getElementById('cardCategoryCount').innerText = categoriesSet.size;
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('categoryChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Total Value ($)',
+            data: [],
+            backgroundColor: '#2563EB',
+            borderRadius: 8,
+            barThickness: 32
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { grid: { display: false } },
+            y: { 
+              grid: { color: '#F1F5F9' },
+              ticks: { callback: v => '$' + v }
+            }
+          }
+        }
+      });
+    }
+
+    function updateChart(data) {
+      if (!chartInstance) return;
+
+      const categoryTotals = {};
+      
+      data.forEach(row => {
+        const cat = row.Category || row.category || row.Department || row.Type || "Uncategorized";
+        const amountKey = Object.keys(row).find(k => /amount|price|revenue|total|cost|val/i.test(k));
+        let num = 0;
+        if (amountKey) {
+          num = parseFloat(row[amountKey]) || 0;
+        } else {
+          num = 1;
+        }
+
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + num;
+      });
+
+      chartInstance.data.labels = Object.keys(categoryTotals);
+      chartInstance.data.datasets[0].data = Object.values(categoryTotals);
+      chartInstance.update();
+    }
   </script>
 </body>
 </html>
-"""
-
-components.html(html_code, height=950, scrolling=True)
