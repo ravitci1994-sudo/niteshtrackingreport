@@ -71,7 +71,7 @@ def get_sample_data():
         },
         {
             "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES",
-            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "Reported": "",
+            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "Reported": "11/11/2026 18:30",
             "Total Touching Hrs.": "-", "Late Hrs": "2.5", "Tracking Remark": "", "Controlling Staff Name": "Nitesh"
         }
     ])
@@ -176,7 +176,8 @@ st.markdown("---")
 # ================= 7 ADVANCED FILTERS TOOLBAR =================
 st.subheader("🔍 Advanced Filters Toolbar")
 
-dates_set = sorted(list({str(str(v)[:10]).strip() for v in df.get(desp_col, []) if desp_col and not is_blank(v)}))
+# Date dropdown populated from Reported Dates
+dates_set = sorted(list({str(str(v)[:10]).strip() for v in df.get(rep_col_name, []) if rep_col_name and not is_blank(v)}))
 months_set = sorted(list({str(str(v)[3:10]).strip() for v in df.get(desp_col, []) if desp_col and not is_blank(v) and len(str(v)) >= 10}))
 staff_set = sorted(list({str(v).strip() for v in df.get(staff_col, []) if staff_col and not is_blank(v)}))
 client_set = sorted(list({str(v).strip() for v in df.get(client_col, []) if client_col and not is_blank(v)}))
@@ -184,7 +185,7 @@ client_set = sorted(list({str(v).strip() for v in df.get(client_col, []) if clie
 fcol1, fcol2, fcol3, fcol4, fcol5, fcol6, fcol7 = st.columns(7)
 
 with fcol1:
-    sel_date = st.selectbox("Date", ["ALL"] + dates_set)
+    sel_date = st.selectbox("Reported Date", ["ALL"] + dates_set)
 with fcol2:
     sel_month = st.selectbox("Month", ["ALL"] + months_set)
 with fcol3:
@@ -215,8 +216,9 @@ if trip_type_filter == "Trip Closed (Reported Mentioned)" and rep_col_name:
 elif trip_type_filter == "In-Transit (Reported Not Mentioned)" and rep_col_name:
     filtered_df = filtered_df[filtered_df[rep_col_name].apply(lambda x: is_blank(x))]
 
-if sel_date != "ALL" and desp_col:
-    filtered_df = filtered_df[filtered_df[desp_col].astype(str).str.startswith(sel_date)]
+# Filter by Selected Reported Date
+if sel_date != "ALL" and rep_col_name:
+    filtered_df = filtered_df[filtered_df[rep_col_name].astype(str).str.startswith(sel_date)]
 
 if sel_month != "ALL" and desp_col:
     filtered_df = filtered_df[filtered_df[desp_col].astype(str).str.contains(sel_month)]
@@ -253,7 +255,7 @@ if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# ================= UPDATED STRICT COLUMNS (With Remarks & Staff) =================
+# ================= STRICT USER-SPECIFIED COLUMNS =================
 desired_columns = [
     "Lorry No.", 
     "Veh.Type", 
