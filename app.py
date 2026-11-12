@@ -88,7 +88,7 @@ def get_sample_data():
 st.title("🚀 Fleet Analytics & MIS Dashboard")
 st.markdown("Welcome back, **Nitesh** | Logistics Management System")
 
-# Initialize Session State for persistence
+# Initialize Session State
 if "saved_data" not in st.session_state:
     st.session_state.saved_data = get_sample_data()
     st.session_state.source_name = "Default Fleet Sample"
@@ -101,7 +101,6 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
-# Process & Normalize Columns Function
 def process_data(df):
     processed = []
     for _, row in df.iterrows():
@@ -110,11 +109,9 @@ def process_data(df):
             clean_col = str(col).strip()
             val = row[col]
             
-            # Normalize Party
             if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
                 val = normalize_party(val)
             
-            # Unique Column Renaming
             if "1st" in clean_col and "report" in clean_col.lower():
                 new_row["1st In Time"] = val
             elif "1st" in clean_col and "deliver" in clean_col.lower():
@@ -127,14 +124,13 @@ def process_data(df):
                 new_row["2nd Out Time"] = val
             elif "2nd" in clean_col and "hrs" in clean_col.lower():
                 new_row["2nd Hours"] = val
-            elif any(k in clean_col.lower() for k in ["final touching reporting", "reporting date"]):
+            elif any(k in clean_col.lower() for k in ["final touching reporting", "reporting date", "reported"]):
                 new_row["Reported"] = val
             else:
                 new_row[clean_col] = val
         processed.append(new_row)
     return pd.DataFrame(processed)
 
-# Update session state if new files are uploaded
 if uploaded_files:
     df_list = []
     file_names = []
@@ -156,7 +152,6 @@ if uploaded_files:
 df = st.session_state.saved_data
 st.sidebar.info(f"Loaded: {st.session_state.source_name}")
 
-# Required Unique Display Columns
 required_cols = [
     "Lorry No.", "Veh.Type", "From", "Destination", "Party", 
     "Desp. Date & Time", "1st Touching", "1st In Time", 
@@ -168,7 +163,7 @@ required_cols = [
 
 existing_cols = [c for c in required_cols if c in df.columns]
 
-# Calculate Metrics
+# Calculate Metrics (Trip Closed vs In-Transit vs Delay Closed)
 trip_closed = 0
 in_transit = 0
 delay_closed = 0
@@ -188,9 +183,9 @@ for _, row in df.iterrows():
 # Metric Cards Display
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric(label="✅ Trip Closed", value=trip_closed, delta="Final Touching Reported")
+    st.metric(label="✅ Trip Closed (Reported)", value=trip_closed, delta="Final Touching Mentioned")
 with col2:
-    st.metric(label="🚚 In-Transit", value=in_transit, delta="Pending Reported", delta_color="inverse")
+    st.metric(label="🚚 In-Transit (Not Reported)", value=in_transit, delta="Pending Reported", delta_color="inverse")
 with col3:
     st.metric(label="⚠️ Delay Closed", value=delay_closed, delta="Late Hrs > 0", delta_color="inverse")
 
@@ -221,10 +216,23 @@ with fcol6:
 with fcol7:
     sel_remarks = st.selectbox("Remarks", ["ALL", "With Remarks", "Without Remarks", "Delay + Without Remarks"])
 
+# Trip Type Filter (Reported vs In-Transit)
+trip_type_filter = st.radio(
+    "📌 View Mode:", 
+    ["All Records", "Trip Closed (Reported Mentioned)", "In-Transit (Reported Not Mentioned)"],
+    horizontal=True
+)
+
 search_query = st.text_input("🔎 Search Lorry No, Destination, Party...", "")
 
 # Apply Filters Logic
 filtered_df = df.copy()
+
+# Filter by Trip Type (Reported vs In-Transit)
+if trip_type_filter == "Trip Closed (Reported Mentioned)":
+    filtered_df = filtered_df[filtered_df["Reported"].apply(lambda x: not is_blank(x))]
+elif trip_type_filter == "In-Transit (Reported Not Mentioned)":
+    filtered_df = filtered_df[filtered_df["Reported"].apply(lambda x: is_blank(x))]
 
 if sel_date != "ALL":
     filtered_df = filtered_df[filtered_df["Desp. Date & Time"].astype(str).str.startswith(sel_date)]
