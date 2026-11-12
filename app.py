@@ -78,7 +78,7 @@ def get_sample_data():
 st.title("🚀 Fleet Analytics & MIS Dashboard")
 st.markdown("Welcome back, **Nitesh** | Logistics Management System")
 
-# Initialize Session State
+# Initialize Session State for Persistence across reruns
 if "saved_data" not in st.session_state:
     st.session_state.saved_data = get_sample_data()
     st.session_state.source_name = "Default Fleet Sample"
@@ -88,7 +88,8 @@ st.sidebar.header("📁 Data Source")
 uploaded_files = st.sidebar.file_uploader(
     "Upload Multiple Excel/CSV Files", 
     type=["csv", "xlsx", "xls"], 
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    key="file_uploader_key"
 )
 
 def process_data(df):
@@ -106,6 +107,7 @@ def process_data(df):
         processed.append(new_row)
     return pd.DataFrame(processed)
 
+# Persistent Data Loading Logic
 if uploaded_files:
     df_list = []
     file_names = []
