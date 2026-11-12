@@ -33,9 +33,6 @@
 </head>
 <body class="bg-[#F4F7FE] text-slate-800 antialiased min-h-screen">
 
-  <!-- Global Shared File Input for both upload buttons -->
-  <input type="file" id="globalCsvFileInput" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
-
   <div class="flex min-h-screen">
     
     <!-- ================= SIDEBAR ================= -->
@@ -70,8 +67,8 @@
           <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
         </div>
         <h4 class="text-xs font-bold text-slate-800">Custom Dataset</h4>
-        <p class="text-[11px] text-slate-500 mt-1 mb-3">Upload your CSV or Excel file.</p>
-        <button onclick="triggerFileInput()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+        <p class="text-[11px] text-slate-500 mt-1 mb-3">Upload your CSV/Excel file to view metrics.</p>
+        <button onclick="document.getElementById('csvFileInput').click()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
           <i data-lucide="upload" class="w-3.5 h-3.5"></i> Select File
         </button>
       </div>
@@ -88,9 +85,12 @@
         </div>
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
+          <!-- Updated Hidden File Input: Accepts CSV and Excel formats (.csv, .xlsx, .xls) -->
+          <input type="file" id="csvFileInput" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
+
           <!-- Top Upload Button -->
-          <button onclick="triggerFileInput()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer">
-            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload File (.CSV / .XLSX)
+          <button onclick="document.getElementById('csvFileInput').click()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload File (.CSV/.XLSX)
           </button>
           
           <button onclick="resetDefaultData()" class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl transition-all cursor-pointer">
@@ -221,6 +221,7 @@
 
   <!-- JAVASCRIPT LOGIC -->
   <script>
+    // Sample default dataset
     const sampleData = [
       { ID: "TX1001", Name: "Sofia Taylor", Category: "Subscription", Amount: 240, Status: "Completed", Date: "2026-03-01" },
       { ID: "TX1002", Name: "Alex Murphy", Category: "Cloud Hosting", Amount: 1250, Status: "Completed", Date: "2026-03-02" },
@@ -235,18 +236,14 @@
     let currentDataset = [...sampleData];
     let chartInstance = null;
 
+    // Run on startup
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       initChart();
       loadData(sampleData, "Default Sample Dataset");
     });
 
-    // Trigger global file picker
-    function triggerFileInput() {
-      document.getElementById('globalCsvFileInput').click();
-    }
-
-    // Universal File Upload Handler (CSV & Excel)
+    // Universal File Upload Handler (Supports both CSV and Excel .xlsx/.xls)
     function handleFileUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -254,6 +251,7 @@
       const fileName = file.name.toLowerCase();
 
       if (fileName.endsWith('.csv')) {
+        // Parse CSV using PapaParse
         Papa.parse(file, {
           header: true,
           dynamicTyping: true,
@@ -262,19 +260,22 @@
             if (results.data && results.data.length > 0) {
               loadData(results.data, file.name);
             } else {
-              alert("Uploaded CSV file me data nahi mila.");
+              alert("Uploaded file me data nahi mila. Kripya valid CSV file upload karein.");
             }
           },
           error: function(err) {
-            alert("CSV Error: " + err.message);
+            alert("File read karne me error: " + err.message);
           }
         });
       } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Parse Excel using SheetJS
         const reader = new FileReader();
         reader.onload = function(e) {
           try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
+            
+            // First sheet ka name le kar data json me convert karein
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
             const jsonResult = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
@@ -282,27 +283,32 @@
             if (jsonResult && jsonResult.length > 0) {
               loadData(jsonResult, file.name);
             } else {
-              alert("Excel file empty hai ya format support nahi kar raha.");
+              alert("Excel file empty hai ya data format sahi nahi hai.");
             }
           } catch (err) {
-            alert("Excel Error: " + err.message);
+            alert("Excel file read karne me error: " + err.message);
           }
         };
         reader.readAsArrayBuffer(file);
       } else {
-        alert("Kripya sirf valid .csv, .xlsx ya .xls file select karein.");
+        alert("Kripya sirf valid .csv, .xlsx ya .xls file upload karein.");
       }
     }
 
     function resetDefaultData() {
       loadData(sampleData, "Default Sample Dataset");
-      document.getElementById('globalCsvFileInput').value = "";
+      document.getElementById('csvFileInput').value = "";
     }
 
+    // Load and prepare dataset
     function loadData(data, sourceName) {
       currentDataset = data;
       document.getElementById('fileStatusLabel').innerText = "Loaded: " + sourceName;
+
+      // Populate Category and Status filter dropdowns
       populateDropdownFilters();
+
+      // Apply initial filters & render
       applyFilters();
     }
 
@@ -310,6 +316,7 @@
       const categorySelect = document.getElementById('categoryFilter');
       const statusSelect = document.getElementById('statusFilter');
 
+      // Clear existing options except 'ALL'
       categorySelect.innerHTML = '<option value="ALL">All Categories</option>';
       statusSelect.innerHTML = '<option value="ALL">All Status</option>';
 
@@ -319,6 +326,7 @@
       currentDataset.forEach(row => {
         const cat = row.Category || row.category || row.Department || row.Type;
         const st = row.Status || row.status || row.State;
+
         if (cat) categories.add(cat);
         if (st) statuses.add(st);
       });
@@ -332,22 +340,26 @@
       });
     }
 
+    // Filter Logic
     function applyFilters() {
       const query = document.getElementById('searchInput').value.toLowerCase().trim();
       const selectedCategory = document.getElementById('categoryFilter').value;
       const selectedStatus = document.getElementById('statusFilter').value;
 
       const filtered = currentDataset.filter(row => {
+        // Category check
         const rowCategory = row.Category || row.category || row.Department || row.Type || "";
         if (selectedCategory !== "ALL" && String(rowCategory) !== selectedCategory) {
           return false;
         }
 
+        // Status check
         const rowStatus = row.Status || row.status || row.State || "";
         if (selectedStatus !== "ALL" && String(rowStatus) !== selectedStatus) {
           return false;
         }
 
+        // Search bar query match across any column value
         if (query) {
           return Object.values(row).some(val => 
             val !== null && val !== undefined && String(val).toLowerCase().includes(query)
@@ -362,6 +374,7 @@
       updateChart(filtered);
     }
 
+    // Render Table
     function renderTable(data) {
       const headersContainer = document.getElementById('tableHeaders');
       const bodyContainer = document.getElementById('tableBody');
@@ -376,16 +389,19 @@
         return;
       }
 
+      // Generate Headers from first row's keys
       const keys = Object.keys(data[0]);
       keys.forEach(k => {
         headersContainer.innerHTML += `<th class="px-4 py-3">${k}</th>`;
       });
 
+      // Generate Rows
       data.forEach(row => {
         let tr = `<tr class="hover:bg-slate-50/80 transition-colors">`;
         keys.forEach(k => {
           let val = row[k] ?? "-";
           
+          // Badge styling for status
           if (k.toLowerCase() === 'status') {
             let badgeClass = "bg-slate-100 text-slate-700";
             const lower = String(val).toLowerCase();
@@ -408,6 +424,7 @@
       recordCountLabel.innerText = `Showing ${data.length} of ${currentDataset.length} entries`;
     }
 
+    // Render Stats
     function renderCards(data) {
       document.getElementById('cardTotalRows').innerText = data.length.toLocaleString();
 
@@ -436,6 +453,7 @@
       document.getElementById('cardCategoryCount').innerText = categoriesSet.size;
     }
 
+    // Setup Chart
     function initChart() {
       const ctx = document.getElementById('categoryChart').getContext('2d');
       chartInstance = new Chart(ctx, {
@@ -467,6 +485,7 @@
       });
     }
 
+    // Update Chart with Filtered Data
     function updateChart(data) {
       if (!chartInstance) return;
 
