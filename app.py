@@ -120,7 +120,6 @@ html_code = """<!DOCTYPE html>
       box-shadow: 0 0 0 2px rgba(244, 91, 134, 0.25);
     }
 
-    /* Structured Grid Table Borders */
     .grid-table {
       border: 1px solid rgba(244, 91, 134, 0.25);
       border-collapse: separate;
@@ -385,8 +384,7 @@ html_code = """<!DOCTYPE html>
           const onTimeRate = c.total > 0 ? Math.round(((c.total - c.delayed) / c.total) * 100) : 100;
           return {
             ...c,
-            sla: Math.max(0, onTimeRate),
-            status: onTimeRate >= 85 ? 'Compliant' : onTimeRate >= 60 ? 'Moderate' : 'At Risk'
+            sla: Math.max(0, onTimeRate)
           };
         }).sort((a, b) => b.total - a.total);
       }, [records]);
@@ -412,8 +410,7 @@ html_code = """<!DOCTYPE html>
           const onTimeRate = s.total > 0 ? Math.round(((s.total - s.delayed) / s.total) * 100) : 100;
           return {
             ...s,
-            sla: Math.max(0, onTimeRate),
-            status: onTimeRate >= 85 ? 'Top Pilot' : onTimeRate >= 60 ? 'Satisfactory' : 'Needs Review'
+            sla: Math.max(0, onTimeRate)
           };
         }).sort((a, b) => b.total - a.total);
       }, [records]);
@@ -439,8 +436,7 @@ html_code = """<!DOCTYPE html>
           const onTimeRate = rt.total > 0 ? Math.round(((rt.total - rt.delayed) / rt.total) * 100) : 100;
           return {
             ...rt,
-            sla: Math.max(0, onTimeRate),
-            status: onTimeRate >= 85 ? 'Optimal' : onTimeRate >= 60 ? 'Congested' : 'Bottleneck'
+            sla: Math.max(0, onTimeRate)
           };
         }).sort((a, b) => b.total - a.total);
       }, [records]);
@@ -534,6 +530,12 @@ html_code = """<!DOCTYPE html>
             ]
           });
         }, 800);
+      };
+
+      const renderSlaColor = (sla) => {
+        if (sla >= 80) return 'text-emerald-400';
+        if (sla >= 50) return 'text-amber-400';
+        return 'text-rose-400';
       };
 
       return (
@@ -722,7 +724,7 @@ html_code = """<!DOCTYPE html>
             {activeTab === 'overall' && (
               <div className="space-y-4">
                 
-                {/* 1. CLIENT WISE REPORT WITH BORDER & BOLD HEADERS */}
+                {/* 1. CLIENT WISE REPORT (NO RATING COLUMN, NO SLA PROGRESS LINE) */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -731,7 +733,7 @@ html_code = """<!DOCTYPE html>
                       </div>
                       <div>
                         <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA compliance</p>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA percentage</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
@@ -747,8 +749,7 @@ html_code = """<!DOCTYPE html>
                           <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -761,29 +762,8 @@ html_code = """<!DOCTYPE html>
                             <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                            <td className="py-2.5 px-3.5">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
-                                    }`}
-                                    style={{ width: `${c.sla}%` }}
-                                  ></div>
-                                </div>
-                                <span className="font-mono text-[11px] font-bold text-slate-200">{c.sla}%</span>
-                              </div>
-                            </td>
                             <td className="py-2.5 px-3.5 text-center">
-                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                                c.status === 'Compliant'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : c.status === 'Moderate'
-                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}>
-                                {c.status}
-                              </span>
+                              <span className={`font-mono text-xs font-black ${renderSlaColor(c.sla)}`}>{c.sla}%</span>
                             </td>
                           </tr>
                         ))}
@@ -792,7 +772,7 @@ html_code = """<!DOCTYPE html>
                   </div>
                 </div>
 
-                {/* 2. STAFF WISE REPORT WITH BORDER & BOLD HEADERS */}
+                {/* 2. STAFF WISE REPORT (NO RATING COLUMN, NO SLA PROGRESS LINE) */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -801,7 +781,7 @@ html_code = """<!DOCTYPE html>
                       </div>
                       <div>
                         <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
-                        <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, trip closures, delay flags, and rating</p>
+                        <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, trip closures, delay flags, and SLA percentage</p>
                       </div>
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
@@ -817,8 +797,7 @@ html_code = """<!DOCTYPE html>
                           <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">RATING</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -828,29 +807,8 @@ html_code = """<!DOCTYPE html>
                             <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                            <td className="py-2.5 px-3.5">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
-                                    }`}
-                                    style={{ width: `${s.sla}%` }}
-                                  ></div>
-                                </div>
-                                <span className="font-mono text-[11px] font-bold text-slate-200">{s.sla}%</span>
-                              </div>
-                            </td>
                             <td className="py-2.5 px-3.5 text-center">
-                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                                s.status === 'Top Pilot'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : s.status === 'Satisfactory'
-                                  ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}>
-                                {s.status}
-                              </span>
+                              <span className={`font-mono text-xs font-black ${renderSlaColor(s.sla)}`}>{s.sla}%</span>
                             </td>
                           </tr>
                         ))}
@@ -859,7 +817,7 @@ html_code = """<!DOCTYPE html>
                   </div>
                 </div>
 
-                {/* 3. ROUTE WISE REPORT WITH BORDER & BOLD HEADERS */}
+                {/* 3. ROUTE WISE REPORT (NO RATING/STATUS COLUMN, NO SLA PROGRESS LINE) */}
                 <div className="glass-panel rounded-2xl p-4 border border-wine-500/20 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -884,8 +842,7 @@ html_code = """<!DOCTYPE html>
                           <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL DISPATCHES</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
                           <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                          <th className="py-2.5 px-3.5 font-black text-white">CORRIDOR SLA %</th>
-                          <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
+                          <th className="py-2.5 px-3.5 text-center font-black text-white">CORRIDOR SLA %</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -895,29 +852,8 @@ html_code = """<!DOCTYPE html>
                             <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{r.total}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{r.closed}</td>
                             <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{r.delayed}</td>
-                            <td className="py-2.5 px-3.5">
-                              <div className="flex items-center space-x-2">
-                                <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      r.sla >= 80 ? 'bg-emerald-400' : r.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
-                                    }`}
-                                    style={{ width: `${r.sla}%` }}
-                                  ></div>
-                                </div>
-                                <span className="font-mono text-[11px] font-bold text-slate-200">{r.sla}%</span>
-                              </div>
-                            </td>
                             <td className="py-2.5 px-3.5 text-center">
-                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                                r.status === 'Optimal'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : r.status === 'Congested'
-                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}>
-                                {r.status}
-                              </span>
+                              <span className={`font-mono text-xs font-black ${renderSlaColor(r.sla)}`}>{r.sla}%</span>
                             </td>
                           </tr>
                         ))}
@@ -939,7 +875,7 @@ html_code = """<!DOCTYPE html>
                     </div>
                     <div>
                       <h2 className="text-xs font-bold text-white tracking-wide">Client Wise Performance Report</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA compliance</p>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Aggregated dispatches, completions, delays, and SLA percentage</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
@@ -955,8 +891,7 @@ html_code = """<!DOCTYPE html>
                         <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL TRIPS</th>
                         <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
                         <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">STATUS</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -969,29 +904,8 @@ html_code = """<!DOCTYPE html>
                           <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{c.total}</td>
                           <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{c.closed}</td>
                           <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{c.delayed}</td>
-                          <td className="py-2.5 px-3.5">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
-                                <div
-                                  className={`h-full rounded-full ${
-                                    c.sla >= 80 ? 'bg-emerald-400' : c.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
-                                  }`}
-                                  style={{ width: `${c.sla}%` }}
-                                ></div>
-                              </div>
-                              <span className="font-mono text-[11px] font-bold text-slate-200">{c.sla}%</span>
-                            </div>
-                          </td>
                           <td className="py-2.5 px-3.5 text-center">
-                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                              c.status === 'Compliant'
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : c.status === 'Moderate'
-                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                            }`}>
-                              {c.status}
-                            </span>
+                            <span className={`font-mono text-xs font-black ${renderSlaColor(c.sla)}`}>{c.sla}%</span>
                           </td>
                         </tr>
                       ))}
@@ -1011,7 +925,7 @@ html_code = """<!DOCTYPE html>
                     </div>
                     <div>
                       <h2 className="text-xs font-bold text-white tracking-wide">Staff Wise Performance Report</h2>
-                      <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, completions, delays, and performance rating</p>
+                      <p className="text-[10px] text-wine-200/50 font-mono">Pilot assignments, completions, delays, and SLA percentage</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-wine-800/80 text-rose-300 border border-wine-500/30">
@@ -1027,8 +941,7 @@ html_code = """<!DOCTYPE html>
                         <th className="py-2.5 px-3.5 text-center font-black text-white">TOTAL ASSIGNED</th>
                         <th className="py-2.5 px-3.5 text-center font-black text-emerald-400">TRIP CLOSED</th>
                         <th className="py-2.5 px-3.5 text-center font-black text-rose-400">DELAY CLOSED</th>
-                        <th className="py-2.5 px-3.5 font-black text-white">ON-TIME SLA %</th>
-                        <th className="py-2.5 px-3.5 text-center font-black text-white">RATING</th>
+                        <th className="py-2.5 px-3.5 text-center font-black text-white">ON-TIME SLA %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1038,29 +951,8 @@ html_code = """<!DOCTYPE html>
                           <td className="py-2.5 px-3.5 text-center font-mono font-bold text-white">{s.total}</td>
                           <td className="py-2.5 px-3.5 text-center font-mono text-emerald-400 font-bold">{s.closed}</td>
                           <td className="py-2.5 px-3.5 text-center font-mono text-rose-400 font-bold">{s.delayed}</td>
-                          <td className="py-2.5 px-3.5">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-24 bg-wine-950 rounded-full h-1.5 overflow-hidden border border-wine-500/30">
-                                <div
-                                  className={`h-full rounded-full ${
-                                    s.sla >= 80 ? 'bg-emerald-400' : s.sla >= 50 ? 'bg-amber-400' : 'bg-rose-500'
-                                  }`}
-                                  style={{ width: `${s.sla}%` }}
-                                ></div>
-                              </div>
-                              <span className="font-mono text-[11px] font-bold text-slate-200">{s.sla}%</span>
-                            </div>
-                          </td>
                           <td className="py-2.5 px-3.5 text-center">
-                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                              s.status === 'Top Pilot'
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                : s.status === 'Satisfactory'
-                                ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                            }`}>
-                              {s.status}
-                            </span>
+                            <span className={`font-mono text-xs font-black ${renderSlaColor(s.sla)}`}>{s.sla}%</span>
                           </td>
                         </tr>
                       ))}
