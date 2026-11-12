@@ -1,513 +1,357 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Code XR - Dynamic Data Dashboard</title>
-  
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- PapaParse for CSV parsing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <!-- SheetJS for Excel (.xlsx, .xls) parsing -->
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+import streamlit as st
+import pandas as pd
+import numpy as np
 
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-    body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
+# Page Configuration
+st.set_page_config(
+    page_title="Nitesh - Fleet Analytics & MIS Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom Glassmorphism & Neon Styling
+st.markdown("""
+<style>
+    .main {
+        background: radial-gradient(circle at 50% 0%, #1e1145 0%, #0d0621 50%, #05020d 100%);
+        color: #e2e8f0;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    .stMetric {
+        background: rgba(25, 15, 55, 0.65);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(168, 85, 247, 0.2);
+        padding: 15px;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background-color: #cbd5e1;
-      border-radius: 9999px;
+    .css-1544g2n {
+        padding-top: 2rem;
     }
-  </style>
-</head>
-<body class="bg-[#F4F7FE] text-slate-800 antialiased min-h-screen">
+</style>
+""", unsafe_allow_html=True)
 
-  <div class="flex min-h-screen">
-    
-    <!-- ================= SIDEBAR ================= -->
-    <aside class="w-64 bg-white border-r border-slate-200/80 p-5 flex flex-col justify-between hidden lg:flex shrink-0">
-      <div>
-        <div class="flex items-center gap-2.5 px-2 mb-8">
-          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
-            <i data-lucide="layers" class="w-5 h-5"></i>
-          </div>
-          <span class="text-xl font-bold tracking-tight text-slate-900">Code XR</span>
-        </div>
+# Helper: Normalize Party Names
+def normalize_party(name):
+    if pd.isna(name) or name == "":
+        return "Other"
+    s = str(name).strip().upper()
+    if "BUSYBEE" in s:
+        return "Busybees"
+    if "DHL" in s:
+        return "DHL"
+    if "TRACKON" in s:
+        return "Trackon"
+    return str(name).strip()
 
-        <nav class="space-y-1">
-          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-blue-50 text-blue-600 transition-all">
-            <i data-lucide="layout-grid" class="w-4 h-4"></i> Overview
-          </a>
-          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
-            <i data-lucide="database" class="w-4 h-4"></i> Data Table
-          </a>
-          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
-            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Analytics
-          </a>
-          <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-all">
-            <i data-lucide="settings" class="w-4 h-4"></i> Settings
-          </a>
-        </nav>
-      </div>
+# Helper: Blank Check
+def is_blank(val):
+    if pd.isna(val) or val is None:
+        return True
+    s = str(val).strip().lower()
+    return s in ["", "nan", "nat", "none", "-", "0", "0.0"]
 
-      <!-- Quick Upload Widget in Sidebar -->
-      <div class="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-200/60 rounded-2xl p-4 text-center">
-        <div class="w-10 h-10 mx-auto rounded-xl bg-blue-600 text-white flex items-center justify-center mb-2 shadow-sm">
-          <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-        </div>
-        <h4 class="text-xs font-bold text-slate-800">Custom Dataset</h4>
-        <p class="text-[11px] text-slate-500 mt-1 mb-3">Upload your CSV/Excel file to view metrics.</p>
-        <button onclick="document.getElementById('csvFileInput').click()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-          <i data-lucide="upload" class="w-3.5 h-3.5"></i> Select File
-        </button>
-      </div>
-    </aside>
+# Helper: Zero Late Check
+def is_zero_late(val):
+    if is_blank(val):
+        return True
+    s = str(val).strip().lower()
+    if s in ["0", "0.0", "00:00", "0:00", "00:00:00"]:
+        return True
+    try:
+        num = float(s)
+        return num <= 0
+    except ValueError:
+        return False
 
-    <!-- ================= MAIN CONTENT ================= -->
-    <main class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
-
-      <!-- Header with Upload & File Name -->
-      <header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-200/80 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h1 class="text-lg font-bold text-slate-900">Live Data Analytics</h1>
-          <p class="text-xs text-slate-400" id="fileStatusLabel">Loaded: Default Sample Dataset</p>
-        </div>
-
-        <div class="flex items-center gap-3 w-full sm:w-auto">
-          <!-- Updated Hidden File Input: Accepts CSV and Excel formats (.csv, .xlsx, .xls) -->
-          <input type="file" id="csvFileInput" accept=".csv, .xlsx, .xls" class="hidden" onchange="handleFileUpload(event)">
-
-          <!-- Top Upload Button -->
-          <button onclick="document.getElementById('csvFileInput').click()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 flex items-center gap-2 transition-all cursor-pointer">
-            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload File (.CSV/.XLSX)
-          </button>
-          
-          <button onclick="resetDefaultData()" class="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl transition-all cursor-pointer">
-            Reset
-          </button>
-        </div>
-      </header>
-
-      <!-- Dashboard Body -->
-      <div class="p-6 space-y-6 max-w-7xl mx-auto w-full">
-
-        <!-- Dynamic Stat Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Entries</span>
-              <span class="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                <i data-lucide="layers" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <h3 class="text-2xl font-extrabold text-slate-900" id="cardTotalRows">0</h3>
-            <p class="text-[11px] text-slate-400 mt-1">Filtered from uploaded records</p>
-          </div>
-
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Value / Revenue</span>
-              <span class="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                <i data-lucide="dollar-sign" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <h3 class="text-2xl font-extrabold text-slate-900" id="cardTotalAmount">$0</h3>
-            <p class="text-[11px] text-emerald-600 mt-1 font-semibold" id="cardTotalSub">Sum of filtered amounts</p>
-          </div>
-
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Average Transaction</span>
-              <span class="p-2 bg-violet-50 text-violet-600 rounded-xl">
-                <i data-lucide="trending-up" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <h3 class="text-2xl font-extrabold text-slate-900" id="cardAvgAmount">$0</h3>
-            <p class="text-[11px] text-slate-400 mt-1">Mean per transaction</p>
-          </div>
-
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-sm">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Categories</span>
-              <span class="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                <i data-lucide="pie-chart" class="w-4 h-4"></i>
-              </span>
-            </div>
-            <h3 class="text-2xl font-extrabold text-slate-900" id="cardCategoryCount">0</h3>
-            <p class="text-[11px] text-slate-400 mt-1">Unique segments</p>
-          </div>
-
-        </div>
-
-        <!-- Dynamic Chart Area -->
-        <div class="bg-white rounded-3xl p-6 border border-slate-200/70 shadow-sm">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Category Breakdown</h3>
-              <p class="text-xs text-slate-400">Auto-calculated from your uploaded file</p>
-            </div>
-          </div>
-          <div class="h-64 w-full">
-            <canvas id="categoryChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Data Filter & Table Container -->
-        <div class="bg-white rounded-3xl p-6 border border-slate-200/70 shadow-sm space-y-4">
-          
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Data Records</h3>
-              <p class="text-xs text-slate-400">Search and filter rows instantly</p>
-            </div>
-
-            <!-- Filters Toolbar -->
-            <div class="flex flex-wrap items-center gap-2">
-              
-              <!-- Search Input -->
-              <div class="relative w-48 sm:w-64">
-                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search all fields..." class="w-full pl-9 pr-3 py-2 bg-slate-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 border border-transparent">
-              </div>
-
-              <!-- Category Dropdown Filter -->
-              <select id="categoryFilter" onchange="applyFilters()" class="px-3 py-2 bg-slate-100 text-xs font-semibold rounded-xl text-slate-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                <option value="ALL">All Categories</option>
-              </select>
-
-              <!-- Status Dropdown Filter -->
-              <select id="statusFilter" onchange="applyFilters()" class="px-3 py-2 bg-slate-100 text-xs font-semibold rounded-xl text-slate-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                <option value="ALL">All Status</option>
-              </select>
-
-            </div>
-          </div>
-
-          <!-- Responsive Table -->
-          <div class="overflow-x-auto custom-scrollbar max-h-96">
-            <table class="w-full text-left text-xs border-collapse">
-              <thead class="bg-slate-50 sticky top-0 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                <tr id="tableHeaders">
-                  <!-- Headers inserted dynamically -->
-                </tr>
-              </thead>
-              <tbody id="tableBody" class="divide-y divide-slate-100 text-slate-700">
-                <!-- Rows inserted dynamically -->
-              </tbody>
-            </table>
-          </div>
-
-          <div class="flex items-center justify-between pt-3 text-xs text-slate-500">
-            <span id="recordCountLabel">Showing 0 entries</span>
-          </div>
-
-        </div>
-
-      </div>
-    </main>
-  </div>
-
-  <!-- JAVASCRIPT LOGIC -->
-  <script>
-    // Sample default dataset
-    const sampleData = [
-      { ID: "TX1001", Name: "Sofia Taylor", Category: "Subscription", Amount: 240, Status: "Completed", Date: "2026-03-01" },
-      { ID: "TX1002", Name: "Alex Murphy", Category: "Cloud Hosting", Amount: 1250, Status: "Completed", Date: "2026-03-02" },
-      { ID: "TX1003", Name: "John Doe", Category: "Marketing", Amount: 620, Status: "Pending", Date: "2026-03-03" },
-      { ID: "TX1004", Name: "Elena Rostova", Category: "Design Assets", Amount: 180, Status: "Completed", Date: "2026-03-04" },
-      { ID: "TX1005", Name: "Liam Smith", Category: "Marketing", Amount: 950, Status: "Failed", Date: "2026-03-05" },
-      { ID: "TX1006", Name: "Emma Watson", Category: "Cloud Hosting", Amount: 2100, Status: "Completed", Date: "2026-03-06" },
-      { ID: "TX1007", Name: "Lucas Gray", Category: "Consulting", Amount: 3400, Status: "Completed", Date: "2026-03-07" },
-      { ID: "TX1008", Name: "Zoe Chen", Category: "Subscription", Amount: 490, Status: "Pending", Date: "2026-03-08" }
-    ];
-
-    let currentDataset = [...sampleData];
-    let chartInstance = null;
-
-    // Run on startup
-    window.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      initChart();
-      loadData(sampleData, "Default Sample Dataset");
-    });
-
-    // Universal File Upload Handler (Supports both CSV and Excel .xlsx/.xls)
-    function handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const fileName = file.name.toLowerCase();
-
-      if (fileName.endsWith('.csv')) {
-        // Parse CSV using PapaParse
-        Papa.parse(file, {
-          header: true,
-          dynamicTyping: true,
-          skipEmptyLines: true,
-          complete: function(results) {
-            if (results.data && results.data.length > 0) {
-              loadData(results.data, file.name);
-            } else {
-              alert("Uploaded file me data nahi mila. Kripya valid CSV file upload karein.");
-            }
-          },
-          error: function(err) {
-            alert("File read karne me error: " + err.message);
-          }
-        });
-      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-        // Parse Excel using SheetJS
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            // First sheet ka name le kar data json me convert karein
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const jsonResult = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-            if (jsonResult && jsonResult.length > 0) {
-              loadData(jsonResult, file.name);
-            } else {
-              alert("Excel file empty hai ya data format sahi nahi hai.");
-            }
-          } catch (err) {
-            alert("Excel file read karne me error: " + err.message);
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        alert("Kripya sirf valid .csv, .xlsx ya .xls file upload karein.");
-      }
-    }
-
-    function resetDefaultData() {
-      loadData(sampleData, "Default Sample Dataset");
-      document.getElementById('csvFileInput').value = "";
-    }
-
-    // Load and prepare dataset
-    function loadData(data, sourceName) {
-      currentDataset = data;
-      document.getElementById('fileStatusLabel').innerText = "Loaded: " + sourceName;
-
-      // Populate Category and Status filter dropdowns
-      populateDropdownFilters();
-
-      // Apply initial filters & render
-      applyFilters();
-    }
-
-    function populateDropdownFilters() {
-      const categorySelect = document.getElementById('categoryFilter');
-      const statusSelect = document.getElementById('statusFilter');
-
-      // Clear existing options except 'ALL'
-      categorySelect.innerHTML = '<option value="ALL">All Categories</option>';
-      statusSelect.innerHTML = '<option value="ALL">All Status</option>';
-
-      const categories = new Set();
-      const statuses = new Set();
-
-      currentDataset.forEach(row => {
-        const cat = row.Category || row.category || row.Department || row.Type;
-        const st = row.Status || row.status || row.State;
-
-        if (cat) categories.add(cat);
-        if (st) statuses.add(st);
-      });
-
-      categories.forEach(c => {
-        categorySelect.innerHTML += `<option value="${c}">${c}</option>`;
-      });
-
-      statuses.forEach(s => {
-        statusSelect.innerHTML += `<option value="${s}">${s}</option>`;
-      });
-    }
-
-    // Filter Logic
-    function applyFilters() {
-      const query = document.getElementById('searchInput').value.toLowerCase().trim();
-      const selectedCategory = document.getElementById('categoryFilter').value;
-      const selectedStatus = document.getElementById('statusFilter').value;
-
-      const filtered = currentDataset.filter(row => {
-        // Category check
-        const rowCategory = row.Category || row.category || row.Department || row.Type || "";
-        if (selectedCategory !== "ALL" && String(rowCategory) !== selectedCategory) {
-          return false;
-        }
-
-        // Status check
-        const rowStatus = row.Status || row.status || row.State || "";
-        if (selectedStatus !== "ALL" && String(rowStatus) !== selectedStatus) {
-          return false;
-        }
-
-        // Search bar query match across any column value
-        if (query) {
-          return Object.values(row).some(val => 
-            val !== null && val !== undefined && String(val).toLowerCase().includes(query)
-          );
-        }
-
-        return true;
-      });
-
-      renderTable(filtered);
-      renderCards(filtered);
-      updateChart(filtered);
-    }
-
-    // Render Table
-    function renderTable(data) {
-      const headersContainer = document.getElementById('tableHeaders');
-      const bodyContainer = document.getElementById('tableBody');
-      const recordCountLabel = document.getElementById('recordCountLabel');
-
-      headersContainer.innerHTML = '';
-      bodyContainer.innerHTML = '';
-
-      if (data.length === 0) {
-        bodyContainer.innerHTML = `<tr><td colspan="100%" class="text-center py-8 text-slate-400">No matching records found.</td></tr>`;
-        recordCountLabel.innerText = "Showing 0 entries";
-        return;
-      }
-
-      // Generate Headers from first row's keys
-      const keys = Object.keys(data[0]);
-      keys.forEach(k => {
-        headersContainer.innerHTML += `<th class="px-4 py-3">${k}</th>`;
-      });
-
-      // Generate Rows
-      data.forEach(row => {
-        let tr = `<tr class="hover:bg-slate-50/80 transition-colors">`;
-        keys.forEach(k => {
-          let val = row[k] ?? "-";
-          
-          // Badge styling for status
-          if (k.toLowerCase() === 'status') {
-            let badgeClass = "bg-slate-100 text-slate-700";
-            const lower = String(val).toLowerCase();
-            if (lower === 'completed' || lower === 'active' || lower === 'paid') badgeClass = "bg-emerald-50 text-emerald-600";
-            else if (lower === 'pending') badgeClass = "bg-amber-50 text-amber-600";
-            else if (lower === 'failed' || lower === 'cancelled') badgeClass = "bg-rose-50 text-rose-600";
-            
-            val = `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${badgeClass}">${val}</span>`;
-          } else if (k.toLowerCase() === 'amount' || k.toLowerCase() === 'price' || k.toLowerCase() === 'revenue') {
-            const num = parseFloat(val);
-            if (!isNaN(num)) val = `<span class="font-bold text-slate-900">$${num.toLocaleString()}</span>`;
-          }
-
-          tr += `<td class="px-4 py-3">${val}</td>`;
-        });
-        tr += `</tr>`;
-        bodyContainer.innerHTML += tr;
-      });
-
-      recordCountLabel.innerText = `Showing ${data.length} of ${currentDataset.length} entries`;
-    }
-
-    // Render Stats
-    function renderCards(data) {
-      document.getElementById('cardTotalRows').innerText = data.length.toLocaleString();
-
-      let totalAmount = 0;
-      let validAmountCount = 0;
-      const categoriesSet = new Set();
-
-      data.forEach(row => {
-        const amountKey = Object.keys(row).find(k => /amount|price|revenue|total|cost|val/i.test(k));
-        if (amountKey) {
-          const num = parseFloat(row[amountKey]);
-          if (!isNaN(num)) {
-            totalAmount += num;
-            validAmountCount++;
-          }
-        }
-
-        const cat = row.Category || row.category || row.Department || row.Type;
-        if (cat) categoriesSet.add(cat);
-      });
-
-      const avgAmount = validAmountCount > 0 ? (totalAmount / validAmountCount) : 0;
-
-      document.getElementById('cardTotalAmount').innerText = '$' + totalAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-      document.getElementById('cardAvgAmount').innerText = '$' + avgAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-      document.getElementById('cardCategoryCount').innerText = categoriesSet.size;
-    }
-
-    // Setup Chart
-    function initChart() {
-      const ctx = document.getElementById('categoryChart').getContext('2d');
-      chartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: [],
-          datasets: [{
-            label: 'Total Value ($)',
-            data: [],
-            backgroundColor: '#2563EB',
-            borderRadius: 8,
-            barThickness: 32
-          }]
+# Sample Default Dataset
+@st.cache_data
+def get_sample_data():
+    return pd.DataFrame([
+        {
+            "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
+            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "1st Touching Reporting Date & Time": "09/11/2026 12:00",
+            "1st Touching Delivery Date & Time": "09/11/2026 15:00", "1st Touching Hrs.": "25h", "2nd Touching": "-",
+            "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
+            "Final Touching Reporting Date & Time": "10/11/2026 14:00", "Total Touching Hrs.": "28h",
+            "Hrs. Taken with touching": "52h", "Hrs. Taken without touching (Dly.)": "48h", "Late Hrs": "0",
+            "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar", "Foreman Name": "Rajesh"
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            x: { grid: { display: false } },
-            y: { 
-              grid: { color: '#F1F5F9' },
-              ticks: { callback: v => '$' + v }
-            }
-          }
+        {
+            "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES LOGISTICS SOLUTIONS PRIVATE LIMITED",
+            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "1st Touching Reporting Date & Time": "09/11/2026 10:00",
+            "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "26h", "2nd Touching": "-",
+            "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
+            "Final Touching Reporting Date & Time": "", "Total Touching Hrs.": "-",
+            "Hrs. Taken with touching": "-", "Hrs. Taken without touching (Dly.)": "-", "Late Hrs": "2.5",
+            "Tracking Remark": "", "Controlling Staff Name": "Nitesh", "Foreman Name": "Suresh"
         }
-      });
-    }
+    ])
 
-    // Update Chart with Filtered Data
-    function updateChart(data) {
-      if (!chartInstance) return;
+# Header Section
+st.title("🚀 Fleet Analytics & MIS Dashboard")
+st.markdown("Welcome back, **Nitesh** | Logistics Management System")
 
-      const categoryTotals = {};
-      
-      data.forEach(row => {
-        const cat = row.Category || row.category || row.Department || row.Type || "Uncategorized";
-        const amountKey = Object.keys(row).find(k => /amount|price|revenue|total|cost|val/i.test(k));
-        let num = 0;
-        if (amountKey) {
-          num = parseFloat(row[amountKey]) || 0;
-        } else {
-          num = 1;
-        }
+# Sidebar - Multiple File Upload
+st.sidebar.header("📁 Data Source")
+uploaded_files = st.sidebar.file_uploader(
+    "Upload Multiple Excel/CSV Files", 
+    type=["csv", "xlsx", "xls"], 
+    accept_multiple_files=True
+)
 
-        categoryTotals[cat] = (categoryTotals[cat] || 0) + num;
-      });
+# Load Data
+df_list = []
+if uploaded_files:
+    for file in uploaded_files:
+        try:
+            if file.name.endswith('.csv'):
+                df_temp = pd.read_csv(file)
+            else:
+                df_temp = pd.read_excel(file)
+            df_list.append(df_temp)
+        except Exception as e:
+            st.sidebar.error(f"Error loading {file.name}: {e}")
+    if df_list:
+        raw_df = pd.concat(df_list, ignore_index=True)
+    else:
+        raw_df = get_sample_data()
+else:
+    raw_df = get_sample_data()
 
-      chartInstance.data.labels = Object.keys(categoryTotals);
-      chartInstance.data.datasets[0].data = Object.values(categoryTotals);
-      chartInstance.update();
-    }
-  </script>
-</body>
-</html>
+# Process & Normalize Columns
+def process_data(df):
+    processed = []
+    for _, row in df.iterrows():
+        new_row = {}
+        for col in df.columns:
+            clean_col = str(col).strip()
+            val = row[col]
+            
+            # Normalize Party
+            if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
+                val = normalize_party(val)
+            
+            # Column Renaming
+            if "1st" in clean_col and "report" in clean_col.lower():
+                new_row["In Time"] = val
+            elif "1st" in clean_col and "deliver" in clean_col.lower():
+                new_row["Out Time"] = val
+            elif "1st" in clean_col and "hrs" in clean_col.lower():
+                new_row["Hours"] = val
+            elif "2nd" in clean_col and "report" in clean_col.lower():
+                new_row["In Time"] = val
+            elif "2nd" in clean_col and "deliver" in clean_col.lower():
+                new_row["Out Time"] = val
+            elif "2nd" in clean_col and "hrs" in clean_col.lower():
+                new_row["Hours"] = val
+            elif any(k in clean_col.lower() for k in ["final touching reporting", "reporting date"]):
+                new_row["Reported"] = val
+            else:
+                new_row[clean_col] = val
+        processed.append(new_row)
+    return pd.DataFrame(processed)
+
+df = process_data(raw_df)
+
+# Required Display Columns
+required_cols = [
+    "Lorry No.", "Veh.Type", "From", "Destination", "Party", 
+    "Desp. Date & Time", "1st Touching", "In Time", 
+    "Out Time", "Hours", "2nd Touching", 
+    "In Time", "Out Time", "Hours", "Reported", "Total Touching Hrs.", 
+    "Hrs. Taken with touching", "Hrs. Taken without touching (Dly.)", "Late Hrs", 
+    "Tracking Remark", "Controlling Staff Name", "Foreman Name"
+]
+
+# Ensure columns exist in dataframe
+existing_cols = [c for c in required_cols if c in df.columns]
+
+# Calculate Metrics
+trip_closed = 0
+in_transit = 0
+delay_closed = 0
+
+for _, row in df.iterrows():
+    rep_val = row.get("Reported", "")
+    late_val = row.get("Late Hrs", 0)
+    is_closed = not is_blank(rep_val)
+    
+    if is_closed:
+        trip_closed += 1
+        if not is_zero_late(late_val):
+            delay_closed += 1
+    else:
+        in_transit += 1
+
+# Metric Cards Display
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric(label="✅ Trip Closed", value=trip_closed, delta="Final Touching Reported")
+with col2:
+    st.metric(label="🚚 In-Transit", value=in_transit, delta="Pending Reported", delta_color="inverse")
+with col3:
+    st.metric(label="⚠️ Delay Closed", value=delay_closed, delta="Late Hrs > 0", delta_color="inverse")
+
+st.markdown("---")
+
+# ================= 7 ADVANCED FILTERS TOOLBAR =================
+st.subheader("🔍 Advanced 7-Button Filters Toolbar")
+
+# Extract unique filter values
+dates_set = sorted(list({str(str(v)[:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v)}))
+months_set = sorted(list({str(str(v)[3:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v) and len(str(v)) >= 10}))
+staff_set = sorted(list({str(v).strip() for v in df.get("Controlling Staff Name", []) if not is_blank(v)}))
+client_set = sorted(list({str(v).strip() for v in df.get("Party", []) if not is_blank(v)}))
+
+fcol1, fcol2, fcol3, fcol4, fcol5, fcol6, fcol7 = st.columns(7)
+
+with fcol1:
+    sel_date = st.selectbox("Date", ["ALL"] + dates_set)
+with fcol2:
+    sel_month = st.selectbox("Month", ["ALL"] + months_set)
+with fcol3:
+    sel_status = st.selectbox("Status", ["ALL", "On Time", "Delay"])
+with fcol4:
+    sel_staff = st.selectbox("Staff", ["ALL"] + staff_set)
+with fcol5:
+    sel_client = st.selectbox("Client", ["ALL"] + client_set)
+with fcol6:
+    sel_delay = st.selectbox("Delay Range", ["ALL", "< 1 Hour", "< 30 Mins", "< 10 Mins"])
+with fcol7:
+    sel_remarks = st.selectbox("Remarks", ["ALL", "With Remarks", "Without Remarks", "Delay + Without Remarks"])
+
+search_query = st.text_input("🔎 Search Lorry No, Destination, Party...", "")
+
+# Apply Filters Logic
+filtered_df = df.copy()
+
+if sel_date != "ALL":
+    filtered_df = filtered_df[filtered_df["Desp. Date & Time"].astype(str).str.startswith(sel_date)]
+if sel_month != "ALL":
+    filtered_df = filtered_df[filtered_df["Desp. Date & Time"].astype(str).str.contains(sel_month)]
+if sel_staff != "ALL":
+    filtered_df = filtered_df[filtered_df["Controlling Staff Name"].astype(str).str.strip() == sel_staff]
+if sel_client != "ALL":
+    filtered_df = filtered_df[filtered_df["Party"].astype(str).str.strip() == sel_client]
+
+if sel_status != "ALL":
+    if sel_status == "Delay":
+        filtered_df = filtered_df[filtered_df["Late Hrs"].apply(lambda x: not is_zero_late(x))]
+    else:
+        filtered_df = filtered_df[filtered_df["Late Hrs"].apply(lambda x: is_zero_late(x))]
+
+if sel_delay != "ALL":
+    def check_delay_range(val):
+        try:
+            hrs = float(val)
+            mins = hrs * 60
+            if sel_delay == "< 1 Hour":
+                return 0 < mins < 60
+            elif sel_delay == "< 30 Mins":
+                return 0 < mins < 30
+            elif sel_delay == "< 10 Mins":
+                return 0 < mins < 10
+        except:
+            return False
+        return False
+    filtered_df = filtered_df[filtered_df["Late Hrs"].apply(check_delay_range)]
+
+if sel_remarks != "ALL":
+    def check_remarks(row):
+        rem = str(row.get("Tracking Remark", ""))
+        has_rem = not is_blank(rem)
+        is_late = not is_zero_late(row.get("Late Hrs", 0))
+        if sel_remarks == "With Remarks":
+            return has_rem
+        elif sel_remarks == "Without Remarks":
+            return not has_rem
+        elif sel_remarks == "Delay + Without Remarks":
+            return is_late and not has_rem
+        return True
+    filtered_df = filtered_df[filtered_df.apply(check_remarks, axis=1)]
+
+if search_query:
+    q = search_query.lower()
+    filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
+
+# Display Main Table
+st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
+st.dataframe(filtered_df[existing_cols] if existing_cols else filtered_df, use_container_width=True)
+
+st.markdown("---")
+
+# ================= CLIENT-WISE PERFORMANCE REPORT =================
+st.subheader("📊 Client-wise Performance Report")
+client_filter = st.selectbox("Filter Client", ["ALL"] + client_set, key="client_perf_select")
+
+client_stats = []
+for client in client_set:
+    if client_filter != "ALL" and client != client_filter:
+        continue
+    client_rows = df[df["Party"].astype(str).str.strip() == client]
+    total = len(client_rows)
+    closed = sum(1 for _, r in client_rows.iterrows() if not is_blank(r.get("Reported", "")))
+    on_time = sum(1 for _, r in client_rows.iterrows() if not is_blank(r.get("Reported", "")) and is_zero_late(r.get("Late Hrs", 0)))
+    delay = closed - on_time
+    pct = round((on_time / closed * 100), 1) if closed > 0 else 0.0
+    
+    client_stats.append({
+        "Client Name": client,
+        "Total Trips": total,
+        "Closed Trips": closed,
+        "On-Time Trips": on_time,
+        "Delay Trips": delay,
+        "On-Time %": f"{pct}%"
+    })
+
+if client_stats:
+    st.dataframe(pd.DataFrame(client_stats), use_container_width=True)
+
+st.markdown("---")
+
+# ================= ROUTE-WISE PERFORMANCE REPORT =================
+st.subheader("🗺️ Route-wise Performance Report")
+rcol1, rcol2 = st.columns(2)
+with rcol1:
+    route_staff = st.selectbox("Filter by Controlling Staff", ["ALL"] + staff_set)
+with rcol2:
+    route_client = st.selectbox("Filter by Client", ["ALL"] + client_set, key="route_client_select")
+
+route_stats = {}
+for _, row in df.iterrows():
+    staff = str(row.get("Controlling Staff Name", "")).strip()
+    client = str(row.get("Party", "")).strip()
+    
+    if route_staff != "ALL" and staff != route_staff:
+        continue
+    if route_client != "ALL" and client != route_client:
+        continue
+        
+    frm = row.get("From", "Unknown")
+    dest = row.get("Destination", "Unknown")
+    route = f"{frm} → {dest}"
+    
+    if route not in route_stats:
+        route_stats[route] = {"total": 0, "on_time": 0, "delay": 0}
+        
+    route_stats[route]["total"] += 1
+    if is_zero_late(row.get("Late Hrs", 0)):
+        route_stats[route]["on_time"] += 1
+    else:
+        route_stats[route]["delay"] += 1
+
+route_data = []
+for route, stats in route_stats.items():
+    rate = round((stats["on_time"] / stats["total"] * 100), 1) if stats["total"] > 0 else 0.0
+    route_data.append({
+        "Route": route,
+        "Total Trips": stats["total"],
+        "On-Time Trips": stats["on_time"],
+        "Delay Trips": stats["delay"],
+        "Success Rate": f"{rate}%"
+    })
+
+if route_data:
+    st.dataframe(pd.DataFrame(route_data), use_container_width=True)
+else:
+    st.info("No route data available for the selected filters.")
