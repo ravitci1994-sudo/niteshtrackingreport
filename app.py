@@ -67,12 +67,12 @@ def get_sample_data():
         {
             "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
             "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "Reported": "10/11/2026 14:00",
-            "Total Touching Hrs.": "28h", "Late Hrs": "0", "Controlling Staff Name": "Amit Kumar"
+            "Total Touching Hrs.": "28h", "Late Hrs": "0", "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar"
         },
         {
             "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES",
             "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "Reported": "",
-            "Total Touching Hrs.": "-", "Late Hrs": "2.5", "Controlling Staff Name": "Nitesh"
+            "Total Touching Hrs.": "-", "Late Hrs": "2.5", "Tracking Remark": "", "Controlling Staff Name": "Nitesh"
         }
     ])
 
@@ -176,7 +176,6 @@ st.markdown("---")
 # ================= 7 ADVANCED FILTERS TOOLBAR =================
 st.subheader("🔍 Advanced Filters Toolbar")
 
-# Extract unique dates (Day-wise checking: comparing first 10 chars 'DD/MM/YYYY' or 'YYYY-MM-DD')
 dates_set = sorted(list({str(str(v)[:10]).strip() for v in df.get(desp_col, []) if desp_col and not is_blank(v)}))
 months_set = sorted(list({str(str(v)[3:10]).strip() for v in df.get(desp_col, []) if desp_col and not is_blank(v) and len(str(v)) >= 10}))
 staff_set = sorted(list({str(v).strip() for v in df.get(staff_col, []) if staff_col and not is_blank(v)}))
@@ -216,7 +215,6 @@ if trip_type_filter == "Trip Closed (Reported Mentioned)" and rep_col_name:
 elif trip_type_filter == "In-Transit (Reported Not Mentioned)" and rep_col_name:
     filtered_df = filtered_df[filtered_df[rep_col_name].apply(lambda x: is_blank(x))]
 
-# Exact Date Filtering
 if sel_date != "ALL" and desp_col:
     filtered_df = filtered_df[filtered_df[desp_col].astype(str).str.startswith(sel_date)]
 
@@ -255,7 +253,7 @@ if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# ================= STRICT USER-SPECIFIED COLUMNS =================
+# ================= UPDATED STRICT COLUMNS (With Remarks & Staff) =================
 desired_columns = [
     "Lorry No.", 
     "Veh.Type", 
@@ -265,10 +263,11 @@ desired_columns = [
     "Desp. Date & Time", 
     "1st Touching", 
     "Total Touching Hrs.", 
-    "Late Hrs"
+    "Late Hrs",
+    "Tracking Remark",
+    "Controlling Staff Name"
 ]
 
-# Match existing columns safely in uploaded dataset
 final_display_cols = []
 for d_col in desired_columns:
     match = next((c for c in filtered_df.columns if c.strip().lower() == d_col.lower()), None)
@@ -352,13 +351,13 @@ if from_cols and dest_cols:
     route_data = []
     for route, stats in route_stats.items():
         rate = round((stats["on_time"] / stats["total"] * 100), 1) if stats["total"] > 0 else 0.0
-    route_data.append({
-        "Route": route,
-        "Total Trips": stats["total"],
-        "On-Time Trips": stats["on_time"],
-        "Delay Trips": stats["delay"],
-        "Success Rate": f"{rate}%"
-    })
+        route_data.append({
+            "Route": route,
+            "Total Trips": stats["total"],
+            "On-Time Trips": stats["on_time"],
+            "Delay Trips": stats["delay"],
+            "Success Rate": f"{rate}%"
+        })
 
     if route_data:
         st.dataframe(pd.DataFrame(route_data), use_container_width=True)
