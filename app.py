@@ -24,9 +24,6 @@ st.markdown("""
         border-radius: 20px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
-    .css-1544g2n {
-        padding-top: 2rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,19 +66,19 @@ def get_sample_data():
     return pd.DataFrame([
         {
             "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
-            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "1st Touching Reporting Date & Time": "09/11/2026 12:00",
-            "1st Touching Delivery Date & Time": "09/11/2026 15:00", "1st Touching Hrs.": "25h", "2nd Touching": "-",
-            "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
-            "Final Touching Reporting Date & Time": "10/11/2026 14:00", "Total Touching Hrs.": "28h",
+            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "1st In Time": "09/11/2026 12:00",
+            "1st Out Time": "09/11/2026 15:00", "1st Hours": "25h", "2nd Touching": "-",
+            "2nd In Time": "-", "2nd Out Time": "-", "2nd Hours": "-",
+            "Reported": "10/11/2026 14:00", "Total Touching Hrs.": "28h",
             "Hrs. Taken with touching": "52h", "Hrs. Taken without touching (Dly.)": "48h", "Late Hrs": "0",
             "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar", "Foreman Name": "Rajesh"
         },
         {
             "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES LOGISTICS SOLUTIONS PRIVATE LIMITED",
-            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "1st Touching Reporting Date & Time": "09/11/2026 10:00",
-            "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "26h", "2nd Touching": "-",
-            "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
-            "Final Touching Reporting Date & Time": "", "Total Touching Hrs.": "-",
+            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "1st In Time": "09/11/2026 10:00",
+            "1st Out Time": "09/11/2026 14:00", "1st Hours": "26h", "2nd Touching": "-",
+            "2nd In Time": "-", "2nd Out Time": "-", "2nd Hours": "-",
+            "Reported": "", "Total Touching Hrs.": "-",
             "Hrs. Taken with touching": "-", "Hrs. Taken without touching (Dly.)": "-", "Late Hrs": "2.5",
             "Tracking Remark": "", "Controlling Staff Name": "Nitesh", "Foreman Name": "Suresh"
         }
@@ -118,7 +115,7 @@ if uploaded_files:
 else:
     raw_df = get_sample_data()
 
-# Process & Normalize Columns
+# Process & Normalize Columns (Avoiding duplicates)
 def process_data(df):
     processed = []
     for _, row in df.iterrows():
@@ -131,19 +128,19 @@ def process_data(df):
             if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
                 val = normalize_party(val)
             
-            # Column Renaming
+            # Unique Column Renaming
             if "1st" in clean_col and "report" in clean_col.lower():
-                new_row["In Time"] = val
+                new_row["1st In Time"] = val
             elif "1st" in clean_col and "deliver" in clean_col.lower():
-                new_row["Out Time"] = val
+                new_row["1st Out Time"] = val
             elif "1st" in clean_col and "hrs" in clean_col.lower():
-                new_row["Hours"] = val
+                new_row["1st Hours"] = val
             elif "2nd" in clean_col and "report" in clean_col.lower():
-                new_row["In Time"] = val
+                new_row["2nd In Time"] = val
             elif "2nd" in clean_col and "deliver" in clean_col.lower():
-                new_row["Out Time"] = val
+                new_row["2nd Out Time"] = val
             elif "2nd" in clean_col and "hrs" in clean_col.lower():
-                new_row["Hours"] = val
+                new_row["2nd Hours"] = val
             elif any(k in clean_col.lower() for k in ["final touching reporting", "reporting date"]):
                 new_row["Reported"] = val
             else:
@@ -153,17 +150,16 @@ def process_data(df):
 
 df = process_data(raw_df)
 
-# Required Display Columns
+# Required Unique Display Columns
 required_cols = [
     "Lorry No.", "Veh.Type", "From", "Destination", "Party", 
-    "Desp. Date & Time", "1st Touching", "In Time", 
-    "Out Time", "Hours", "2nd Touching", 
-    "In Time", "Out Time", "Hours", "Reported", "Total Touching Hrs.", 
+    "Desp. Date & Time", "1st Touching", "1st In Time", 
+    "1st Out Time", "1st Hours", "2nd Touching", 
+    "2nd In Time", "2nd Out Time", "2nd Hours", "Reported", "Total Touching Hrs.", 
     "Hrs. Taken with touching", "Hrs. Taken without touching (Dly.)", "Late Hrs", 
     "Tracking Remark", "Controlling Staff Name", "Foreman Name"
 ]
 
-# Ensure columns exist in dataframe
 existing_cols = [c for c in required_cols if c in df.columns]
 
 # Calculate Metrics
@@ -197,7 +193,6 @@ st.markdown("---")
 # ================= 7 ADVANCED FILTERS TOOLBAR =================
 st.subheader("🔍 Advanced 7-Button Filters Toolbar")
 
-# Extract unique filter values
 dates_set = sorted(list({str(str(v)[:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v)}))
 months_set = sorted(list({str(str(v)[3:10]) for v in df.get("Desp. Date & Time", []) if not is_blank(v) and len(str(v)) >= 10}))
 staff_set = sorted(list({str(v).strip() for v in df.get("Controlling Staff Name", []) if not is_blank(v)}))
