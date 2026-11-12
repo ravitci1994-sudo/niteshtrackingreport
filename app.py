@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
+import shutil
 
 # Page Configuration
 st.set_page_config(
@@ -26,6 +28,10 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# Persistent Storage Folder Setup
+UPLOAD_DIR = "saved_fleet_data"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Helper: Normalize Party Names
 def normalize_party(name):
@@ -78,20 +84,6 @@ def get_sample_data():
 st.title("🚀 Fleet Analytics & MIS Dashboard")
 st.markdown("Welcome back, **Nitesh** | Logistics Management System")
 
-# Initialize Session State for Persistence across reruns
-if "saved_data" not in st.session_state:
-    st.session_state.saved_data = get_sample_data()
-    st.session_state.source_name = "Default Fleet Sample"
-
-# Sidebar - Multiple File Upload
-st.sidebar.header("📁 Data Source")
-uploaded_files = st.sidebar.file_uploader(
-    "Upload Multiple Excel/CSV Files", 
-    type=["csv", "xlsx", "xls"], 
-    accept_multiple_files=True,
-    key="file_uploader_key"
-)
-
 def process_data(df):
     processed = []
     for _, row in df.iterrows():
@@ -107,20 +99,71 @@ def process_data(df):
         processed.append(new_row)
     return pd.DataFrame(processed)
 
-# Persistent Data Loading Logic
+# Load data from disk folder if available, else sample data
+def load_persisted_data():
+    files = os.listdir(UPLOAD_DIR)
+    if files:
+        df_list = []
+        for f in files:
+            f_path = os.path.join(UPLOAD_DIR, f)
+            try:
+                if f.endswith('.csv'):
+                    df_temp = pd.read_csv(f_path)
+                else:
+                    df_temp = pd.read_excel(f_path)
+                df_list.append(df_temp)
+            except Exception:
+                pass
+        if df_list:
+            return pd.concat(df_list, ignore_index=True), ", ".join(files)
+    return get_sample_data(), "Default Fleet Sample"
+
+if "saved_data" not in st.session_state:
+    initial_df, src_name = load_persisted_data()
+    st.session_state.saved_data = initial_df
+    st.session_state.source_name = src_name
+
+# Sidebar - Multiple File Upload & Remove Button
+st.sidebar.header("📁 Data Source")
+uploaded_files = st.sidebar.file_uploader(
+    "Upload Multiple Excel/CSV Files", 
+    type=["csv", "xlsx", "xls"], 
+    accept_multiple_files=True,
+    key="file_uploader_key"
+)
+
+# Remove Data Button
+if st.sidebar.button("🗑️ Remove Uploaded Data"):
+    for f in os.listdir(UPLOAD_DIR):
+        os.remove(os.path.join(UPLOAD_DIR, f))
+    st.session_state.saved_data = get_sample_data()
+    st.session_state.source_name = "Default Fleet Sample"
+    st.sidebar.success("Uploaded data removed successfully!")
+    st.rerun()
+
+# Save new files to disk folder
 if uploaded_files:
+    # Clear old persisted files
+    for f in os.listdir(UPLOAD_DIR):
+        os.remove(os.path.join(UPLOAD_DIR, f))
+    
     df_list = []
     file_names = []
     for file in uploaded_files:
         file_names.append(file.name)
+        f_path = os.path.join(UPLOAD_DIR, file.name)
+        with open(f_path, "wb") as f:
+            f.write(file.getbuffer())
+        
         try:
             if file.name.endswith('.csv'):
-                df_temp = pd.read_csv(file)
+                df_temp = pd.read_csv(f_path)
             else:
-                df_temp = pd.read_excel(file)
+                df_temp = pd.read_excel(f_path)
             df_list.append(df_temp)
         except Exception as e:
             st.sidebar.error(f"Error loading {file.name}: {e}")
+            
     if df_list:
         raw_df = pd.concat(df_list, ignore_index=True)
         st.session_state.saved_data = process_data(raw_df)
