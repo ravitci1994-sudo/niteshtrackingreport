@@ -66,13 +66,11 @@ def get_sample_data():
     return pd.DataFrame([
         {
             "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
-            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", "Reported": "10/11/2026 14:00",
+            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", 
+            "1st Touching Reporting Date & Time": "09/11/2026 11:00", "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "3h",
+            "2nd Touching": "-", "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
+            "Final Touching Reporting Date & Time": "10/11/2026 14:00",
             "Total Touching Hrs.": "28h", "Late Hrs": "0", "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar"
-        },
-        {
-            "Lorry No.": "GJ01XY5678", "Veh.Type": "16MT", "From": "Delhi", "Destination": "Vapi", "Party": "BUSYBEES",
-            "Desp. Date & Time": "08/11/2026 04:56:00", "1st Touching": "Vadodara", "Reported": "11/11/2026 18:30",
-            "Total Touching Hrs.": "-", "Late Hrs": "2.5", "Tracking Remark": "", "Controlling Staff Name": "Nitesh"
         }
     ])
 
@@ -130,8 +128,8 @@ df = st.session_state.saved_data
 st.sidebar.info(f"Loaded: {st.session_state.source_name}")
 
 # Column Mappings & Detection
-rep_cols = [c for c in df.columns if 'report' in c.lower()]
-rep_col_name = rep_cols[0] if rep_cols else None
+rep_cols = [c for c in df.columns if 'final touching reporting' in c.lower() or ('report' in c.lower() and 'final' in c.lower()) or c.strip() == 'Reported']
+rep_col_name = rep_cols[0] if rep_cols else next((c for c in df.columns if 'report' in c.lower()), None)
 
 late_cols = [c for c in df.columns if 'late' in c.lower() or 'delay' in c.lower()]
 late_col_name = late_cols[0] if late_cols else None
@@ -176,7 +174,6 @@ st.markdown("---")
 # ================= 7 ADVANCED FILTERS TOOLBAR =================
 st.subheader("🔍 Advanced Filters Toolbar")
 
-# Date dropdown populated from Reported Dates
 dates_set = sorted(list({str(str(v)[:10]).strip() for v in df.get(rep_col_name, []) if rep_col_name and not is_blank(v)}))
 months_set = sorted(list({str(str(v)[3:10]).strip() for v in df.get(desp_col, []) if desp_col and not is_blank(v) and len(str(v)) >= 10}))
 staff_set = sorted(list({str(v).strip() for v in df.get(staff_col, []) if staff_col and not is_blank(v)}))
@@ -216,7 +213,6 @@ if trip_type_filter == "Trip Closed (Reported Mentioned)" and rep_col_name:
 elif trip_type_filter == "In-Transit (Reported Not Mentioned)" and rep_col_name:
     filtered_df = filtered_df[filtered_df[rep_col_name].apply(lambda x: is_blank(x))]
 
-# Filter by Selected Reported Date
 if sel_date != "ALL" and rep_col_name:
     filtered_df = filtered_df[filtered_df[rep_col_name].astype(str).str.startswith(sel_date)]
 
@@ -255,7 +251,7 @@ if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# ================= STRICT USER-SPECIFIED COLUMNS =================
+# ================= EXACT 19 USER-SPECIFIED COLUMNS =================
 desired_columns = [
     "Lorry No.", 
     "Veh.Type", 
@@ -264,9 +260,17 @@ desired_columns = [
     "Party", 
     "Desp. Date & Time", 
     "1st Touching", 
+    "1st Touching Reporting Date & Time", 
+    "1st Touching Delivery Date & Time", 
+    "1st Touching Hrs.", 
+    "2nd Touching", 
+    "2nd Touching Reporting Date & Time", 
+    "2nd Touching Delivery Date & Time", 
+    "2nd Touching Hrs.", 
+    "Final Touching Reporting Date & Time", 
     "Total Touching Hrs.", 
-    "Late Hrs",
-    "Tracking Remark",
+    "Late Hrs", 
+    "Tracking Remark", 
     "Controlling Staff Name"
 ]
 
