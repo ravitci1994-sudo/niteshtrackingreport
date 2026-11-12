@@ -88,6 +88,11 @@ def get_sample_data():
 st.title("🚀 Fleet Analytics & MIS Dashboard")
 st.markdown("Welcome back, **Nitesh** | Logistics Management System")
 
+# Initialize Session State for persistence
+if "saved_data" not in st.session_state:
+    st.session_state.saved_data = get_sample_data()
+    st.session_state.source_name = "Default Fleet Sample"
+
 # Sidebar - Multiple File Upload
 st.sidebar.header("📁 Data Source")
 uploaded_files = st.sidebar.file_uploader(
@@ -96,26 +101,7 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
-# Load Data
-df_list = []
-if uploaded_files:
-    for file in uploaded_files:
-        try:
-            if file.name.endswith('.csv'):
-                df_temp = pd.read_csv(file)
-            else:
-                df_temp = pd.read_excel(file)
-            df_list.append(df_temp)
-        except Exception as e:
-            st.sidebar.error(f"Error loading {file.name}: {e}")
-    if df_list:
-        raw_df = pd.concat(df_list, ignore_index=True)
-    else:
-        raw_df = get_sample_data()
-else:
-    raw_df = get_sample_data()
-
-# Process & Normalize Columns (Avoiding duplicates)
+# Process & Normalize Columns Function
 def process_data(df):
     processed = []
     for _, row in df.iterrows():
@@ -148,7 +134,27 @@ def process_data(df):
         processed.append(new_row)
     return pd.DataFrame(processed)
 
-df = process_data(raw_df)
+# Update session state if new files are uploaded
+if uploaded_files:
+    df_list = []
+    file_names = []
+    for file in uploaded_files:
+        file_names.append(file.name)
+        try:
+            if file.name.endswith('.csv'):
+                df_temp = pd.read_csv(file)
+            else:
+                df_temp = pd.read_excel(file)
+            df_list.append(df_temp)
+        except Exception as e:
+            st.sidebar.error(f"Error loading {file.name}: {e}")
+    if df_list:
+        raw_df = pd.concat(df_list, ignore_index=True)
+        st.session_state.saved_data = process_data(raw_df)
+        st.session_state.source_name = ", ".join(file_names)
+
+df = st.session_state.saved_data
+st.sidebar.info(f"Loaded: {st.session_state.source_name}")
 
 # Required Unique Display Columns
 required_cols = [
