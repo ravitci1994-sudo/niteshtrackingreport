@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-import shutil
 
 # Page Configuration
 st.set_page_config(
@@ -71,12 +70,13 @@ def is_zero_late(val):
 def get_sample_data():
     return pd.DataFrame([
         {
-            "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "Party": "DHL",
-            "Desp. Date & Time": "08/11/2026 13:04:00", "1st Touching": "Surat", 
-            "1st Touching Reporting Date & Time": "09/11/2026 11:00", "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "3h",
-            "2nd Touching": "-", "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
+            "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "Delhi", "Destination": "Vapi", "KM": "1200", "Party": "DHL",
+            "Desp. Date & Time": "08/11/2026 13:04:00", "Hrs. Taken": "48h", "Expected Dly. Date & Time": "10/11/2026 12:00", "Hrs. Given": "50h",
+            "1st Touching": "Surat", "1st Touching Reporting Date & Time": "09/11/2026 11:00", "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "3h",
+            "2nd Touching": "Mumbai", "2nd Touching Reporting Date & Time": "10/11/2026 08:00", "2nd Touching Delivery Date & Time": "10/11/2026 10:00", "2nd Touching Hrs.": "2h",
             "Final Touching Reporting Date & Time": "10/11/2026 14:00",
-            "Total Touching Hrs.": "28h", "Late Hrs": "0", "Tracking Remark": "Delivered on time", "Controlling Staff Name": "Amit Kumar"
+            "Total Touching Hrs.": "5h", "Hrs. Taken with touching": "52h", "Hrs. Taken without touching (Dly.)": "47h", "Late Hrs": "0", 
+            "Tracking Remark": "Delivered on time", "Group Name": "G1", "Controlling Staff Name": "Amit Kumar", "Foreman Name": "Rajesh"
         }
     ])
 
@@ -141,9 +141,7 @@ if st.sidebar.button("🗑️ Remove Uploaded Data"):
     st.sidebar.success("Uploaded data removed successfully!")
     st.rerun()
 
-# Save new files to disk folder
 if uploaded_files:
-    # Clear old persisted files
     for f in os.listdir(UPLOAD_DIR):
         os.remove(os.path.join(UPLOAD_DIR, f))
     
@@ -187,6 +185,9 @@ staff_col = staff_cols[0] if staff_cols else None
 
 client_cols = [c for c in df.columns if 'party' in c.lower() or 'client' in c.lower() or 'vendor' in c.lower()]
 client_col = client_cols[0] if client_cols else None
+
+remark_cols = [c for c in df.columns if 'tracking remark' in c.lower() or 'remark' in c.lower()]
+remark_col = remark_cols[0] if remark_cols else None
 
 # Calculate Metrics
 trip_closed = 0
@@ -292,45 +293,77 @@ if sel_delay != "ALL" and late_col_name:
         return False
     filtered_df = filtered_df[filtered_df[late_col_name].apply(check_delay_range)]
 
+if sel_remarks != "ALL" and remark_col:
+    if sel_remarks == "With Remarks":
+        filtered_df = filtered_df[filtered_df[remark_col].apply(lambda x: not is_blank(x))]
+    elif sel_remarks == "Without Remarks":
+        filtered_df = filtered_df[filtered_df[remark_col].apply(lambda x: is_blank(x))]
+
 if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# ================= EXACT 19 USER-SPECIFIED COLUMNS =================
+# ================= RENAME COLUMNS FOR DISPLAY =================
+display_df = filtered_df.copy()
+rename_mapping = {}
+for col in display_df.columns:
+    c_lower = col.strip().lower()
+    if '1st touching reporting' in c_lower:
+        rename_mapping[col] = 'In time'
+    elif '2nd touching reporting' in c_lower:
+        rename_mapping[col] = 'In time'
+    elif '2nd touching delivery' in c_lower:
+        rename_mapping[col] = 'Out time'
+    elif '2nd touching hrs' in c_lower:
+        rename_mapping[col] = 'Hours'
+    elif 'final touching reporting' in c_lower:
+        rename_mapping[col] = 'Reported time'
+
+display_df = display_df.rename(columns=rename_mapping)
+
+# ================= EXACT 27 USER-SPECIFIED COLUMNS =================
 desired_columns = [
     "Lorry No.", 
     "Veh.Type", 
     "From", 
     "Destination", 
+    "KM", 
     "Party", 
     "Desp. Date & Time", 
+    "Hrs. Taken", 
+    "Expected Dly. Date & Time", 
+    "Hrs. Given", 
     "1st Touching", 
-    "1st Touching Reporting Date & Time", 
+    "In time", # Renamed from 1st Touching Reporting Date & Time
     "1st Touching Delivery Date & Time", 
     "1st Touching Hrs.", 
     "2nd Touching", 
-    "2nd Touching Reporting Date & Time", 
-    "2nd Touching Delivery Date & Time", 
-    "2nd Touching Hrs.", 
-    "Final Touching Reporting Date & Time", 
+    "In time", # Renamed from 2nd Touching Reporting Date & Time
+    "Out time", # Renamed from 2nd Touching Delivery Date & Time
+    "Hours", # Renamed from 2nd Touching Hrs.
+    "Reported time", # Renamed from Final Touching Reporting Date & Time
     "Total Touching Hrs.", 
+    "Hrs. Taken with touching", 
+    "Hrs. Taken without touching (Dly.)", 
     "Late Hrs", 
     "Tracking Remark", 
-    "Controlling Staff Name"
+    "Group Name", 
+    "Controlling Staff Name", 
+    "Foreman Name"
 ]
 
 final_display_cols = []
 for d_col in desired_columns:
-    match = next((c for c in filtered_df.columns if c.strip().lower() == d_col.lower()), None)
-    if match:
+    match = next((c for c in display_df.columns if c.strip().lower() == d_col.lower()), None)
+    if match and match not in final_display_cols:
         final_display_cols.append(match)
 
 # Display Main Table
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
 if final_display_cols:
-    st.dataframe(filtered_df[final_display_cols], use_container_width=True)
+    st.dataframe(display_df[final_display_cols], use_container_width=True)
 else:
-    st.dataframe(filtered_df, use_container_width=True)
+    st.dataframe(display_df, use_container_width=True)
 
 st.markdown("---")
 
