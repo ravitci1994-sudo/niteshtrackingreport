@@ -32,24 +32,24 @@ st.markdown("""
 UPLOAD_DIR = "saved_fleet_data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Helper: Precise Client/Party Name Normalization
+# Helper: Precise Client/Party Name Normalization (Strict Overwrite)
 def normalize_party(name):
     if pd.isna(name) or name == "":
         return "Other"
     s = str(name).strip()
     s_upper = s.upper()
     
-    # Strict Client Name Standardization as requested
-    if "DHL SUPPLY CHAIN" in s_upper or s_upper == "DHL":
+    # Strict matching for exact user requirements
+    if "TRACKON" in s_upper:
+        return "Trackon"
+    if "DHL" in s_upper:
         return "DHL"
     if "BUSYBEE" in s_upper:
         return "Busybees"
-    if "TRACKON" in s_upper:
-        return "Trackon"
     if "AMAZON" in s_upper:
         return "Amazon"
     
-    # Clean up corporate suffixes for others
+    # Clean up corporate suffixes for any other party names
     for suffix in [" PRIVATE LIMITED", " PVT LTD", " LTD", " (INDIA)", " SOLUTIONS", " COURIERS PVT. LTD."]:
         if s_upper.endswith(suffix):
             s = s[:-len(suffix)].strip()
@@ -81,13 +81,13 @@ def is_zero_late(val):
 def get_sample_data():
     return pd.DataFrame([
         {
-            "Lorry No.": "MH04AB1234", "Veh.Type": "15MT", "From": "DELHI", "Destination": "BHIWANDI", "KM": "1200", "Party": "DHL SUPPLY CHAIN INDIA PVT LTD",
-            "Desp. Date & Time": "08/11/2026 13:04:00", "Hrs. Taken": "48h", "Expected Dly. Date & Time": "10/11/2026 12:00", "Hrs. Given": "50h",
-            "1st Touching": "Surat", "1st Touching Reporting Date & Time": "09/11/2026 11:00", "1st Touching Delivery Date & Time": "09/11/2026 14:00", "1st Touching Hrs.": "3h",
-            "2nd Touching": "Mumbai", "2nd Touching Reporting Date & Time": "10/11/2026 08:00", "2nd Touching Delivery Date & Time": "10/11/2026 10:00", "2nd Touching Hrs.": "2h",
-            "Final Touching Reporting Date & Time": "10/11/2026 14:00",
-            "Total Touching Hrs.": "5h", "Hrs. Taken with touching": "52h", "Hrs. Taken without touching (Dly.)": "47h", "Late Hrs": "0", 
-            "Tracking Remark": "Delivered on time", "Group Name": "G1", "Controlling Staff Name": "Amit Kumar", "Foreman Name": "Rajesh"
+            "Lorry No.": "HR38AH7455", "Veh.Type": "32 FEET MXL", "From": "DELHI", "Destination": "BHIWANDI", "KM": "1500", "Party": "TRACKON COURIERS PVT. LTD.",
+            "Desp. Date & Time": "13/11/2026 06:18:00", "Hrs. Taken": "02:05:17", "Expected Dly. Date & Time": "14/11/2026 20:18:00", "Hrs. Given": "38:00:00",
+            "1st Touching": "Surat", "1st Touching Reporting Date & Time": "13/11/2026 10:00", "1st Touching Delivery Date & Time": "13/11/2026 12:00", "1st Touching Hrs.": "2h",
+            "2nd Touching": "-", "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
+            "Final Touching Reporting Date & Time": "14/11/2026 20:18:00",
+            "Total Touching Hrs.": "2h", "Hrs. Taken with touching": "38h", "Hrs. Taken without touching (Dly.)": "36h", "Late Hrs": "0", 
+            "Tracking Remark": "Delivered on time", "Group Name": "G1", "Controlling Staff Name": "Nitesh", "Foreman Name": "Rajesh"
         }
     ])
 
@@ -103,6 +103,7 @@ def process_data(df):
             clean_col = str(col).strip()
             val = row[col]
             
+            # Apply strict party normalization on any party/client column
             if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
                 val = normalize_party(val)
             
@@ -126,7 +127,8 @@ def load_persisted_data():
             except Exception:
                 pass
         if df_list:
-            return pd.concat(df_list, ignore_index=True), ", ".join(files)
+            combined_raw = pd.concat(df_list, ignore_index=True)
+            return process_data(combined_raw), ", ".join(files)
     return get_sample_data(), "Default Fleet Sample"
 
 if "saved_data" not in st.session_state:
@@ -440,7 +442,7 @@ if from_cols and dest_cols:
         route_df_summary = pd.DataFrame(route_data)
         st.dataframe(route_df_summary, use_container_width=True)
         
-        # Route Drill-down Selector (Select Route to view exact trips)
+        # Route Drill-down Selector
         st.markdown("#### 🔍 Route Drill-down Details")
         all_routes_list = sorted(list(route_stats.keys()))
         selected_drill_route = st.selectbox("Select Route to View Trips Data", ["SELECT ROUTE"] + all_routes_list)
