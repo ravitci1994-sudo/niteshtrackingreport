@@ -40,7 +40,7 @@ def normalize_party(name):
     s_upper = s.upper()
     
     # Strict Client Name Standardization as requested
-    if "DHL" in s_upper:
+    if "DHL SUPPLY CHAIN" in s_upper or s_upper == "DHL":
         return "DHL"
     if "BUSYBEE" in s_upper:
         return "Busybees"
@@ -440,7 +440,7 @@ if from_cols and dest_cols:
         route_df_summary = pd.DataFrame(route_data)
         st.dataframe(route_df_summary, use_container_width=True)
         
-        # Route Drill-down Selector (Click/Select Route to view exact trips)
+        # Route Drill-down Selector (Select Route to view exact trips)
         st.markdown("#### 🔍 Route Drill-down Details")
         all_routes_list = sorted(list(route_stats.keys()))
         selected_drill_route = st.selectbox("Select Route to View Trips Data", ["SELECT ROUTE"] + all_routes_list)
@@ -449,7 +449,6 @@ if from_cols and dest_cols:
             frm_name, dest_name = selected_drill_route.split(" → ")
             drill_df = df[(df[from_cols[0]].astype(str).str.strip() == frm_name) & (df[dest_cols[0]].astype(str).str.strip() == dest_name)]
             
-            # Apply display column renaming & filtering
             drill_display_df = drill_df.copy()
             drill_rename_mapping = {}
             for col in drill_display_df.columns:
