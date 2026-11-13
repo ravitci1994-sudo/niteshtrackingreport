@@ -352,7 +352,7 @@ def highlight_late_cell(val):
 # Display Main Table with ONLY Late Hrs cell highlighted in Red
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
 if final_display_cols:
-    styled_df = display_df[final_display_cols].style.applymap(
+    styled_df = display_df[final_display_cols].style.map(
         highlight_late_cell, 
         subset=[c for c in final_display_cols if c.strip().lower() in ['late hrs', 'latehrs']]
     )
@@ -478,7 +478,7 @@ if from_cols and dest_cols:
             
             st.info(f"Showing trips for route: **{selected_drill_route}** ({len(drill_df)} entries found)")
             if drill_final_cols:
-                drill_styled = drill_display_df[drill_final_cols].style.applymap(
+                drill_styled = drill_display_df[drill_final_cols].style.map(
                     highlight_late_cell, 
                     subset=[c for c in drill_final_cols if c.strip().lower() in ['late hrs', 'latehrs']]
                 )
