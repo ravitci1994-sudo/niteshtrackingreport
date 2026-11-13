@@ -86,8 +86,8 @@ def get_sample_data():
             "1st Touching": "Surat", "1st Touching Reporting Date & Time": "13/11/2026 10:00", "1st Touching Delivery Date & Time": "13/11/2026 12:00", "1st Touching Hrs.": "2h",
             "2nd Touching": "-", "2nd Touching Reporting Date & Time": "-", "2nd Touching Delivery Date & Time": "-", "2nd Touching Hrs.": "-",
             "Final Touching Reporting Date & Time": "14/11/2026 20:18:00",
-            "Total Touching Hrs.": "2h", "Hrs. Taken with touching": "38h", "Hrs. Taken without touching (Dly.)": "36h", "Late Hrs": "0", 
-            "Tracking Remark": "Delivered on time", "Group Name": "G1", "Controlling Staff Name": "Nitesh", "Foreman Name": "Rajesh"
+            "Total Touching Hrs.": "2h", "Hrs. Taken with touching": "38h", "Hrs. Taken without touching (Dly.)": "36h", "Late Hrs": "01:16:06", 
+            "Tracking Remark": "Delivered with delay", "Group Name": "G1", "Controlling Staff Name": "Nitesh", "Foreman Name": "Rajesh"
         }
     ])
 
@@ -103,7 +103,6 @@ def process_data(df):
             clean_col = str(col).strip()
             val = row[col]
             
-            # Apply strict party normalization on any party/client column
             if any(k in clean_col.lower() for k in ["party", "client", "vendor"]):
                 val = normalize_party(val)
             
@@ -251,7 +250,7 @@ with fcol4:
 with fcol5:
     sel_client = st.selectbox("Client", ["ALL"] + client_set)
 with fcol6:
-    sel_delay = st.selectbox("Delay Range", ["ALL", "< 1 Hour", "< 30 Mins", "< 10 Mins"])
+    sel_delay = st.selectbox("Delay / Late Hrs", ["ALL", "Delayed Only", "On Time Only"])
 with fcol7:
     sel_remarks = st.selectbox("Remarks", ["ALL", "With Remarks", "Without Remarks"])
 
@@ -291,20 +290,10 @@ if sel_status != "ALL" and late_col_name:
         filtered_df = filtered_df[filtered_df[late_col_name].apply(lambda x: is_zero_late(x))]
 
 if sel_delay != "ALL" and late_col_name:
-    def check_delay_range(val):
-        try:
-            hrs = float(val)
-            mins = hrs * 60
-            if sel_delay == "< 1 Hour":
-                return 0 < mins < 60
-            elif sel_delay == "< 30 Mins":
-                return 0 < mins < 30
-            elif sel_delay == "< 10 Mins":
-                return 0 < mins < 10
-        except:
-            return False
-        return False
-    filtered_df = filtered_df[filtered_df[late_col_name].apply(check_delay_range)]
+    if sel_delay == "Delayed Only":
+        filtered_df = filtered_df[filtered_df[late_col_name].apply(lambda x: not is_zero_late(x))]
+    elif sel_delay == "On Time Only":
+        filtered_df = filtered_df[filtered_df[late_col_name].apply(lambda x: is_zero_late(x))]
 
 if sel_remarks != "ALL" and remark_col:
     if sel_remarks == "With Remarks":
@@ -353,10 +342,22 @@ for d_col in desired_columns:
         final_display_cols.append(match)
         seen_cols.add(match)
 
-# Display Main Table
+# Styling function to highlight delayed rows/cells in Red
+def highlight_delays(row):
+    try:
+        # Check original or display late hrs value
+        late_val = str(row.get("Late Hrs", "0"))
+        if not is_zero_late(late_val):
+            return ['background-color: rgba(239, 68, 68, 0.25); color: #fca5a5;' for _ in row]
+    except:
+        pass
+    return ['' for _ in row]
+
+# Display Main Table with Highlighted Red Delay Rows
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
 if final_display_cols:
-    st.dataframe(display_df[final_display_cols], use_container_width=True)
+    styled_df = display_df[final_display_cols].style.apply(highlight_delays, axis=1)
+    st.dataframe(styled_df, use_container_width=True)
 else:
     st.dataframe(display_df, use_container_width=True)
 
@@ -478,7 +479,8 @@ if from_cols and dest_cols:
             
             st.info(f"Showing trips for route: **{selected_drill_route}** ({len(drill_df)} entries found)")
             if drill_final_cols:
-                st.dataframe(drill_display_df[drill_final_cols], use_container_width=True)
+                drill_styled = drill_display_df[drill_final_cols].style.apply(highlight_delays, axis=1)
+                st.dataframe(drill_styled, use_container_width=True)
             else:
                 st.dataframe(drill_display_df, use_container_width=True)
     else:
