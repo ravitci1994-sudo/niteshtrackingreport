@@ -32,18 +32,29 @@ st.markdown("""
 UPLOAD_DIR = "saved_fleet_data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Helper: Normalize Party Names
+# Helper: Smart Client/Party Name Normalization & Sanitization
 def normalize_party(name):
     if pd.isna(name) or name == "":
         return "Other"
-    s = str(name).strip().upper()
-    if "BUSYBEE" in s:
+    s = str(name).strip()
+    s_upper = s.upper()
+    
+    # Known key mappings
+    if "BUSYBEE" in s_upper:
         return "Busybees"
-    if "DHL" in s:
+    if "DHL" in s_upper:
         return "DHL"
-    if "TRACKON" in s:
+    if "TRACKON" in s_upper:
         return "Trackon"
-    return str(name).strip()
+    if "AMAZON" in s_upper:
+        return "Amazon"
+    
+    # For other clients, clean up excessively long corporate suffixes automatically for neat UI display
+    for suffix in [" PRIVATE LIMITED", " PVT LTD", " LTD", " (INDIA)", " SOLUTIONS"]:
+        if s_upper.endswith(suffix):
+            s = s[:-len(suffix)].strip()
+            
+    return s
 
 # Helper: Blank Check
 def is_blank(val):
