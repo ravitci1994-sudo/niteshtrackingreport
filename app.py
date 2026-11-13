@@ -303,25 +303,26 @@ if search_query:
     q = search_query.lower()
     filtered_df = filtered_df[filtered_df.astype(str).apply(lambda row: row.str.lower().str.contains(q).any(), axis=1)]
 
-# ================= RENAME COLUMNS FOR DISPLAY =================
+# ================= RENAME COLUMNS FOR DISPLAY (Ensuring Unique Names) =================
 display_df = filtered_df.copy()
 rename_mapping = {}
+
 for col in display_df.columns:
     c_lower = col.strip().lower()
-    if '1st touching reporting' in c_lower:
-        rename_mapping[col] = 'In time'
-    elif '2nd touching reporting' in c_lower:
-        rename_mapping[col] = 'In time'
-    elif '2nd touching delivery' in c_lower:
+    if '1st touching reporting' in c_lower or (('1st' in c_lower or 'first' in c_lower) and 'report' in c_lower):
+        rename_mapping[col] = '1st In time'
+    elif '2nd touching reporting' in c_lower or (('2nd' in c_lower or 'second' in c_lower) and 'report' in c_lower):
+        rename_mapping[col] = '2nd In time'
+    elif '2nd touching delivery' in c_lower or (('2nd' in c_lower or 'second' in c_lower) and 'deliver' in c_lower):
         rename_mapping[col] = 'Out time'
-    elif '2nd touching hrs' in c_lower:
+    elif '2nd touching hrs' in c_lower or (('2nd' in c_lower or 'second' in c_lower) and 'hr' in c_lower):
         rename_mapping[col] = 'Hours'
-    elif 'final touching reporting' in c_lower:
+    elif 'final touching reporting' in c_lower or c_lower == 'reported':
         rename_mapping[col] = 'Reported time'
 
 display_df = display_df.rename(columns=rename_mapping)
 
-# ================= EXACT 27 USER-SPECIFIED COLUMNS =================
+# ================= EXACT USER-SPECIFIED COLUMNS (Unique Names) =================
 desired_columns = [
     "Lorry No.", 
     "Veh.Type", 
@@ -334,14 +335,14 @@ desired_columns = [
     "Expected Dly. Date & Time", 
     "Hrs. Given", 
     "1st Touching", 
-    "In time", # Renamed from 1st Touching Reporting Date & Time
+    "1st In time", 
     "1st Touching Delivery Date & Time", 
     "1st Touching Hrs.", 
     "2nd Touching", 
-    "In time", # Renamed from 2nd Touching Reporting Date & Time
-    "Out time", # Renamed from 2nd Touching Delivery Date & Time
-    "Hours", # Renamed from 2nd Touching Hrs.
-    "Reported time", # Renamed from Final Touching Reporting Date & Time
+    "2nd In time", 
+    "Out time", 
+    "Hours", 
+    "Reported time", 
     "Total Touching Hrs.", 
     "Hrs. Taken with touching", 
     "Hrs. Taken without touching (Dly.)", 
@@ -353,10 +354,12 @@ desired_columns = [
 ]
 
 final_display_cols = []
+seen_cols = set()
 for d_col in desired_columns:
     match = next((c for c in display_df.columns if c.strip().lower() == d_col.lower()), None)
-    if match and match not in final_display_cols:
+    if match and match not in seen_cols:
         final_display_cols.append(match)
+        seen_cols.add(match)
 
 # Display Main Table
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
