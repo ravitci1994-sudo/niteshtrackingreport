@@ -39,7 +39,6 @@ def normalize_party(name):
     s = str(name).strip()
     s_upper = s.upper()
     
-    # Strict matching for exact user requirements
     if "TRACKON" in s_upper:
         return "Trackon"
     if "DHL" in s_upper:
@@ -49,7 +48,6 @@ def normalize_party(name):
     if "AMAZON" in s_upper:
         return "Amazon"
     
-    # Clean up corporate suffixes for any other party names
     for suffix in [" PRIVATE LIMITED", " PVT LTD", " LTD", " (INDIA)", " SOLUTIONS", " COURIERS PVT. LTD."]:
         if s_upper.endswith(suffix):
             s = s[:-len(suffix)].strip()
@@ -342,21 +340,22 @@ for d_col in desired_columns:
         final_display_cols.append(match)
         seen_cols.add(match)
 
-# Styling function to highlight delayed rows/cells in Red
-def highlight_delays(row):
+# Styling function to highlight ONLY "Late Hrs" cell in Red when delayed
+def highlight_late_cell(val):
     try:
-        # Check original or display late hrs value
-        late_val = str(row.get("Late Hrs", "0"))
-        if not is_zero_late(late_val):
-            return ['background-color: rgba(239, 68, 68, 0.25); color: #fca5a5;' for _ in row]
+        if not is_zero_late(val):
+            return 'background-color: rgba(239, 68, 68, 0.35); color: #fca5a5; font-weight: bold;'
     except:
         pass
-    return ['' for _ in row]
+    return ''
 
-# Display Main Table with Highlighted Red Delay Rows
+# Display Main Table with ONLY Late Hrs cell highlighted in Red
 st.subheader(f"📋 Fleet Records ({len(filtered_df)} entries found)")
 if final_display_cols:
-    styled_df = display_df[final_display_cols].style.apply(highlight_delays, axis=1)
+    styled_df = display_df[final_display_cols].style.applymap(
+        highlight_late_cell, 
+        subset=[c for c in final_display_cols if c.strip().lower() in ['late hrs', 'latehrs']]
+    )
     st.dataframe(styled_df, use_container_width=True)
 else:
     st.dataframe(display_df, use_container_width=True)
@@ -479,7 +478,10 @@ if from_cols and dest_cols:
             
             st.info(f"Showing trips for route: **{selected_drill_route}** ({len(drill_df)} entries found)")
             if drill_final_cols:
-                drill_styled = drill_display_df[drill_final_cols].style.apply(highlight_delays, axis=1)
+                drill_styled = drill_display_df[drill_final_cols].style.applymap(
+                    highlight_late_cell, 
+                    subset=[c for c in drill_final_cols if c.strip().lower() in ['late hrs', 'latehrs']]
+                )
                 st.dataframe(drill_styled, use_container_width=True)
             else:
                 st.dataframe(drill_display_df, use_container_width=True)
